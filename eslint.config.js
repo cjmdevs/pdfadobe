@@ -15,6 +15,7 @@ export default tseslint.config(
       "playwright-report",
       "tests/corpus/generated",
       "tests/corpus/out",
+      "scripts/tmp",
     ],
   },
   js.configs.recommended,

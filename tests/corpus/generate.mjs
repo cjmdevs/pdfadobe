@@ -141,7 +141,9 @@ function crc32(buf) {
   return ~c >>> 0;
 }
 
-function pngGray(width, height, gray) {
+/** Minimal PNG encoder. colorType 0 = gray (1 channel), 6 = RGBA (4 channels). */
+export function png(width, height, colorType, pixels) {
+  const channels = colorType === 6 ? 4 : 1;
   const chunk = (type, data) => {
     const len = Buffer.alloc(4);
     len.writeUInt32BE(data.length);
@@ -154,9 +156,12 @@ function pngGray(width, height, gray) {
   ihdr.writeUInt32BE(width, 0);
   ihdr.writeUInt32BE(height, 4);
   ihdr[8] = 8; // bit depth
-  ihdr[9] = 0; // grayscale
-  const raw = Buffer.alloc((width + 1) * height);
-  for (let y = 0; y < height; y++) gray.copy(raw, y * (width + 1) + 1, y * width, (y + 1) * width);
+  ihdr[9] = colorType;
+  const stride = width * channels;
+  const src = Buffer.from(pixels.buffer, pixels.byteOffset, pixels.byteLength);
+  const raw = Buffer.alloc((stride + 1) * height);
+  for (let y = 0; y < height; y++)
+    src.copy(raw, y * (stride + 1) + 1, y * stride, (y + 1) * stride);
   return Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk("IHDR", ihdr),
@@ -165,25 +170,43 @@ function pngGray(width, height, gray) {
   ]);
 }
 
-async function scannedImageOnly(sourceBytes) {
-  // Rasterize the 1-page text doc with PDFium, add deterministic speckle, embed as
-  // a full-page image. The result has NO text layer (OCR target for a later phase).
+/** Render page 0 of a PDF to RGBA with PDFium. */
+async function rasterize(pdfBytes, scaleFactor) {
   const require = createRequire(import.meta.url);
   const { init } = await import("@embedpdf/pdfium");
   const { PdfiumNative } = await import("@embedpdf/engines/pdfium");
   const wasm = readFileSync(require.resolve("@embedpdf/pdfium/pdfium.wasm"));
   const engine = new PdfiumNative(await init({ wasmBinary: wasm }), { fontFallback: null });
-  const src = await engine
-    .openDocumentBuffer({
-      id: "scan-src",
-      content: sourceBytes.buffer.slice(
-        sourceBytes.byteOffset,
-        sourceBytes.byteOffset + sourceBytes.byteLength,
-      ),
-    })
-    .toPromise();
-  const img = await engine.renderPageRaw(src, src.pages[0], { scaleFactor: 200 / 72 }).toPromise();
-  await engine.closeDocument(src).toPromise();
+  const b = Buffer.from(pdfBytes);
+  const content = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+  const src = await engine.openDocumentBuffer({ id: "raster-src", content }).toPromise();
+  const img = await engine.renderPageRaw(src, src.pages[0], { scaleFactor }).toPromise();
+  await engine.closeAllDocuments().toPromise();
+  return img;
+}
+
+/** A red "REVIEWED" rubber stamp, RGBA PNG with transparent background. */
+async function stampPng() {
+  const doc = await PDFDocument.create();
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const page = doc.addPage([180, 60]);
+  const red = rgb(0.75, 0.05, 0.05);
+  page.drawRectangle({ x: 4, y: 4, width: 172, height: 52, borderColor: red, borderWidth: 4 });
+  const w = bold.widthOfTextAtSize("REVIEWED", 26);
+  page.drawText("REVIEWED", { x: (180 - w) / 2, y: 21, size: 26, font: bold, color: red });
+  const img = await rasterize(await doc.save(), 3);
+  const px = Buffer.from(img.data.buffer, img.data.byteOffset, img.data.byteLength);
+  for (let i = 0; i < px.length; i += 4) {
+    // Alpha from darkness: white paper -> transparent.
+    px[i + 3] = 255 - Math.min(px[i], px[i + 1], px[i + 2]);
+  }
+  return png(img.width, img.height, 6, px);
+}
+
+async function scannedImageOnly(sourceBytes) {
+  // Rasterize the 1-page text doc with PDFium, add deterministic speckle, embed as
+  // a full-page image. The result has NO text layer (OCR target for a later phase).
+  const img = await rasterize(sourceBytes, 200 / 72);
 
   const gray = Buffer.alloc(img.width * img.height);
   let seed = 42;
@@ -199,9 +222,9 @@ async function scannedImageOnly(sourceBytes) {
   }
   const doc = await PDFDocument.create();
   stamp(doc, "Synthetic scanned image-only document");
-  const png = await doc.embedPng(pngGray(img.width, img.height, gray));
+  const image = await doc.embedPng(png(img.width, img.height, 0, gray));
   const page = doc.addPage([612, 792]);
-  page.drawImage(png, { x: 0, y: 0, width: 612, height: 792 });
+  page.drawImage(image, { x: 0, y: 0, width: 612, height: 792 });
   return doc.save();
 }
 
@@ -230,6 +253,10 @@ function xmp(ssn) {
 export const SSN_LAYOUT = {
   keepText: "KEEP: Fictitious Taxpayer, 123 Example Street",
   formField: { name: "taxpayer.ssn", rect: { x: 200, y: 560, width: 160, height: 22 } },
+  /** Area-redaction zone: an image and a vector square lie fully inside it. */
+  areaZone: { x: 60, y: 400, width: 200, height: 70 },
+  areaImage: { x: 72, y: 410, width: 90, height: 30 },
+  areaVector: { x: 190, y: 415, width: 23, height: 23 },
 };
 
 async function ssnFixture() {
@@ -254,6 +281,12 @@ async function ssnFixture() {
   });
   // A vector rectangle under the first SSN (vector content under the box).
   p1.drawRectangle({ x: 100, y: 686, width: 70, height: 1.5, color: rgb(0.8, 0, 0) });
+
+  // Area zone: image + vector square fully inside SSN_LAYOUT.areaZone.
+  p1.drawText("Area zone (image + vector below):", { x: 72, y: 480, size: 10, font });
+  const img = await doc.embedPng(await stampPng());
+  p1.drawImage(img, SSN_LAYOUT.areaImage);
+  p1.drawRectangle({ ...SSN_LAYOUT.areaVector, color: rgb(0, 0.4, 0.8) });
 
   // Form field whose value is the SSN.
   p1.drawText("Field:", { x: 72, y: 566, size: 12, font });
@@ -281,7 +314,10 @@ async function ssnFixture() {
     font,
   });
 
-  const meta = doc.context.stream(xmp(FAKE_SSN), { Type: "Metadata", Subtype: "XML" });
+  const meta = doc.context.stream(Buffer.from(xmp(FAKE_SSN), "utf8"), {
+    Type: "Metadata",
+    Subtype: "XML",
+  });
   doc.catalog.set(PDFName.of("Metadata"), doc.context.register(meta));
   return doc.save({ useObjectStreams: false });
 }
@@ -305,6 +341,7 @@ export async function generateCorpus({ force = false } = {}) {
     scannedImageOnly(readFileSync(out("text-1p.pdf"))),
   );
   await write("ssn-redaction.pdf", ssnFixture);
+  await write("stamp-reviewed.png", stampPng);
 
   if (force || !existsSync(out("encrypted.pdf"))) {
     const { user, owner } = ENCRYPTED_PASSWORDS;

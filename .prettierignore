@@ -5,3 +5,4 @@ package-lock.json
 tests/corpus/generated
 tests/corpus/out
 tests/corpus/irs
+scripts/tmp
