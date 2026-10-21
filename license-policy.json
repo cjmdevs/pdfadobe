@@ -13,7 +13,8 @@
   "approvedExtras": {
     "Unicode-3.0": "Permissive (Unicode data license). ICU4X crates pulled in by url/idna via Tauri. Not copyleft.",
     "Zlib": "Permissive, OSI-approved. foldhash, zlib-rs (Rust deps of Tauri). Not copyleft.",
-    "CC-BY-4.0": "Attribution-only data license. caniuse-lite browser table, build-time only, not shipped. Not copyleft."
+    "CC-BY-4.0": "Attribution-only data license. caniuse-lite browser table, build-time only, not shipped. Not copyleft.",
+    "OFL-1.1": "SIL Open Font License. @embedpdf/fonts-* (deps of @embedpdf/engines). Only their file-list JS is imported; the font files are not bundled (CDN font fallback is disabled). OFL copyleft applies only to modified fonts; bundling with software is permitted. Flagged for owner review in docs/spike-report.md."
   },
   "packageOverrides": {}
 }

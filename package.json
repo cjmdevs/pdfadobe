@@ -17,7 +17,9 @@
     "format:check": "prettier --check .",
     "license-check": "node scripts/license-check.mjs",
     "corpus": "node tests/corpus/generate.mjs",
-    "corpus:irs": "node tests/corpus/fetch-irs.mjs"
+    "corpus:irs": "node tests/corpus/fetch-irs.mjs",
+    "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run test:rust && npm run license-check"
   },
   "dependencies": {
     "@embedpdf/engines": "^2.15.1",
