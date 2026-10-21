@@ -1,0 +1,21 @@
+# Dependencies / build
+node_modules/
+dist/
+src-tauri/target/
+mcp-server/node_modules/
+mcp-server/dist/
+
+# Client-data guard: PDFs and scans are ignored everywhere except the synthetic corpus.
+*.pdf
+*.tif
+*.tiff
+!tests/corpus/**/*.pdf
+*.bak
+
+# Env / OS / editor
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
