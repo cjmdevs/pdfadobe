@@ -4,17 +4,21 @@
   "version": "0.1.0",
   "identifier": "com.mgrcpas.pdfworkbench",
   "build": {
-    "beforeDevCommand": "npm run dev",
+    "beforeDevCommand": "node scripts/fetch-win-binaries.mjs && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
+    "beforeBuildCommand": "node scripts/fetch-win-binaries.mjs && npm run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
+        "label": "main",
         "title": "PDF Workbench",
-        "width": 1200,
-        "height": 850
+        "width": 1280,
+        "height": 900,
+        "minWidth": 640,
+        "minHeight": 480,
+        "dragDropEnabled": true
       }
     ],
     "security": {
@@ -25,7 +29,8 @@
         "img-src": "'self' blob: data:",
         "style-src": "'self' 'unsafe-inline'",
         "worker-src": "'self' blob:",
-        "object-src": "'none'"
+        "object-src": "'none'",
+        "frame-src": "'self' blob:"
       }
     }
   },
@@ -38,6 +43,19 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "fileAssociations": [
+      {
+        "ext": ["pdf"],
+        "name": "PDF Document",
+        "description": "PDF Document",
+        "mimeType": "application/pdf",
+        "role": "Viewer"
+      }
+    ],
+    "resources": {
+      "vendor/pdfium/": "pdfium/",
+      "vendor/qpdf/": "qpdf/"
+    }
   }
 }

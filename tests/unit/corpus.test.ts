@@ -1,8 +1,9 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { ENCRYPTED_PASSWORDS, FAKE_SSN, OUT_DIR } from "../corpus/generate.mjs";
+import { ENCRYPTED_PASSWORDS, FAKE_SSN, NAV_LAYOUT, OUT_DIR } from "../corpus/generate.mjs";
 import { nodeEngine, readPdf } from "../helpers/pdfium-node";
+import type { PdfAttachmentObject, PdfBookmarkObject } from "@embedpdf/models";
 import type { Engine } from "../../src/engine/pdfium";
 import { pageText } from "../../src/engine/text";
 
@@ -34,6 +35,28 @@ describe("synthetic corpus", () => {
     const doc = await open(join(OUT_DIR, "long-200p.pdf"));
     expect(doc.pageCount).toBe(200);
     expect(await engine.extractText(doc, [199]).toPromise()).toContain("Page 200 of 200");
+  });
+
+  it("500-page performance doc has 500 pages", async () => {
+    const doc = await open(join(OUT_DIR, "long-500p.pdf"));
+    expect(doc.pageCount).toBe(500);
+    expect(await engine.extractText(doc, [499]).toPromise()).toContain("Page 500 of 500");
+  });
+
+  it("navigation fixture has a nested outline, attachments, and mixed pages", async () => {
+    const doc = await open(join(OUT_DIR, "navigation.pdf"));
+    expect(doc.pageCount).toBe(NAV_LAYOUT.pages.length);
+    const { bookmarks } = await engine.getBookmarks(doc).toPromise();
+    expect(bookmarks.map((b: PdfBookmarkObject) => b.title)).toEqual(NAV_LAYOUT.outline.map((o) => o.title));
+    expect(bookmarks[1]?.children?.[1]?.children?.[0]?.title).toBe("Landscape page");
+    const atts = await engine.getAttachments(doc).toPromise();
+    expect(atts.map((a: PdfAttachmentObject) => a.name).sort()).toEqual(["notes.txt", "trial-balance.csv"]);
+    expect(doc.pages[4]?.size).toEqual({ width: 792, height: 612 });
+    expect(doc.pages[5]?.rotation).toBe(1); // Rotation.Degree90
+  });
+
+  it("corrupt.pdf cannot be opened", async () => {
+    await expect(open(join(OUT_DIR, "corrupt.pdf"))).rejects.toBeDefined();
   });
 
   it("AcroForm has fillable widgets", async () => {

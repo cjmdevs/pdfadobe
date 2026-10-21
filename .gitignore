@@ -32,3 +32,6 @@ playwright-report/
 tests/corpus/generated/
 tests/corpus/out/
 scripts/tmp/
+
+# Native Windows binaries fetched by scripts/fetch-win-binaries.mjs (pinned by SHA-256)
+src-tauri/vendor/

@@ -11,7 +11,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
-import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from "pdf-lib";
+import { PDFDocument, PDFName, PDFString, StandardFonts, degrees, rgb } from "pdf-lib";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const OUT_DIR = join(here, "generated");
@@ -95,6 +95,164 @@ async function long200() {
     page.drawText(String(n), { x: 300, y: 36, size: 10, font });
   }
   return doc.save();
+}
+
+async function long500() {
+  // Phase 1 performance target: opens to first page < 2 s, scrolls without lingering
+  // blank pages. Each page has text plus a ruled table so rendering is not trivial.
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic 500-page document");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  for (let n = 1; n <= 500; n++) {
+    const page = doc.addPage([612, 792]);
+    page.drawText(`Page ${n} of 500`, { x: 72, y: 740, size: 14, font: bold });
+    page.drawText(`Workpaper ${String(Math.ceil(n / 25)).padStart(2, "0")}-${n}`, {
+      x: 72,
+      y: 718,
+      size: 11,
+      font,
+    });
+    let y = 690;
+    for (let row = 0; row < 24; row++) {
+      page.drawLine({ start: { x: 72, y: y - 4 }, end: { x: 540, y: y - 4 }, thickness: 0.4 });
+      page.drawText(`Line ${row + 1}  Account ${1000 + row * 10}`, { x: 76, y, size: 9, font });
+      const amount = ((n * 7919 + row * 104729) % 1000000) / 100;
+      page.drawText(amount.toFixed(2), { x: 470, y, size: 9, font });
+      y -= 22;
+    }
+    page.drawText(String(n), { x: 300, y: 36, size: 10, font });
+  }
+  return doc.save();
+}
+
+/**
+ * Viewer navigation fixture: nested outline (3 levels), two embedded attachments,
+ * mixed page sizes (Letter, Legal, A4, landscape Letter) and a page with /Rotate 90.
+ */
+export const NAV_LAYOUT = {
+  pages: [
+    { label: "Cover", size: [612, 792] },
+    { label: "Letter portrait", size: [612, 792] },
+    { label: "Legal portrait", size: [612, 1008] },
+    { label: "A4 portrait", size: [595.28, 841.89] },
+    { label: "Letter landscape", size: [792, 612] },
+    { label: "Rotated 90", size: [612, 792], rotate: 90 },
+    { label: "Schedule A", size: [612, 792] },
+    { label: "Schedule B", size: [612, 792] },
+  ],
+  outline: [
+    { title: "Cover", page: 0 },
+    {
+      title: "Part I - Sizes",
+      page: 1,
+      children: [
+        { title: "Legal page", page: 2 },
+        { title: "A4 page", page: 3, children: [{ title: "Landscape page", page: 4 }] },
+      ],
+    },
+    { title: "Part II - Schedules", page: 6, children: [{ title: "Schedule B", page: 7 }] },
+  ],
+  attachments: [
+    { name: "trial-balance.csv", mimeType: "text/csv", description: "Synthetic trial balance" },
+    { name: "notes.txt", mimeType: "text/plain", description: "Synthetic notes" },
+  ],
+};
+
+async function navigation() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic navigation fixture");
+  doc.setSubject("Outline, attachments, mixed page sizes");
+  doc.setKeywords(["synthetic", "viewer"]);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const pages = NAV_LAYOUT.pages.map((p, i) => {
+    const page = doc.addPage(p.size);
+    if (p.rotate) page.setRotation(degrees(p.rotate));
+    page.drawText(`${p.label} (page ${i + 1})`, { x: 48, y: p.size[1] - 72, size: 16, font });
+    page.drawText("Navigation fixture: synthetic content only.", {
+      x: 48,
+      y: p.size[1] - 100,
+      size: 10,
+      font,
+    });
+    return page;
+  });
+
+  // Outline: build /Outlines with /First /Last /Next /Prev /Parent /Count by hand.
+  const ctx = doc.context;
+  const build = (items, parentRef) => {
+    const refs = items.map(() => ctx.nextRef());
+    items.forEach((item, i) => {
+      const dict = ctx.obj({
+        Title: PDFString.of(item.title),
+        Parent: parentRef,
+        Dest: ctx.obj([pages[item.page].ref, PDFName.of("XYZ"), null, null, null]),
+      });
+      if (i > 0) dict.set(PDFName.of("Prev"), refs[i - 1]);
+      if (i < items.length - 1) dict.set(PDFName.of("Next"), refs[i + 1]);
+      if (item.children?.length) {
+        const kids = build(item.children, refs[i]);
+        dict.set(PDFName.of("First"), kids[0]);
+        dict.set(PDFName.of("Last"), kids[kids.length - 1]);
+        dict.set(PDFName.of("Count"), ctx.obj(item.children.length));
+      }
+      ctx.assign(refs[i], dict);
+    });
+    return refs;
+  };
+  const outlinesRef = ctx.nextRef();
+  const top = build(NAV_LAYOUT.outline, outlinesRef);
+  ctx.assign(
+    outlinesRef,
+    ctx.obj({
+      Type: PDFName.of("Outlines"),
+      First: top[0],
+      Last: top[top.length - 1],
+      Count: ctx.obj(top.length),
+    }),
+  );
+  doc.catalog.set(PDFName.of("Outlines"), outlinesRef);
+
+  const enc = new TextEncoder();
+  await doc.attach(
+    enc.encode("account,debit,credit\n1000,100.00,0.00\n2000,0.00,100.00\n"),
+    "trial-balance.csv",
+    {
+      mimeType: "text/csv",
+      description: "Synthetic trial balance",
+      creationDate: FIXED_DATE,
+      modificationDate: FIXED_DATE,
+    },
+  );
+  await doc.attach(enc.encode("Synthetic notes. No client data.\n"), "notes.txt", {
+    mimeType: "text/plain",
+    description: "Synthetic notes",
+    creationDate: FIXED_DATE,
+    modificationDate: FIXED_DATE,
+  });
+  return doc.save();
+}
+
+/** Not a PDF PDFium can open: a header followed by junk. Must trigger the "corrupt" path. */
+function corrupt() {
+  const junk = Buffer.alloc(4096);
+  let x = 12345;
+  for (let i = 0; i < junk.length; i++) {
+    x = (x * 1103515245 + 12345) & 0x7fffffff;
+    junk[i] = x & 0xff;
+  }
+  return Buffer.concat([Buffer.from("%PDF-1.7\n%\xe2\xe3\xcf\xd3\n"), junk]);
+}
+
+/**
+ * A valid document whose cross-reference table points at the wrong offsets and whose
+ * trailer startxref is wrong. qpdf repairs it (exit 3 = warnings) by reconstructing xref.
+ */
+function damagedXref(sourceBytes) {
+  const s = Buffer.from(sourceBytes).toString("latin1");
+  const at = s.lastIndexOf("startxref");
+  const broken = s.slice(0, at) + "startxref\n999999\n%%EOF\n";
+  return Buffer.from(broken, "latin1");
 }
 
 async function acroForm() {
@@ -336,12 +494,20 @@ export async function generateCorpus({ force = false } = {}) {
 
   await write("text-1p.pdf", textOnePage);
   await write("long-200p.pdf", long200);
+  await write("long-500p.pdf", long500);
+  await write("navigation.pdf", navigation);
+  await write("corrupt.pdf", async () => corrupt());
   await write("acroform.pdf", acroForm);
   await write("scanned-image-only.pdf", async () =>
     scannedImageOnly(readFileSync(out("text-1p.pdf"))),
   );
   await write("ssn-redaction.pdf", ssnFixture);
   await write("stamp-reviewed.png", stampPng);
+  // useObjectStreams: false so the xref is a plain table that damagedXref can break.
+  await write("damaged-xref.pdf", async () => {
+    const doc = await PDFDocument.load(readFileSync(out("text-1p.pdf")));
+    return damagedXref(await doc.save({ useObjectStreams: false }));
+  });
 
   if (force || !existsSync(out("encrypted.pdf"))) {
     const { user, owner } = ENCRYPTED_PASSWORDS;

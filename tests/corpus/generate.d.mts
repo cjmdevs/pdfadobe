@@ -14,4 +14,14 @@ export const SSN_LAYOUT: {
   areaImage: PdfRect;
   areaVector: PdfRect;
 };
+export interface NavOutlineItem {
+  title: string;
+  page: number;
+  children?: NavOutlineItem[];
+}
+export const NAV_LAYOUT: {
+  pages: { label: string; size: [number, number]; rotate?: number }[];
+  outline: NavOutlineItem[];
+  attachments: { name: string; mimeType: string; description: string }[];
+};
 export function generateCorpus(opts?: { force?: boolean }): Promise<string[]>;
