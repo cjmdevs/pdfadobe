@@ -19,3 +19,9 @@ mcp-server/dist/
 Thumbs.db
 .vscode/
 .idea/
+
+# Logs / Vite
+logs
+*.log
+dist-ssr
+*.local
