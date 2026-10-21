@@ -1,0 +1,19 @@
+{
+  "allowed": [
+    "MIT",
+    "MIT-0",
+    "ISC",
+    "0BSD",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MPL-2.0"
+  ],
+  "approvedExtras": {
+    "Unicode-3.0": "Permissive (Unicode data license). ICU4X crates pulled in by url/idna via Tauri. Not copyleft.",
+    "Zlib": "Permissive, OSI-approved. foldhash, zlib-rs (Rust deps of Tauri). Not copyleft.",
+    "CC-BY-4.0": "Attribution-only data license. caniuse-lite browser table, build-time only, not shipped. Not copyleft."
+  },
+  "packageOverrides": {}
+}

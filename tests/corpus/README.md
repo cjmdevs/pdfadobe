@@ -11,4 +11,4 @@ or account numbers. If unsure where a PDF came from, do not commit it.
 For each file added, note its source below.
 
 | File | Source | Purpose |
-|------|--------|---------|
+| ---- | ------ | ------- |

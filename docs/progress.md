@@ -15,7 +15,7 @@ _(none yet)_
 ## Dependency versions and licenses
 
 | Package | Version | License | Added in |
-|---------|---------|---------|----------|
+| ------- | ------- | ------- | -------- |
 
 ## Known gaps / notes for later phases
 

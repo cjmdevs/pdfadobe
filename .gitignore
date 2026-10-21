@@ -25,3 +25,9 @@ logs
 *.log
 dist-ssr
 *.local
+
+# Test output
+test-results/
+playwright-report/
+tests/corpus/generated/
+tests/corpus/out/
