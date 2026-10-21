@@ -1,0 +1,328 @@
+#!/usr/bin/env node
+// Generates the synthetic test corpus into tests/corpus/generated/.
+// All data is fake. Deterministic content (dates fixed); safe to delete and rerun.
+//
+// Requires: qpdf on PATH (for encrypted.pdf).
+// Usage: node tests/corpus/generate.mjs [--force]
+
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { deflateSync } from "node:zlib";
+import { PDFDocument, PDFName, PDFString, StandardFonts, rgb } from "pdf-lib";
+
+const here = dirname(fileURLToPath(import.meta.url));
+export const OUT_DIR = join(here, "generated");
+const FIXED_DATE = new Date("2025-01-15T12:00:00Z");
+
+/** The fake SSN used everywhere. 000-xx-xxxx is never issued by the SSA. */
+export const FAKE_SSN = "000-12-3456";
+
+export const ENCRYPTED_PASSWORDS = { user: "corpus-user", owner: "corpus-owner" };
+
+const LOREM =
+  "This is a synthetic workpaper generated for testing. It contains no client data. " +
+  "Amounts and names are fictitious. Tickmarks, totals, and cross-references are illustrative.";
+
+function stamp(doc, title) {
+  doc.setTitle(title);
+  doc.setAuthor("PDF Workbench test corpus");
+  doc.setProducer("tests/corpus/generate.mjs");
+  doc.setCreator("pdf-lib");
+  doc.setCreationDate(FIXED_DATE);
+  doc.setModificationDate(FIXED_DATE);
+}
+
+function wrap(text, font, size, width) {
+  const words = text.split(" ");
+  const lines = [];
+  let line = "";
+  for (const w of words) {
+    const next = line ? `${line} ${w}` : w;
+    if (font.widthOfTextAtSize(next, size) > width) {
+      lines.push(line);
+      line = w;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
+async function textOnePage() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic one-page text document");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const page = doc.addPage([612, 792]);
+  page.drawText("Sample Engagement Memo", { x: 72, y: 720, size: 18, font: bold });
+  let y = 690;
+  for (let i = 0; i < 6; i++) {
+    for (const l of wrap(LOREM, font, 11, 468)) {
+      page.drawText(l, { x: 72, y, size: 11, font });
+      y -= 15;
+    }
+    y -= 10;
+  }
+  page.drawText("Total revenue per trial balance: $1,234,567.89", {
+    x: 72,
+    y: y - 10,
+    size: 11,
+    font: bold,
+  });
+  return doc.save();
+}
+
+async function long200() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic 200-page document");
+  const font = await doc.embedFont(StandardFonts.TimesRoman);
+  for (let n = 1; n <= 200; n++) {
+    const page = doc.addPage([612, 792]);
+    page.drawText(`Page ${n} of 200`, { x: 72, y: 740, size: 14, font });
+    page.drawText(`Section ${Math.ceil(n / 10)} - schedule line ${n}`, {
+      x: 72,
+      y: 715,
+      size: 11,
+      font,
+    });
+    let y = 690;
+    for (const l of wrap(LOREM, font, 11, 468)) {
+      page.drawText(l, { x: 72, y, size: 11, font });
+      y -= 14;
+    }
+    page.drawText(String(n), { x: 300, y: 36, size: 10, font });
+  }
+  return doc.save();
+}
+
+async function acroForm() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic AcroForm");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  const form = doc.getForm();
+  const label = (t, y) => page.drawText(t, { x: 72, y: y + 6, size: 11, font });
+
+  label("Taxpayer name", 700);
+  const name = form.createTextField("taxpayer.name");
+  name.addToPage(page, { x: 200, y: 700, width: 300, height: 22 });
+
+  label("Tax year", 660);
+  const year = form.createDropdown("tax.year");
+  year.addOptions(["2023", "2024", "2025"]);
+  year.addToPage(page, { x: 200, y: 660, width: 100, height: 22 });
+
+  label("Filing status", 620);
+  const status = form.createRadioGroup("filing.status");
+  ["single", "mfj", "mfs"].forEach((v, i) =>
+    status.addOptionToPage(v, page, { x: 200 + i * 80, y: 620, width: 16, height: 16 }),
+  );
+
+  label("Signed 8879 received", 580);
+  form.createCheckBox("signed.8879").addToPage(page, { x: 200, y: 580, width: 16, height: 16 });
+
+  label("Notes", 520);
+  const notes = form.createTextField("notes");
+  notes.enableMultiline();
+  notes.addToPage(page, { x: 200, y: 460, width: 300, height: 80 });
+  return doc.save();
+}
+
+// ---- Image-only "scan" ------------------------------------------------------
+
+function crc32(buf) {
+  let c = ~0;
+  for (const b of buf) {
+    c ^= b;
+    for (let k = 0; k < 8; k++) c = (c >>> 1) ^ (0xedb88320 & -(c & 1));
+  }
+  return ~c >>> 0;
+}
+
+function pngGray(width, height, gray) {
+  const chunk = (type, data) => {
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const td = Buffer.concat([Buffer.from(type), data]);
+    const crc = Buffer.alloc(4);
+    crc.writeUInt32BE(crc32(td));
+    return Buffer.concat([len, td, crc]);
+  };
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 0; // grayscale
+  const raw = Buffer.alloc((width + 1) * height);
+  for (let y = 0; y < height; y++) gray.copy(raw, y * (width + 1) + 1, y * width, (y + 1) * width);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", deflateSync(raw)),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
+async function scannedImageOnly(sourceBytes) {
+  // Rasterize the 1-page text doc with PDFium, add deterministic speckle, embed as
+  // a full-page image. The result has NO text layer (OCR target for a later phase).
+  const require = createRequire(import.meta.url);
+  const { init } = await import("@embedpdf/pdfium");
+  const { PdfiumNative } = await import("@embedpdf/engines/pdfium");
+  const wasm = readFileSync(require.resolve("@embedpdf/pdfium/pdfium.wasm"));
+  const engine = new PdfiumNative(await init({ wasmBinary: wasm }), { fontFallback: null });
+  const src = await engine
+    .openDocumentBuffer({
+      id: "scan-src",
+      content: sourceBytes.buffer.slice(
+        sourceBytes.byteOffset,
+        sourceBytes.byteOffset + sourceBytes.byteLength,
+      ),
+    })
+    .toPromise();
+  const img = await engine.renderPageRaw(src, src.pages[0], { scaleFactor: 200 / 72 }).toPromise();
+  await engine.closeDocument(src).toPromise();
+
+  const gray = Buffer.alloc(img.width * img.height);
+  let seed = 42;
+  const rand = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
+  for (let i = 0; i < gray.length; i++) {
+    const r = img.data[i * 4],
+      g = img.data[i * 4 + 1],
+      b = img.data[i * 4 + 2];
+    let v = 0.299 * r + 0.587 * g + 0.114 * b;
+    v = v * 0.92 + 8; // slightly grey paper
+    if (rand() < 0.002) v = 40; // speckle
+    gray[i] = Math.max(0, Math.min(255, Math.round(v)));
+  }
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic scanned image-only document");
+  const png = await doc.embedPng(pngGray(img.width, img.height, gray));
+  const page = doc.addPage([612, 792]);
+  page.drawImage(png, { x: 0, y: 0, width: 612, height: 792 });
+  return doc.save();
+}
+
+// ---- SSN redaction fixture --------------------------------------------------
+
+function xmp(ssn) {
+  return `<?xpacket begin="${"\uFEFF"}" id="W5M0MpCehiHzreSzNTczkc9d"?>
+<x:xmpmeta xmlns:x="adobe:ns:meta/">
+ <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+  <rdf:Description rdf:about="" xmlns:dc="http://purl.org/dc/elements/1.1/">
+   <dc:title><rdf:Alt><rdf:li xml:lang="x-default">Synthetic SSN fixture</rdf:li></rdf:Alt></dc:title>
+   <dc:description><rdf:Alt><rdf:li xml:lang="x-default">Taxpayer ${ssn}</rdf:li></rdf:Alt></dc:description>
+  </rdf:Description>
+ </rdf:RDF>
+</x:xmpmeta>
+<?xpacket end="w"?>`;
+}
+
+/**
+ * Layout (PDF points, origin bottom-left). Exported so tests can reason about it.
+ * - page 1: SSN as one text run; SSN split across two runs; a sticky note over the
+ *   first SSN; a form field holding the SSN; text that must survive redaction.
+ * - page 2: the SSN again in a sentence.
+ * - /Info Subject + Keywords and XMP dc:description contain the SSN.
+ */
+export const SSN_LAYOUT = {
+  keepText: "KEEP: Fictitious Taxpayer, 123 Example Street",
+  formField: { name: "taxpayer.ssn", rect: { x: 200, y: 560, width: 160, height: 22 } },
+};
+
+async function ssnFixture() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic SSN redaction fixture");
+  doc.setSubject(`Return for taxpayer ${FAKE_SSN}`);
+  doc.setKeywords(["synthetic", FAKE_SSN]);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const p1 = doc.addPage([612, 792]);
+
+  p1.drawText(SSN_LAYOUT.keepText, { x: 72, y: 720, size: 12, font });
+  p1.drawText(`SSN: ${FAKE_SSN}`, { x: 72, y: 690, size: 12, font });
+  // Split runs: "000-12-" and "3456" are separate text-show operations.
+  p1.drawText("Spouse SSN: 000-12-", { x: 72, y: 660, size: 12, font });
+  const w = font.widthOfTextAtSize("Spouse SSN: 000-12-", 12);
+  p1.drawText("3456", { x: 72 + w, y: 660, size: 12, font });
+  p1.drawText("Line below must survive redaction: KEEP-THIS-LINE", {
+    x: 72,
+    y: 620,
+    size: 12,
+    font,
+  });
+  // A vector rectangle under the first SSN (vector content under the box).
+  p1.drawRectangle({ x: 100, y: 686, width: 70, height: 1.5, color: rgb(0.8, 0, 0) });
+
+  // Form field whose value is the SSN.
+  p1.drawText("Field:", { x: 72, y: 566, size: 12, font });
+  const field = doc.getForm().createTextField(SSN_LAYOUT.formField.name);
+  field.setText(FAKE_SSN);
+  field.addToPage(p1, SSN_LAYOUT.formField.rect);
+
+  // Sticky-note (Text) annotation over the first SSN, contents contain the SSN.
+  const note = doc.context.obj({
+    Type: "Annot",
+    Subtype: "Text",
+    Rect: [110, 685, 130, 705],
+    Contents: PDFString.of(`Reviewer: verify ${FAKE_SSN}`),
+    T: PDFString.of("Reviewer"),
+    Name: "Comment",
+    F: 4,
+  });
+  p1.node.addAnnot(doc.context.register(note));
+
+  const p2 = doc.addPage([612, 792]);
+  p2.drawText(`Page 2. Dependent record references ${FAKE_SSN} for testing.`, {
+    x: 72,
+    y: 700,
+    size: 12,
+    font,
+  });
+
+  const meta = doc.context.stream(xmp(FAKE_SSN), { Type: "Metadata", Subtype: "XML" });
+  doc.catalog.set(PDFName.of("Metadata"), doc.context.register(meta));
+  return doc.save({ useObjectStreams: false });
+}
+
+// ---- Main -------------------------------------------------------------------
+
+export async function generateCorpus({ force = false } = {}) {
+  mkdirSync(OUT_DIR, { recursive: true });
+  const out = (name) => join(OUT_DIR, name);
+  const made = [];
+  const write = async (name, fn) => {
+    if (!force && existsSync(out(name))) return;
+    writeFileSync(out(name), await fn());
+    made.push(name);
+  };
+
+  await write("text-1p.pdf", textOnePage);
+  await write("long-200p.pdf", long200);
+  await write("acroform.pdf", acroForm);
+  await write("scanned-image-only.pdf", async () =>
+    scannedImageOnly(readFileSync(out("text-1p.pdf"))),
+  );
+  await write("ssn-redaction.pdf", ssnFixture);
+
+  if (force || !existsSync(out("encrypted.pdf"))) {
+    const { user, owner } = ENCRYPTED_PASSWORDS;
+    execFileSync("qpdf", [
+      "--encrypt",
+      user,
+      owner,
+      "256",
+      "--",
+      out("text-1p.pdf"),
+      out("encrypted.pdf"),
+    ]);
+    made.push("encrypted.pdf");
+  }
+  return made;
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+  const made = await generateCorpus({ force: process.argv.includes("--force") });
+  console.log(made.length ? `generated: ${made.join(", ")}` : "corpus up to date");
+}

@@ -8,7 +8,30 @@ Synthetic or public PDFs ONLY:
 NEVER add client files, scans, or anything containing real names, SSNs, EINs,
 or account numbers. If unsure where a PDF came from, do not commit it.
 
-For each file added, note its source below.
+## Synthetic files (`generated/`, not committed)
 
-| File | Source | Purpose |
-| ---- | ------ | ------- |
+Created by `npm run corpus` (or automatically by Vitest's global setup). Requires
+`qpdf` on PATH. Deterministic; delete the folder and rerun at any time.
+`npm run corpus -- --force` regenerates everything.
+
+| File                               | Source                                                            | Purpose                                                                                                                                                                                                                                                                             |
+| ---------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `generated/text-1p.pdf`            | `generate.mjs` (pdf-lib)                                          | 1-page text doc                                                                                                                                                                                                                                                                     |
+| `generated/long-200p.pdf`          | `generate.mjs`                                                    | 200 pages, "Page N of 200" on each                                                                                                                                                                                                                                                  |
+| `generated/acroform.pdf`           | `generate.mjs`                                                    | Text, dropdown, radio, checkbox, multiline fields                                                                                                                                                                                                                                   |
+| `generated/scanned-image-only.pdf` | `generate.mjs` (PDFium render of text-1p, 200 dpi gray + speckle) | No text layer; OCR target                                                                                                                                                                                                                                                           |
+| `generated/encrypted.pdf`          | `generate.mjs` + `qpdf --encrypt` AES-256                         | User pw `corpus-user`, owner pw `corpus-owner`                                                                                                                                                                                                                                      |
+| `generated/ssn-redaction.pdf`      | `generate.mjs`                                                    | Fake SSN `000-12-3456` in: page text (single run and split across two runs), page 2 text, a sticky-note annotation over the SSN, a form field value, `/Info` Subject + Keywords, XMP metadata. A red vector line sits under the first SSN. `KEEP-THIS-LINE` must survive redaction. |
+
+`000-xx-xxxx` is never issued by the SSA, so the fake SSN cannot belong to anyone.
+
+## IRS forms (`irs/`, committed)
+
+Downloaded by `npm run corpus:irs` on 2026-10-21. U.S. government works (public
+domain). All three are hybrid AcroForm + XFA.
+
+| File            | Source                                    | Revision                           | SHA-256                                                            |
+| --------------- | ----------------------------------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| `irs/f1040.pdf` | https://www.irs.gov/pub/irs-pdf/f1040.pdf | 2025 Form 1040, 2 pp, 199 fields   | `3d31c226df0d189ced80e039d01cf0f8820c1019681a0f0ca6264de277b7e982` |
+| `irs/fw9.pdf`   | https://www.irs.gov/pub/irs-pdf/fw9.pdf   | Rev. March 2024, 6 pp, 23 fields   | `2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53` |
+| `irs/f8879.pdf` | https://www.irs.gov/pub/irs-pdf/f8879.pdf | Rev. January 2021, 2 pp, 20 fields | `f6c6ef51c0cb91f6f2e805818c755281e8485f768e6999c272ed1e06e9504fea` |

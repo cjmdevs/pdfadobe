@@ -5,6 +5,7 @@ export default defineConfig({
     include: ["tests/**/*.test.ts", "src/**/*.test.ts"],
     exclude: ["tests/e2e/**", "node_modules/**"],
     environment: "node",
+    globalSetup: ["tests/corpus/vitest-setup.ts"],
     testTimeout: 60_000,
   },
 });
