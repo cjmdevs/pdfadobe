@@ -522,6 +522,21 @@ export async function generateCorpus({ force = false } = {}) {
     ]);
     made.push("encrypted.pdf");
   }
+  if (force || !existsSync(out("no-print.pdf"))) {
+    // Opens without a password, but the owner disallowed printing (and copying).
+    execFileSync("qpdf", [
+      "--encrypt",
+      "",
+      ENCRYPTED_PASSWORDS.owner,
+      "256",
+      "--print=none",
+      "--extract=n",
+      "--",
+      out("text-1p.pdf"),
+      out("no-print.pdf"),
+    ]);
+    made.push("no-print.pdf");
+  }
   return made;
 }
 

@@ -4,5 +4,6 @@
     "lib": ["ES2022"],
     "types": ["node"]
   },
-  "include": ["tests", "src/engine"]
+  "include": ["tests", "src/engine"],
+  "exclude": ["tests/e2e"]
 }

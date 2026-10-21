@@ -47,10 +47,15 @@ describe("synthetic corpus", () => {
     const doc = await open(join(OUT_DIR, "navigation.pdf"));
     expect(doc.pageCount).toBe(NAV_LAYOUT.pages.length);
     const { bookmarks } = await engine.getBookmarks(doc).toPromise();
-    expect(bookmarks.map((b: PdfBookmarkObject) => b.title)).toEqual(NAV_LAYOUT.outline.map((o) => o.title));
+    expect(bookmarks.map((b: PdfBookmarkObject) => b.title)).toEqual(
+      NAV_LAYOUT.outline.map((o) => o.title),
+    );
     expect(bookmarks[1]?.children?.[1]?.children?.[0]?.title).toBe("Landscape page");
     const atts = await engine.getAttachments(doc).toPromise();
-    expect(atts.map((a: PdfAttachmentObject) => a.name).sort()).toEqual(["notes.txt", "trial-balance.csv"]);
+    expect(atts.map((a: PdfAttachmentObject) => a.name).sort()).toEqual([
+      "notes.txt",
+      "trial-balance.csv",
+    ]);
     expect(doc.pages[4]?.size).toEqual({ width: 792, height: 612 });
     expect(doc.pages[5]?.rotation).toBe(1); // Rotation.Degree90
   });
