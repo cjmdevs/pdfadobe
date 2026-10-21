@@ -32,6 +32,8 @@ forms, OCR, and a local MCP server for Claude.
 - Plan before coding. Show the plan, wait for approval.
 - Check current library docs before using an API; do not rely on memory.
 - Small steps, each with tests, each committed.
+- Git: commit and push directly to `main` (solo project, no feature branches).
+  Never push a commit with failing tests. Tag `phase-NN-done` at the end of each phase.
 - If a requirement is ambiguous or a library can't do something, stop and ask.
 - Read `docs/progress.md` at the start of every session.
 - At the end of every phase, update `docs/progress.md`: what was built, every deviation
