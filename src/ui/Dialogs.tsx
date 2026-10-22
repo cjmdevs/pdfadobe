@@ -1,4 +1,5 @@
-// Modal dialogs: open errors, document properties, keyboard shortcuts.
+// Modal dialogs: open errors, document properties, keyboard shortcuts, and (Phase 2)
+// page operations, Combine Files and unsaved changes (PageOpsDialogs.tsx).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useRotate } from "@embedpdf/plugin-rotate/react";
@@ -6,6 +7,7 @@ import type { PdfMetadataObject } from "@embedpdf/models";
 import { SHORTCUTS, displayKey } from "../app/shortcuts";
 import { useNav } from "../app/useNav";
 import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workbench";
+import { CombineDialog, PageOpDialogView, UnsavedDialog } from "./PageOpsDialogs";
 import {
   decodePermissions,
   formatFileSize,
@@ -68,6 +70,19 @@ export function Dialogs() {
       return <PropertiesDialog documentId={dialog.documentId} onClose={close} />;
     case "shortcuts":
       return <ShortcutsDialog onClose={close} />;
+    case "unsaved":
+      return <UnsavedDialog documentIds={dialog.documentIds} then={dialog.then} onClose={close} />;
+    case "pageOp":
+      return (
+        <PageOpDialogView
+          op={dialog.op}
+          documentId={dialog.documentId}
+          pages={dialog.pages}
+          onClose={close}
+        />
+      );
+    case "combine":
+      return <CombineDialog onClose={close} />;
   }
 }
 

@@ -25,6 +25,8 @@ export interface Settings {
   activeTab: string | null;
   printScaling: Scaling;
   printAutoRotate: boolean;
+  /** Bookmark panel: dragging a bookmark also moves its pages (and child bookmarks). */
+  bookmarkDragMovesPages: boolean;
 }
 
 export const MAX_RECENT = 15;
@@ -42,6 +44,7 @@ export const DEFAULT_SETTINGS: Settings = {
   activeTab: null,
   printScaling: "shrinkOversized",
   printAutoRotate: true,
+  bookmarkDragMovesPages: true,
 };
 
 const oneOf =
@@ -86,6 +89,10 @@ export function sanitizeSettings(raw: unknown): Settings {
     activeTab,
     printScaling: isScaling(r.printScaling) ? r.printScaling : d.printScaling,
     printAutoRotate: typeof r.printAutoRotate === "boolean" ? r.printAutoRotate : d.printAutoRotate,
+    bookmarkDragMovesPages:
+      typeof r.bookmarkDragMovesPages === "boolean"
+        ? r.bookmarkDragMovesPages
+        : d.bookmarkDragMovesPages,
   };
 }
 

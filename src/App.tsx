@@ -191,6 +191,11 @@ function Shell({ ready }: { ready: boolean }) {
         )}
       </main>
       {dragging && <div className="drop-overlay">Drop PDF files to open them</div>}
+      {wb.busy && (
+        <div className="busy-bar" role="status" data-testid="busy">
+          {wb.busy}…
+        </div>
+      )}
       <Commands />
       <Dialogs />
       <Toasts />

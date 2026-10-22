@@ -10,7 +10,7 @@ export function TabBar() {
   const docs = useOpenDocuments();
   const { activeDocumentId } = useActiveDocument();
   const { provides: manager } = useDocumentManagerCapability();
-  const { meta, closeDocument } = useWorkbench();
+  const { meta, closeDocument, editState } = useWorkbench();
   if (docs.length === 0) return null;
   return (
     <div className="tabbar" role="tablist" aria-label="Open documents">
@@ -34,6 +34,11 @@ export function TabBar() {
           >
             <Icon name="file" size={14} />
             <span className="tab-name">{name}</span>
+            {editState(d.id).dirty && (
+              <span className="tab-dirty" title="Unsaved changes" aria-label="Unsaved changes">
+                •
+              </span>
+            )}
             <button
               type="button"
               className="tab-close"

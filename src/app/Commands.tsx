@@ -95,6 +95,17 @@ export function Commands() {
         if (!activeDocumentId) return false;
         wb.closeDocument(activeDocumentId);
         return true;
+      case "undo":
+      case "redo":
+      case "save":
+      case "saveAs":
+        // Busy: a page operation is still running; it will be the next undo step.
+        if (!activeDocumentId || wb.busy) return activeDocumentId !== null;
+        if (cmd === "undo") wb.undo(activeDocumentId);
+        else if (cmd === "redo") wb.redo(activeDocumentId);
+        else if (cmd === "save") void wb.save(activeDocumentId);
+        else void wb.saveAs(activeDocumentId);
+        return true;
     }
     return docRunner.current?.(cmd) ?? false;
   };

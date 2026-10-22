@@ -157,7 +157,9 @@ export const browserPlatform: Platform = {
   },
 
   async pickSavePath(suggested) {
-    return suggested;
+    // Tests queue Save As answers in window.__PDFWB_NEXT_SAVE_PATHS__.
+    const w = window as unknown as { __PDFWB_NEXT_SAVE_PATHS__?: string[] };
+    return w.__PDFWB_NEXT_SAVE_PATHS__?.shift() ?? suggested;
   },
 
   async repair(source, target) {

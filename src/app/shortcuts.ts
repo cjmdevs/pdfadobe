@@ -8,7 +8,7 @@
 //   community Adobe Community answers (Acrobat menu accelerators not in the published table)
 //   windows   standard Windows accelerators Acrobat also uses
 //   owner     menu accelerators not on Adobe's pages, checked by the owner in Acrobat
-//             (2026-10-22). Ctrl+Y is Redo in Acrobat: left unbound until editing has undo.
+//             (2026-10-22). Ctrl+Y is Redo in Acrobat (bound in Phase 2 with undo).
 //
 // Key tokens match either KeyboardEvent.code (layout-independent: Equal, Minus, Digit0,
 // NumpadAdd) or KeyboardEvent.key (letters, PageUp, F3...).
@@ -43,7 +43,11 @@ export type Command =
   | "selectAll"
   | "copy"
   | "escape"
-  | "help";
+  | "help"
+  | "undo"
+  | "redo"
+  | "save"
+  | "saveAs";
 
 export type Source = "adobe" | "adobeView" | "adobeHub" | "community" | "windows" | "owner";
 
@@ -170,6 +174,10 @@ export const SHORTCUTS: Shortcut[] = [
   { command: "copy", label: "Copy selected text", keys: ["Ctrl+C"], source: "windows" },
   { command: "escape", label: "Close search / dialog", keys: ["Escape"], source: "adobe" },
   { command: "help", label: "Keyboard shortcuts", keys: ["F1"], source: "adobe" },
+  { command: "undo", label: "Undo page change", keys: ["Ctrl+Z"], source: "windows" },
+  { command: "redo", label: "Redo page change", keys: ["Ctrl+Y"], source: "owner" },
+  { command: "save", label: "Save", keys: ["Ctrl+S"], source: "windows" },
+  { command: "saveAs", label: "Save As", keys: ["Ctrl+Shift+S"], source: "windows" },
 ];
 
 export interface KeyLike {

@@ -28,6 +28,11 @@ export const P = {
   locked: "C:\\Corpus\\locked-by-excel.pdf",
   offline: "\\\\offline-server\\share\\return.pdf",
   missing: "C:\\Corpus\\moved-away.pdf",
+  wpA: "C:\\Clients\\Engagement\\workpaper-a.pdf",
+  wpB: "C:\\Clients\\Engagement\\workpaper-b.pdf",
+  wpC: "C:\\Clients\\Engagement\\workpaper-c.pdf",
+  scanTif: "C:\\Clients\\Engagement\\scan-g4-3p.tif",
+  engagement: "C:\\Clients\\Engagement",
 } as const;
 
 type Entry = { file: string } | { bytes: Buffer } | { error: string; message: string };
@@ -42,6 +47,12 @@ const DEFAULT_FS: Record<string, Entry> = {
   [P.damaged]: { file: "damaged-xref.pdf" },
   [P.ssn]: { file: "ssn-redaction.pdf" },
   [P.noPrint]: { file: "no-print.pdf" },
+  [P.wpA]: { file: "workpaper-a.pdf" },
+  [P.wpB]: { file: "workpaper-b.pdf" },
+  [P.wpC]: { file: "workpaper-c.pdf" },
+  [P.scanTif]: {
+    bytes: readFileSync(join(import.meta.dirname, "..", "corpus", "fixtures", "scan-g4-3p.tif")),
+  },
   [P.locked]: { error: "locked", message: "could not open: the file is open in another program" },
   [P.offline]: {
     error: "network",
@@ -215,4 +226,44 @@ export async function waitForPainted(page: Page, index: number) {
 
 export async function currentPageNumber(page: Page): Promise<number> {
   return Number(await page.getByLabel("Page number").inputValue());
+}
+
+/** Answers for the next Save As dialogs and folder pickers (browser platform hooks). */
+export async function queueChoices(page: Page, opts: { savePaths?: string[]; folders?: string[] }) {
+  await page.evaluate((o) => {
+    const w = window as unknown as {
+      __PDFWB_NEXT_SAVE_PATHS__?: string[];
+      __PDFWB_NEXT_FOLDERS__?: string[];
+    };
+    w.__PDFWB_NEXT_SAVE_PATHS__ = [...(w.__PDFWB_NEXT_SAVE_PATHS__ ?? []), ...(o.savePaths ?? [])];
+    w.__PDFWB_NEXT_FOLDERS__ = [...(w.__PDFWB_NEXT_FOLDERS__ ?? []), ...(o.folders ?? [])];
+  }, opts);
+}
+
+/**
+ * Waits until no page operation is running and the reloaded tab has settled. After an
+ * edit the tab reopens as a new document, and EmbedPDF's zoom plugin re-fits ~150 ms
+ * after the viewport gets its size, scrolling back once (see docs/progress.md); a jump
+ * made before that would be undone.
+ */
+export async function idle(page: Page) {
+  await expect(page.getByTestId("busy")).toHaveCount(0, { timeout: 30_000 });
+  await expect(
+    page.locator("[data-testid=viewport], [data-testid=organize]").first(),
+  ).toBeVisible();
+  let last = "";
+  await expect
+    .poll(
+      async () => {
+        const now = await page.evaluate(() => {
+          const v = document.querySelector("[data-testid=viewport]");
+          return `${v?.scrollTop ?? "-"}:${v?.scrollHeight ?? "-"}`;
+        });
+        const stable = now === last;
+        last = now;
+        return stable;
+      },
+      { intervals: [300], timeout: 10_000 },
+    )
+    .toBe(true);
 }

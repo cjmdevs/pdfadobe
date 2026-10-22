@@ -615,3 +615,233 @@ kbd {
   margin: 0 4px 2px 0;
   background: var(--bg-chrome);
 }
+
+/* ---- Phase 2: page organization ---- */
+.tab-dirty {
+  color: var(--accent);
+  font-weight: 700;
+  margin-left: -2px;
+}
+.busy-bar {
+  position: fixed;
+  left: 50%;
+  top: 84px;
+  transform: translateX(-50%);
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  border-radius: 16px;
+  padding: 4px 14px;
+  z-index: 55;
+}
+.organize {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-doc);
+}
+.organize-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.page-grid {
+  flex: 1;
+  overflow: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 14px;
+  padding: 16px;
+  align-content: start;
+}
+.page-grid:focus-visible {
+  outline: none;
+}
+.grid-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  user-select: none;
+}
+.grid-page:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+.grid-page.selected {
+  background: rgb(255 255 255 / 0.22);
+  border-color: var(--accent);
+}
+.grid-page.drop-before::before,
+.grid-page.drop-after::after {
+  content: "";
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.grid-page.drop-before::before {
+  left: -10px;
+}
+.grid-page.drop-after::after {
+  right: -10px;
+}
+.grid-thumb {
+  width: 148px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.grid-thumb img {
+  max-width: 148px;
+  max-height: 180px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.grid-thumb-empty {
+  width: 120px;
+  height: 155px;
+  background: #fff;
+  opacity: 0.6;
+}
+.grid-label {
+  font-size: 12px;
+  color: #fff;
+}
+.modal.wide {
+  width: min(820px, 94vw);
+}
+.modal fieldset {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin: 10px 0;
+  padding: 6px 10px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, max-content);
+  gap: 6px 18px;
+  margin: 8px 0;
+}
+.num-input {
+  width: 5em;
+}
+.range-input {
+  width: 12em;
+}
+.modal .error {
+  color: var(--danger);
+}
+.file-list {
+  margin: 6px 0;
+  padding-left: 20px;
+  max-height: 200px;
+  overflow: auto;
+}
+.combine-list {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 10px 0;
+}
+.combine-list th,
+.combine-list td {
+  text-align: left;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.combine-list tbody tr[draggable="true"] {
+  cursor: grab;
+}
+.combine-name {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-actions button {
+  padding: 0 6px;
+  margin-left: 2px;
+}
+button.danger {
+  color: var(--danger);
+}
+.bookmarks {
+  display: flex;
+  flex-direction: column;
+}
+.bm-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.tool.small {
+  padding: 3px;
+}
+.bm-option {
+  padding: 4px 8px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  color: var(--fg-muted);
+}
+.tree-row.selected {
+  background: var(--bg-active);
+}
+.tree-row.drop-before {
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+.tree-row.drop-after {
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.tree-row.drop-inside {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.tree-rename {
+  flex: 1;
+  min-width: 0;
+}
+.menu-wrap {
+  position: relative;
+}
+.menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 40;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+}
+.menu button {
+  border: none;
+  text-align: left;
+  border-radius: 0;
+}

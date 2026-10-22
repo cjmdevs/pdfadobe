@@ -21,6 +21,7 @@ import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { PdfErrorCode } from "@embedpdf/models";
 import { useWorkbench } from "../app/workbench";
+import { OrganizeView } from "./OrganizeView";
 
 export function DocumentView({ documentId }: { documentId: string }) {
   return (
@@ -33,18 +34,63 @@ export function DocumentView({ documentId }: { documentId: string }) {
             </div>
           )}
           {isError && <OpenFailure state={documentState} />}
-          {isLoaded && <Viewer documentId={documentId} />}
+          {isLoaded && <Loaded documentId={documentId} />}
         </>
       )}
     </DocumentContent>
   );
 }
 
+/** Reader or Organize Pages grid, per tab. */
+function Loaded({ documentId }: { documentId: string }) {
+  const { meta } = useWorkbench();
+  return meta[documentId]?.organize ? (
+    <OrganizeView documentId={documentId} />
+  ) : (
+    <Viewer documentId={documentId} />
+  );
+}
+
+/**
+ * Keeps the reader on `target` (1-based) for 600 ms: the Scroller lays out over a few
+ * frames, and the zoom plugin re-fits 150 ms after the viewport resizes, scrolling back.
+ * Stops as soon as the user scrolls, clicks or types, so it never fights them, and when
+ * the document goes away (a page operation replaced it).
+ */
+function holdPage(
+  scroll: {
+    getCurrentPage(): number;
+    scrollToPage(o: { pageNumber: number; behavior: "instant" }): void;
+  } | null,
+  target: number,
+) {
+  const until = performance.now() + 600;
+  let stopped = false;
+  const stop = () => {
+    stopped = true;
+    for (const t of USER_INPUT) window.removeEventListener(t, stop, true);
+  };
+  for (const t of USER_INPUT) window.addEventListener(t, stop, true);
+  const go = () => {
+    if (stopped || !scroll || performance.now() > until) return stop();
+    try {
+      if (scroll.getCurrentPage() !== target)
+        scroll.scrollToPage({ pageNumber: target, behavior: "instant" });
+    } catch {
+      return stop(); // document closed
+    }
+    requestAnimationFrame(go);
+  };
+  requestAnimationFrame(go);
+}
+
+const USER_INPUT = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
+
 /** Documents that already got the remembered zoom (tab switches keep their own zoom). */
 const zoomApplied = new Set<string>();
 
 function Viewer({ documentId }: { documentId: string }) {
-  const { settings, singlePage, setSinglePage } = useWorkbench();
+  const { settings, singlePage, setSinglePage, restorePage, clearRestorePage } = useWorkbench();
   const { provides: zoom } = useZoom(documentId);
 
   // New documents open at the last zoom used (EmbedPDF would start numeric zooms at 1).
@@ -94,22 +140,22 @@ function Viewer({ documentId }: { documentId: string }) {
   const prevSingle = useRef(single);
   useEffect(() => {
     if (single && !prevSingle.current) setSinglePage(documentId, lastScrollPage.current - 1);
-    if (!single && prevSingle.current) {
-      const target = (singlePage[documentId] ?? 0) + 1;
-      // The Scroller lays out over a few frames, and the zoom plugin re-fits 150 ms after
-      // the viewport resizes (scrollbar appears), scrolling back to where it was before.
-      // Keep the reader on the page for 600 ms, re-asserting whenever it drifts.
-      const until = performance.now() + 600;
-      const go = () => {
-        if (!scroll || performance.now() > until) return;
-        if (scroll.getCurrentPage() !== target)
-          scroll.scrollToPage({ pageNumber: target, behavior: "instant" });
-        requestAnimationFrame(go);
-      };
-      requestAnimationFrame(go);
-    }
+    if (!single && prevSingle.current) holdPage(scroll, (singlePage[documentId] ?? 0) + 1);
     prevSingle.current = single;
   }, [single, documentId, scroll, setSinglePage, singlePage]);
+
+  // After a page operation (the tab reloads as a new document) or a double-click in the
+  // Organize grid: show the affected page.
+  useEffect(() => {
+    if (!scroll) return;
+    const p = restorePage(documentId);
+    if (p === null) return;
+    clearRestorePage(documentId);
+    if (single) setSinglePage(documentId, p);
+    else if (p > 0) holdPage(scroll, p + 1);
+    // Once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scroll, documentId]);
 
   // Follow the active search hit (first hit after a search, then F3 / clicks).
   const hit = search.results[search.activeResultIndex];

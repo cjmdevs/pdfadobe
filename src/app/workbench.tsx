@@ -1,5 +1,7 @@
 // App state that sits above the EmbedPDF plugins: which file each tab came from,
 // settings persistence, dialogs, toasts, and the open / close / repair / print flows.
+// Page operations (Phase 2): every edit produces new PDF bytes, recorded in the tab's
+// EditHistory (undo/redo) and shown by reopening the tab's document from those bytes.
 
 import {
   createContext,
@@ -19,11 +21,13 @@ import { PdfPermissionFlag, type PdfEngine } from "@embedpdf/models";
 import { isLinearized, pdfHeaderVersion } from "../engine/properties";
 import {
   PlatformError,
+  baseName,
   platform,
   suffixedPath,
   type FileSource,
   type OpenedFile,
 } from "../platform";
+import { EditHistory } from "./history";
 import { addRecent, removeRecent, samePath, type Settings } from "./settings";
 
 export interface DocMeta {
@@ -34,13 +38,34 @@ export interface DocMeta {
   linearized: boolean;
   /** performance.now() when the open started; used by the perf test. */
   openStartedAt: number;
+  /** Organize view (page grid) instead of the reader. */
+  organize: boolean;
+  /** Selected bookmark in the editor; survives the reload after each edit. */
+  bookmark?: number[] | null;
+}
+
+export interface EditState {
+  undoLabel: string | null;
+  redoLabel: string | null;
+  dirty: boolean;
+}
+
+export interface EditOptions {
+  /** Page to show afterwards (0-based). */
+  page?: number;
 }
 
 export type Dialog =
   | { kind: "openError"; path: string; error: PlatformError }
   | { kind: "properties"; documentId: string }
   | { kind: "shortcuts" }
+  | { kind: "unsaved"; documentIds: string[]; then: "close" | "closeAll" }
+  | { kind: "pageOp"; op: PageOpDialog; documentId: string; pages: number[] }
+  | { kind: "combine" }
   | null;
+
+/** Dialog-driven page operations (src/ui/PageOpsDialogs.tsx). */
+export type PageOpDialog = "insert" | "replace" | "crop" | "pageSize" | "split" | "blank";
 
 export interface Toast {
   id: number;
@@ -63,6 +88,35 @@ interface WorkbenchApi {
   closeAll(): void;
   repairCopy(id: string): Promise<void>;
   print(id: string, currentPage: number): Promise<void>;
+  /** Current bytes of a tab (null for tabs that cannot be edited, e.g. encrypted). */
+  docBytes(id: string): Uint8Array | null;
+  editState(id: string): EditState;
+  /**
+   * Runs a page operation on a tab: `fn` gets the current bytes and returns new ones,
+   * which become an undoable step and are shown in the same tab.
+   */
+  edit(
+    id: string,
+    label: string,
+    fn: (bytes: Uint8Array) => Promise<Uint8Array>,
+    opts?: EditOptions,
+  ): Promise<boolean>;
+  undo(id: string): void;
+  redo(id: string): void;
+  save(id: string): Promise<boolean>;
+  saveAs(id: string): Promise<boolean>;
+  /** Opens new, unsaved bytes in a tab (Combine result, extracted pages). */
+  openNew(name: string, bytes: Uint8Array): void;
+  setSelectedBookmark(id: string, path: number[] | null): void;
+  /** Switch between reader and Organize grid; `page` is shown in the new view. */
+  setOrganize(id: string, on: boolean, page?: number): void;
+  /** Close without asking about unsaved changes (after the user chose). */
+  forceClose(ids: string[]): void;
+  /** What a page operation is doing right now, for the busy indicator. */
+  busy: string | null;
+  /** Page to show when a tab's view mounts (after a reload, or Organize -> reader). */
+  restorePage(id: string): number | null;
+  clearRestorePage(id: string): void;
   dialog: Dialog;
   setDialog(d: Dialog): void;
   toasts: Toast[];
@@ -117,6 +171,14 @@ export function WorkbenchProvider({
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
   const [singlePage, setSinglePageState] = useState<Record<string, number>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  // Edit history per tab, keyed by the EmbedPDF document id (moved when a tab reloads).
+  const histories = useRef(new Map<string, EditHistory>());
+  const restorePages = useRef(new Map<string, number>());
+  // Paths opened from disk whose .bak may be discarded once they load.
+  const pendingBackups = useRef(new Map<string, string>());
+  const [, setHistoryTick] = useState(0);
+  const historyChanged = useCallback(() => setHistoryTick((t) => t + 1), []);
   const { provides: docs } = useDocumentManagerCapability();
   const { provides: printer } = usePrintCapability();
   const core = useCoreState();
@@ -170,9 +232,13 @@ export function WorkbenchProvider({
           pdfVersion: pdfHeaderVersion(head),
           linearized: isLinearized(head),
           openStartedAt: performance.now(),
+          organize: false,
         };
         metaRef.current = { ...metaRef.current, [documentId]: m };
         setMeta(metaRef.current);
+        // A copy: the viewer's worker may take ownership of f.bytes.
+        histories.current.set(documentId, new EditHistory(new Uint8Array(f.bytes.slice(0))));
+        if (f.source.kind === "path") pendingBackups.current.set(documentId, f.source.path);
         docs.openDocumentBuffer({
           buffer: f.bytes,
           name: f.name,
@@ -230,21 +296,47 @@ export function WorkbenchProvider({
     [docs],
   );
 
+  const forget = useCallback((ids: string[]) => {
+    for (const id of ids) {
+      histories.current.delete(id);
+      pendingBackups.current.delete(id);
+      restorePages.current.delete(id);
+    }
+    const rest = Object.fromEntries(
+      Object.entries(metaRef.current).filter(([k]) => !ids.includes(k)),
+    );
+    metaRef.current = rest;
+    setMeta(rest);
+  }, []);
+
+  const forceClose = useCallback(
+    (ids: string[]) => {
+      for (const id of ids) docs?.closeDocument(id);
+      forget(ids);
+    },
+    [docs, forget],
+  );
+
   const closeDocument = useCallback(
     (id: string) => {
-      docs?.closeDocument(id);
-      const rest = Object.fromEntries(Object.entries(metaRef.current).filter(([k]) => k !== id));
-      metaRef.current = rest;
-      setMeta(rest);
+      if (histories.current.get(id)?.dirty) {
+        setDialog({ kind: "unsaved", documentIds: [id], then: "close" });
+        return;
+      }
+      forceClose([id]);
     },
-    [docs],
+    [forceClose],
   );
 
   const closeAll = useCallback(() => {
+    const dirty = Object.keys(metaRef.current).filter((id) => histories.current.get(id)?.dirty);
+    if (dirty.length) {
+      setDialog({ kind: "unsaved", documentIds: dirty, then: "closeAll" });
+      return;
+    }
     docs?.closeAllDocuments();
-    metaRef.current = {};
-    setMeta({});
-  }, [docs]);
+    forget(Object.keys(metaRef.current));
+  }, [docs, forget]);
 
   const repairCopy = useCallback(
     async (id: string) => {
@@ -311,6 +403,243 @@ export function WorkbenchProvider({
     [core, engine, printer, toast],
   );
 
+  /**
+   * Shows `bytes` in the tab `id`: a new EmbedPDF document takes the old one's place in
+   * the tab order, inheriting its file info and history. Returns the new id.
+   */
+  const showRevision = useCallback(
+    (id: string, bytes: Uint8Array, page: number | null): string | null => {
+      const m = metaRef.current[id];
+      const h = histories.current.get(id);
+      if (!docs || !m || !h) return null;
+      const index = docs.getDocumentIndex(id);
+      const newId = crypto.randomUUID();
+      histories.current.set(newId, h);
+      histories.current.delete(id);
+      if (page !== null) restorePages.current.set(newId, page);
+      metaRef.current = {
+        ...metaRef.current,
+        [newId]: { ...m, fileSize: bytes.byteLength, openStartedAt: performance.now() },
+      };
+      setMeta(metaRef.current);
+      docs.openDocumentBuffer({
+        buffer: bytes.slice().buffer,
+        name: m.name,
+        documentId: newId,
+        autoActivate: true,
+      });
+      if (index >= 0) docs.moveDocument(newId, index);
+      docs.closeDocument(id);
+      forget([id]);
+      return newId;
+    },
+    [docs, forget],
+  );
+
+  const docBytes = useCallback(
+    (id: string) => {
+      const doc = core?.documents[id]?.document;
+      if (doc?.isEncrypted) return null;
+      return histories.current.get(id)?.current ?? null;
+    },
+    [core],
+  );
+
+  const editState = useCallback((id: string): EditState => {
+    const h = histories.current.get(id);
+    return {
+      undoLabel: h?.undoLabel ?? null,
+      redoLabel: h?.redoLabel ?? null,
+      dirty: h?.dirty ?? false,
+    };
+  }, []);
+
+  // One page operation at a time: they all read the latest bytes.
+  const editChain = useRef(Promise.resolve(true));
+  const edit = useCallback(
+    (
+      id: string,
+      label: string,
+      fn: (bytes: Uint8Array) => Promise<Uint8Array>,
+      opts: EditOptions = {},
+    ): Promise<boolean> => {
+      const run = async () => {
+        const h = histories.current.get(id);
+        const doc = core?.documents[id]?.document;
+        if (!h) return false;
+        if (doc?.isEncrypted) {
+          toast(
+            "This document is password-protected. Page changes need an unprotected copy.",
+            "error",
+          );
+          return false;
+        }
+        setBusy(label);
+        try {
+          const next = await fn(h.current);
+          h.push(next, label);
+          if (h.trimmed) {
+            toast("Undo history is full; the oldest steps for this document were dropped.");
+            h.trimmed = false;
+          }
+          showRevision(id, next, opts.page ?? null);
+          historyChanged();
+          return true;
+        } catch (e) {
+          toast(`${label} failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+          return false;
+        } finally {
+          setBusy(null);
+        }
+      };
+      editChain.current = editChain.current.then(run, run);
+      return editChain.current;
+    },
+    [core, historyChanged, showRevision, toast],
+  );
+
+  const undo = useCallback(
+    (id: string) => {
+      const h = histories.current.get(id);
+      const label = h?.undoLabel;
+      const bytes = h?.undo();
+      if (!bytes) return;
+      showRevision(id, bytes, null);
+      historyChanged();
+      toast(`Undid: ${label}`);
+    },
+    [historyChanged, showRevision, toast],
+  );
+
+  const redo = useCallback(
+    (id: string) => {
+      const h = histories.current.get(id);
+      const label = h?.redoLabel;
+      const bytes = h?.redo();
+      if (!bytes) return;
+      showRevision(id, bytes, null);
+      historyChanged();
+      toast(`Redid: ${label}`);
+    },
+    [historyChanged, showRevision, toast],
+  );
+
+  const saveAs = useCallback(
+    async (id: string): Promise<boolean> => {
+      const m = metaRef.current[id];
+      const h = histories.current.get(id);
+      if (!m || !h) return false;
+      const source = m.source.kind === "path" ? m.source.path : null;
+      const target = await platform.pickSavePath(source ?? m.name);
+      if (!target) return false;
+      if (source && samePath(target, source)) {
+        toast("Choose a new file name, or use Save (Ctrl+S) to update this file.", "error");
+        return false;
+      }
+      try {
+        await platform.saveAs(target, source, h.current);
+      } catch (e) {
+        const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
+        toast(`Could not save: ${describeOpenError(err)}`, "error");
+        return false;
+      }
+      h.markSaved();
+      const name = baseName(target);
+      metaRef.current = {
+        ...metaRef.current,
+        [id]: { ...m, source: { kind: "path", path: target }, name },
+      };
+      setMeta(metaRef.current);
+      updateSettings({ recent: addRecent(settingsRef.current.recent, target) });
+      historyChanged();
+      toast(`Saved as ${name}.`);
+      return true;
+    },
+    [historyChanged, toast, updateSettings],
+  );
+
+  const save = useCallback(
+    async (id: string): Promise<boolean> => {
+      const m = metaRef.current[id];
+      const h = histories.current.get(id);
+      if (!m || !h) return false;
+      if (m.source.kind !== "path") return saveAs(id);
+      try {
+        await platform.save(m.source.path, h.current);
+      } catch (e) {
+        const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
+        toast(`Could not save: ${describeOpenError(err)} Try Save As.`, "error");
+        return false;
+      }
+      h.markSaved();
+      historyChanged();
+      toast(`Saved ${m.name}. The previous version is kept as ${m.name}.bak until it next opens.`);
+      return true;
+    },
+    [historyChanged, saveAs, toast],
+  );
+
+  const openNew = useCallback(
+    (name: string, bytes: Uint8Array) => {
+      if (!docs) return;
+      const documentId = crypto.randomUUID();
+      metaRef.current = {
+        ...metaRef.current,
+        [documentId]: {
+          source: { kind: "memory", name },
+          name,
+          fileSize: bytes.byteLength,
+          pdfVersion: pdfHeaderVersion(bytes.subarray(0, 1024)),
+          linearized: false,
+          openStartedAt: performance.now(),
+          organize: false,
+        },
+      };
+      setMeta(metaRef.current);
+      histories.current.set(documentId, new EditHistory(bytes, undefined, false));
+      docs.openDocumentBuffer({
+        buffer: bytes.slice().buffer,
+        name,
+        documentId,
+        autoActivate: true,
+      });
+      historyChanged();
+    },
+    [docs, historyChanged],
+  );
+
+  const setSelectedBookmark = useCallback((id: string, path: number[] | null) => {
+    const m = metaRef.current[id];
+    if (!m) return;
+    metaRef.current = { ...metaRef.current, [id]: { ...m, bookmark: path } };
+    setMeta(metaRef.current);
+  }, []);
+
+  const setOrganize = useCallback((id: string, on: boolean, page?: number) => {
+    const m = metaRef.current[id];
+    if (!m) return;
+    if (page !== undefined) restorePages.current.set(id, page);
+    metaRef.current = { ...metaRef.current, [id]: { ...m, organize: on } };
+    setMeta(metaRef.current);
+  }, []);
+
+  // Read during render (StrictMode may render twice), cleared by the view's effect.
+  const restorePage = useCallback((id: string) => restorePages.current.get(id) ?? null, []);
+  const clearRestorePage = useCallback((id: string) => {
+    restorePages.current.delete(id);
+  }, []);
+
+  // A file saved earlier keeps "<name>.bak" until it opens successfully again.
+  useEffect(() => {
+    if (!docs) return;
+    return docs.onDocumentOpened((state) => {
+      const path = pendingBackups.current.get(state.id);
+      if (!path) return;
+      pendingBackups.current.delete(state.id);
+      platform.discardBackup(path).catch(() => undefined);
+    });
+  }, [docs]);
+
   const setSinglePage = useCallback((id: string, page: number) => {
     setSinglePageState((s) => ({ ...s, [id]: page }));
   }, []);
@@ -360,6 +689,20 @@ export function WorkbenchProvider({
       setSearchOpen,
       singlePage,
       setSinglePage,
+      docBytes,
+      editState,
+      edit,
+      undo,
+      redo,
+      save,
+      saveAs,
+      openNew,
+      setOrganize,
+      setSelectedBookmark,
+      forceClose,
+      busy,
+      restorePage,
+      clearRestorePage,
     }),
     [
       engine,
@@ -380,6 +723,20 @@ export function WorkbenchProvider({
       searchOpen,
       singlePage,
       setSinglePage,
+      docBytes,
+      editState,
+      edit,
+      undo,
+      redo,
+      save,
+      saveAs,
+      openNew,
+      setOrganize,
+      setSelectedBookmark,
+      forceClose,
+      busy,
+      restorePage,
+      clearRestorePage,
     ],
   );
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;

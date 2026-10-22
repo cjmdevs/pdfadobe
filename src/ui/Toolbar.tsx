@@ -51,6 +51,17 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
     <div className="toolbar" role="toolbar" aria-label="Main toolbar">
       <ToolButton icon="open" label="Open (Ctrl+O)" onClick={() => void wb.pickAndOpen()} />
       <ToolButton
+        icon="save"
+        label="Save (Ctrl+S)"
+        disabled={!documentId || !wb.editState(documentId).dirty || wb.busy !== null}
+        onClick={() => documentId && void wb.save(documentId)}
+      />
+      <ToolButton
+        icon="combine"
+        label="Combine Files…"
+        onClick={() => wb.setDialog({ kind: "combine" })}
+      />
+      <ToolButton
         icon="print"
         label="Print (Ctrl+P)"
         disabled={!documentId}
@@ -99,8 +110,39 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
   );
 }
 
+function EditTools({ documentId }: { documentId: string }) {
+  const wb = useWorkbench();
+  const nav = useNav(documentId);
+  const st = wb.editState(documentId);
+  const organize = wb.meta[documentId]?.organize ?? false;
+  const busy = wb.busy !== null;
+  return (
+    <>
+      <span className="sep" />
+      <ToolButton
+        icon="undo"
+        label={st.undoLabel ? `Undo ${st.undoLabel} (Ctrl+Z)` : "Undo (Ctrl+Z)"}
+        disabled={!st.undoLabel || busy}
+        onClick={() => wb.undo(documentId)}
+      />
+      <ToolButton
+        icon="redo"
+        label={st.redoLabel ? `Redo ${st.redoLabel} (Ctrl+Y)` : "Redo (Ctrl+Y)"}
+        disabled={!st.redoLabel || busy}
+        onClick={() => wb.redo(documentId)}
+      />
+      <ToolButton
+        icon="organize"
+        label="Organize pages"
+        pressed={organize}
+        onClick={() => wb.setOrganize(documentId, !organize, nav.page)}
+      />
+    </>
+  );
+}
+
 function DocTools({ documentId }: { documentId: string }) {
-  const { settings, updateSettings } = useWorkbench();
+  const { settings, updateSettings, meta } = useWorkbench();
   const nav = useNav(documentId);
   const { state: zoom, provides: zoomer } = useZoom(documentId);
   const { provides: rotate } = useRotate(documentId);
@@ -119,8 +161,10 @@ function DocTools({ documentId }: { documentId: string }) {
     if (value !== null && value !== settings.zoom) updateSettings({ zoom: value });
   }, [zoom.zoomLevel, settings.zoom, updateSettings]);
 
+  if (meta[documentId]?.organize) return <EditTools documentId={documentId} />;
   return (
     <>
+      <EditTools documentId={documentId} />
       <span className="sep" />
       <ToolButton
         icon="first"
