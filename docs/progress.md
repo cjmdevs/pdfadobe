@@ -5,9 +5,12 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 1 (viewer) built.** Not tagged `phase-01-done` yet: the gate needs the owner's
-  manual Windows check below (printing, file association and timing cannot be run in
-  the Linux build container).
+- **Phase 1 (viewer) done** (tagged `phase-01-done`, 2026-10-22). On the owner's Windows
+  PC: `npm run check` (55 Vitest, 22 Rust incl. the Windows locked-file test,
+  license-check), 43/43 Playwright (500-page first paint 313 ms) and `tauri build`
+  (MSI + NSIS) all pass. Manual check results below.
+- **Open owner decisions:** (a) shipping the Microsoft VC++ runtime DLLs with qpdf;
+  (b) Acrobat behaviour of Ctrl+D, Ctrl+Y, F4, Ctrl+Shift+W, Shift+F3 (unverified keys).
 
 ## Phase log
 
@@ -65,21 +68,23 @@ Deviations from spec, and why:
 - E2E runs in Chromium against the browser platform; Tauri IPC, native dialogs and the
   print dialog are not exercised by Playwright (Rust unit tests + manual check).
 
-## Manual Windows check (owner, ~15 min)
+## Manual Windows check (owner, 2026-10-22)
 
-```
-npm ci && npm run check && npm run test:e2e
-npm run tauri build            # fetches pdfium.dll + qpdf; installer in src-tauri/target/release/bundle
-```
+Run from copies of `tests/corpus/generated` (synthetic files only).
 
-1. Install, then Settings → Apps → Default apps → set PDF Workbench for `.pdf`.
-   Double-click a PDF in Explorer; right-click → Open with on a second one (new tab).
-2. Open a 500-page file from `\\server\share`; note seconds to first page.
-3. Ctrl+P: the Windows print dialog appears; print 2 pages to a real printer and to
-   "Microsoft Print to PDF". Text must be sharp (vector). Try a landscape page.
-4. Open a PDF that Excel/Acrobat has open: message, then Try again after closing it.
-5. Ctrl+F, Ctrl+P, F5, Ctrl+R: must not trigger WebView/browser actions.
-6. Resize/move the window, close, reopen: same size, tabs and zoom restored.
+1. Installer (NSIS, unsigned: SmartScreen "Run anyway"): **pass**.
+2. Default app + double-click; "Open with" while running adds a tab: **pass**.
+3. 500-page file from a `\\server\share`: **not tested (deferred)**. Re-check when a share
+   is handy; local e2e timing was 313 ms.
+4. Ctrl+P: Windows print dialog, Microsoft Print to PDF output sharp, landscape page
+   rotated, `no-print.pdf` refused: **pass**.
+5. File open in Acrobat/Edge: opens normally (they allow shared read), no crash:
+   **pass** (the "locked" message only appears for exclusive locks; covered by
+   `fileio::tests::classifies_locked_file_on_windows`). Owner: low priority.
+6. Browser keys suppressed; window size, tabs, zoom restored: **pass**.
+
+Notes: the installer is not code-signed (SmartScreen warning). The license-check
+script prints Node's DEP0190 warning on Windows (`shell: true` with args); cosmetic.
 
 ## Dependency versions and licenses
 
