@@ -10,6 +10,7 @@ mcp-server/dist/
 *.tif
 *.tiff
 !tests/corpus/**/*.pdf
+!tests/corpus/fixtures/*.tif
 *.bak
 
 # Env / OS / editor

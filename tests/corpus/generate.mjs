@@ -159,6 +159,43 @@ export const NAV_LAYOUT = {
   ],
 };
 
+/** Writes /Outlines by hand (pdf-lib has no outline API). Items: { title, page, children }. */
+function addOutline(doc, pages, items) {
+  const ctx = doc.context;
+  const build = (list, parentRef) => {
+    const refs = list.map(() => ctx.nextRef());
+    list.forEach((item, i) => {
+      const dict = ctx.obj({
+        Title: PDFString.of(item.title),
+        Parent: parentRef,
+        Dest: ctx.obj([pages[item.page].ref, PDFName.of("XYZ"), null, null, null]),
+      });
+      if (i > 0) dict.set(PDFName.of("Prev"), refs[i - 1]);
+      if (i < list.length - 1) dict.set(PDFName.of("Next"), refs[i + 1]);
+      if (item.children?.length) {
+        const kids = build(item.children, refs[i]);
+        dict.set(PDFName.of("First"), kids[0]);
+        dict.set(PDFName.of("Last"), kids[kids.length - 1]);
+        dict.set(PDFName.of("Count"), ctx.obj(item.children.length));
+      }
+      ctx.assign(refs[i], dict);
+    });
+    return refs;
+  };
+  const outlinesRef = ctx.nextRef();
+  const top = build(items, outlinesRef);
+  ctx.assign(
+    outlinesRef,
+    ctx.obj({
+      Type: PDFName.of("Outlines"),
+      First: top[0],
+      Last: top[top.length - 1],
+      Count: ctx.obj(top.length),
+    }),
+  );
+  doc.catalog.set(PDFName.of("Outlines"), outlinesRef);
+}
+
 async function navigation() {
   const doc = await PDFDocument.create();
   stamp(doc, "Synthetic navigation fixture");
@@ -178,40 +215,7 @@ async function navigation() {
     return page;
   });
 
-  // Outline: build /Outlines with /First /Last /Next /Prev /Parent /Count by hand.
-  const ctx = doc.context;
-  const build = (items, parentRef) => {
-    const refs = items.map(() => ctx.nextRef());
-    items.forEach((item, i) => {
-      const dict = ctx.obj({
-        Title: PDFString.of(item.title),
-        Parent: parentRef,
-        Dest: ctx.obj([pages[item.page].ref, PDFName.of("XYZ"), null, null, null]),
-      });
-      if (i > 0) dict.set(PDFName.of("Prev"), refs[i - 1]);
-      if (i < items.length - 1) dict.set(PDFName.of("Next"), refs[i + 1]);
-      if (item.children?.length) {
-        const kids = build(item.children, refs[i]);
-        dict.set(PDFName.of("First"), kids[0]);
-        dict.set(PDFName.of("Last"), kids[kids.length - 1]);
-        dict.set(PDFName.of("Count"), ctx.obj(item.children.length));
-      }
-      ctx.assign(refs[i], dict);
-    });
-    return refs;
-  };
-  const outlinesRef = ctx.nextRef();
-  const top = build(NAV_LAYOUT.outline, outlinesRef);
-  ctx.assign(
-    outlinesRef,
-    ctx.obj({
-      Type: PDFName.of("Outlines"),
-      First: top[0],
-      Last: top[top.length - 1],
-      Count: ctx.obj(top.length),
-    }),
-  );
-  doc.catalog.set(PDFName.of("Outlines"), outlinesRef);
+  addOutline(doc, pages, NAV_LAYOUT.outline);
 
   const enc = new TextEncoder();
   await doc.attach(
@@ -480,6 +484,83 @@ async function ssnFixture() {
   return doc.save({ useObjectStreams: false });
 }
 
+// ---- Workpapers for page organization (Phase 2) -----------------------------
+
+/**
+ * Three 3-page workpapers with the SAME form field names (so a merge must rename them),
+ * different filled values, two annotations each, and a nested outline.
+ */
+export const WORKPAPERS = ["a", "b", "c"].map((id, k) => ({
+  file: `workpaper-${id}.pdf`,
+  id: id.toUpperCase(),
+  values: {
+    "client.name": `Sample Client ${id.toUpperCase()}`,
+    "tie.out": k !== 1,
+    status: ["draft", "review", "final"][k],
+  },
+  outline: [
+    {
+      title: `${id.toUpperCase()} Cover`,
+      page: 0,
+      children: [{ title: `${id.toUpperCase()} Detail`, page: 1 }],
+    },
+    { title: `${id.toUpperCase()} Summary`, page: 2 },
+  ],
+  note: `Reviewer note ${id.toUpperCase()}`,
+}));
+
+async function workpaper(spec) {
+  const doc = await PDFDocument.create();
+  stamp(doc, `Synthetic workpaper ${spec.id}`);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const pages = [0, 1, 2].map((i) => {
+    const page = doc.addPage([612, 792]);
+    page.drawText(`Workpaper ${spec.id} - page ${i + 1} of 3`, { x: 72, y: 720, size: 18, font });
+    page.drawText("Synthetic test document. No client data.", { x: 72, y: 696, size: 10, font });
+    return page;
+  });
+  const form = doc.getForm();
+  const name = form.createTextField("client.name");
+  name.addToPage(pages[0], { x: 200, y: 600, width: 260, height: 22 });
+  name.setText(spec.values["client.name"]);
+  const tie = form.createCheckBox("tie.out");
+  tie.addToPage(pages[1], { x: 200, y: 600, width: 16, height: 16 });
+  if (spec.values["tie.out"]) tie.check();
+  const status = form.createRadioGroup("status");
+  ["draft", "review", "final"].forEach((v, i) =>
+    status.addOptionToPage(v, pages[2], { x: 200 + i * 60, y: 600, width: 16, height: 16 }),
+  );
+  status.select(spec.values.status);
+
+  // Annotations: a sticky note on page 1 and a red square on page 2.
+  const ctx = doc.context;
+  const annot = (page, dict) => {
+    const ref = ctx.register(ctx.obj(dict));
+    const annots = page.node.lookup(PDFName.of("Annots"));
+    if (annots) annots.push(ref);
+    else page.node.set(PDFName.of("Annots"), ctx.obj([ref]));
+  };
+  annot(pages[0], {
+    Type: "Annot",
+    Subtype: "Text",
+    Rect: [480, 700, 500, 720],
+    Contents: PDFString.of(spec.note),
+    T: PDFString.of("Reviewer"),
+    Name: "Comment",
+    C: [1, 0.9, 0.2],
+  });
+  annot(pages[1], {
+    Type: "Annot",
+    Subtype: "Square",
+    Rect: [72, 400, 300, 480],
+    C: [1, 0, 0],
+    Border: [0, 0, 2],
+    Contents: PDFString.of(`Square ${spec.id}`),
+  });
+  addOutline(doc, pages, spec.outline);
+  return doc.save();
+}
+
 // ---- qpdf -------------------------------------------------------------------
 
 /**
@@ -531,6 +612,7 @@ export async function generateCorpus({ force = false } = {}) {
     scannedImageOnly(readFileSync(out("text-1p.pdf"))),
   );
   await write("ssn-redaction.pdf", ssnFixture);
+  for (const w of WORKPAPERS) await write(w.file, () => workpaper(w));
   await write("stamp-reviewed.png", stampPng);
   // useObjectStreams: false so the xref is a plain table that damagedXref can break.
   await write("damaged-xref.pdf", async () => {

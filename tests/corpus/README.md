@@ -28,6 +28,8 @@ Created by `npm run corpus` (or automatically by Vitest's global setup). Require
 | `generated/damaged-xref.pdf`       | `generate.mjs`                                                    | text-1p with a wrong `startxref`. qpdf repairs it (exit 3)                                                                                                                                                                                                                          |
 | `generated/ssn-redaction.pdf`      | `generate.mjs`                                                    | Fake SSN `000-12-3456` in: page text (single run and split across two runs), page 2 text, a sticky-note annotation over the SSN, a form field value, `/Info` Subject + Keywords, XMP metadata. A red vector line sits under the first SSN. `KEEP-THIS-LINE` must survive redaction. |
 
+| `generated/workpaper-{a,b,c}.pdf` | `generate.mjs` (`WORKPAPERS`) | 3 pages each, the SAME field names (`client.name`, `tie.out`, `status` radio) with different values, a sticky note + square annotation, nested outline. Phase 2 merge/split tests |
+
 `000-xx-xxxx` is never issued by the SSA, so the fake SSN cannot belong to anyone.
 
 ## IRS forms (`irs/`, committed)
@@ -40,3 +42,16 @@ domain). All three are hybrid AcroForm + XFA.
 | `irs/f1040.pdf` | https://www.irs.gov/pub/irs-pdf/f1040.pdf | 2025 Form 1040, 2 pp, 199 fields   | `3d31c226df0d189ced80e039d01cf0f8820c1019681a0f0ca6264de277b7e982` |
 | `irs/fw9.pdf`   | https://www.irs.gov/pub/irs-pdf/fw9.pdf   | Rev. March 2024, 6 pp, 23 fields   | `2d420cbb4123dcf1fb82595b2359cfbb5d81f00b9df9d359fcc7af361d093f53` |
 | `irs/f8879.pdf` | https://www.irs.gov/pub/irs-pdf/f8879.pdf | Rev. January 2021, 2 pp, 20 fields | `f6c6ef51c0cb91f6f2e805818c755281e8485f768e6999c272ed1e06e9504fea` |
+
+## Image fixtures (`fixtures/`, committed)
+
+Synthetic images made on 2026-10-22 with ImageMagick 6.9 and Pillow 12.3 (text drawn
+from scratch, no scans). Committed because the generator has no TIFF/JPEG encoder.
+
+| File                     | Content                                                       |
+| ------------------------ | ------------------------------------------------------------- |
+| `scan-g4-3p.tif`         | 3 pages, 1700x2200 @ 200 dpi, CCITT G4, MinIsWhite, one strip |
+| `scan-g4-minisblack.tif` | 1 page, CCITT G4, MinIsBlack (inverted polarity), one strip   |
+| `scan-g4-strips.tif`     | 1 page, CCITT G4 in 9 strips (cannot be passed through as is) |
+| `gray-lzw.tif`           | 1 page, 8-bit gray, LZW, 150 dpi                              |
+| `photo-rgb.jpg`          | 900x600 RGB JPEG, JFIF 150 dpi                                |

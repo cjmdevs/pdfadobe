@@ -24,6 +24,13 @@ export const NAV_LAYOUT: {
   outline: NavOutlineItem[];
   attachments: { name: string; mimeType: string; description: string }[];
 };
+export const WORKPAPERS: {
+  file: string;
+  id: string;
+  values: { "client.name": string; "tie.out": boolean; status: string };
+  outline: NavOutlineItem[];
+  note: string;
+}[];
 /** qpdf executable: $QPDF, PATH, or src-tauri/vendor/qpdf/qpdf.exe. Throws if none. */
 export function qpdfBin(): string;
 export function generateCorpus(opts?: { force?: boolean }): Promise<string[]>;
