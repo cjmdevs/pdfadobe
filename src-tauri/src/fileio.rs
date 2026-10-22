@@ -89,6 +89,175 @@ pub fn save_pdf_as(request: Request<'_>) -> Result<(), FileError> {
     Ok(write_new_copy(&target, source.as_deref(), bytes)?)
 }
 
+/// Save over the opened file. Body = raw PDF bytes, header `x-target`.
+/// CLAUDE.md: write a temp file, keep the previous version as `<name>.bak`, then
+/// atomically replace. The `.bak` stays until the file next opens successfully
+/// (`discard_backup`).
+#[tauri::command]
+pub fn save_pdf(request: Request<'_>) -> Result<(), FileError> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected raw PDF bytes".into());
+    };
+    let target = header_path(&request, "x-target")?;
+    save_with_backup(&target, bytes)
+}
+
+pub fn backup_path(target: &Path) -> PathBuf {
+    let mut name = target.file_name().unwrap_or_default().to_os_string();
+    name.push(".bak");
+    target.with_file_name(name)
+}
+
+pub fn save_with_backup(target: &Path, bytes: &[u8]) -> Result<(), FileError> {
+    let tmp = temp_sibling(target)?;
+    let result = (|| {
+        let mut f = File::create(&tmp).map_err(|e| classify("create a temp file", &e))?;
+        f.write_all(bytes).map_err(|e| classify("write", &e))?;
+        f.sync_all().map_err(|e| classify("flush", &e))?;
+        drop(f);
+        if target.exists() {
+            fs::copy(target, backup_path(target)).map_err(|e| classify("keep a backup", &e))?;
+        }
+        fs::rename(&tmp, target).map_err(|e| classify("replace the file", &e))
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&tmp);
+    }
+    result
+}
+
+/// Writes a new file into a folder (Split, Extract to folder). Body = raw bytes, headers
+/// `x-folder` and `x-name`. Never overwrites: "a.pdf" becomes "a (2).pdf" if taken.
+#[tauri::command]
+pub fn write_new_file(request: Request<'_>) -> Result<String, FileError> {
+    let InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected raw bytes".into());
+    };
+    let folder = header_path(&request, "x-folder")?;
+    let name = header_path(&request, "x-name")?;
+    let name = name.to_string_lossy().into_owned();
+    Ok(write_unique(&folder, &name, bytes)?
+        .to_string_lossy()
+        .into_owned())
+}
+
+pub fn write_unique(folder: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf, FileError> {
+    if name.is_empty() || name.contains(['/', '\\', ':']) || name == "." || name == ".." {
+        return Err(FileError::other(format!("invalid file name: {name}")));
+    }
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s.to_string(), format!(".{e}")),
+        _ => (name.to_string(), String::new()),
+    };
+    for k in 1..10_000 {
+        let candidate = if k == 1 {
+            folder.join(name)
+        } else {
+            folder.join(format!("{stem} ({k}){ext}"))
+        };
+        let file = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&candidate);
+        match file {
+            Ok(mut f) => {
+                let written = f.write_all(bytes).and_then(|_| f.sync_all());
+                if let Err(e) = written {
+                    drop(f);
+                    let _ = fs::remove_file(&candidate);
+                    return Err(classify("write", &e));
+                }
+                return Ok(candidate);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(classify("create the file", &e)),
+        }
+    }
+    Err("too many files with that name".into())
+}
+
+/// Deletes `<path>.bak` after the saved file opened fine. Missing backups are not an error.
+#[tauri::command]
+pub fn discard_backup(path: String) -> Result<(), FileError> {
+    match fs::remove_file(backup_path(Path::new(&path))) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+            Err(classify("remove the backup", &e))
+        }
+        _ => Ok(()),
+    }
+}
+
+/// Files in a folder that Combine Files accepts (PDF and images), in natural name order.
+/// Not recursive.
+#[tauri::command]
+pub async fn list_folder(path: String) -> Result<Vec<String>, FileError> {
+    let dir = PathBuf::from(&path);
+    let mut out: Vec<PathBuf> = fs::read_dir(&dir)
+        .map_err(|e| classify("open the folder", &e))?
+        .filter_map(|e| e.ok())
+        .map(|e| e.path())
+        .filter(|p| p.is_file() && is_combinable(p))
+        .collect();
+    out.sort_by(|a, b| natural_cmp(&file_name(a), &file_name(b)));
+    Ok(out
+        .into_iter()
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect())
+}
+
+fn file_name(p: &Path) -> String {
+    p.file_name()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .to_lowercase()
+}
+
+pub fn is_combinable(p: &Path) -> bool {
+    let ext = p
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    matches!(
+        ext.as_str(),
+        "pdf" | "jpg" | "jpeg" | "png" | "tif" | "tiff"
+    )
+}
+
+/// "Page 2" before "Page 10": digit runs compare as numbers.
+pub fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (x.peek().copied(), y.peek().copied()) {
+            (None, None) => return std::cmp::Ordering::Equal,
+            (None, _) => return std::cmp::Ordering::Less,
+            (_, None) => return std::cmp::Ordering::Greater,
+            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
+                let take = |it: &mut std::iter::Peekable<std::str::Chars>| {
+                    let mut s = String::new();
+                    while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
+                        s.push(c);
+                        it.next();
+                    }
+                    s
+                };
+                let (m, n) = (take(&mut x), take(&mut y));
+                let (m, n) = (m.trim_start_matches('0'), n.trim_start_matches('0'));
+                let ord = m.len().cmp(&n.len()).then_with(|| m.cmp(n));
+                if ord != std::cmp::Ordering::Equal {
+                    return ord;
+                }
+            }
+            (Some(c), Some(d)) => {
+                if c != d {
+                    return c.cmp(&d);
+                }
+                x.next();
+                y.next();
+            }
+        }
+    }
+}
+
 pub fn header_path(request: &Request<'_>, name: &str) -> Result<PathBuf, String> {
     let raw = request
         .headers()
@@ -231,6 +400,70 @@ mod tests {
             .unwrap();
         let err = tauri::async_runtime::block_on(read_pdf(p.to_string_lossy().into()));
         assert_eq!(err.err().unwrap().kind, "locked");
+    }
+
+    #[test]
+    fn save_keeps_a_backup_and_replaces_atomically() {
+        let d = tmpdir("save");
+        let target = d.join("Return 2025.pdf");
+        fs::write(&target, b"version 1").unwrap();
+        save_with_backup(&target, b"version 2").unwrap();
+        assert_eq!(fs::read(&target).unwrap(), b"version 2");
+        assert_eq!(fs::read(backup_path(&target)).unwrap(), b"version 1");
+        assert_eq!(fs::read_dir(&d).unwrap().count(), 2, "no temp file left");
+        discard_backup(target.to_string_lossy().into()).unwrap();
+        assert!(!backup_path(&target).exists());
+        discard_backup(target.to_string_lossy().into()).unwrap(); // already gone: fine
+        fs::remove_dir_all(d).unwrap();
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn save_reports_a_locked_target_and_keeps_it() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let d = tmpdir("savelock");
+        let target = d.join("open-in-acrobat.pdf");
+        fs::write(&target, b"original").unwrap();
+        let _hold = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(&target)
+            .unwrap();
+        let err = save_with_backup(&target, b"new").unwrap_err();
+        assert_eq!(err.kind, "locked");
+        drop(_hold);
+        assert_eq!(fs::read(&target).unwrap(), b"original");
+        let names: Vec<_> = fs::read_dir(&d)
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert!(names.iter().all(|n| !n.to_string_lossy().ends_with(".tmp")));
+    }
+
+    #[test]
+    fn write_new_file_never_overwrites() {
+        let d = tmpdir("unique");
+        let a = write_unique(&d, "Part 1.pdf", b"one").unwrap();
+        let b = write_unique(&d, "Part 1.pdf", b"two").unwrap();
+        assert_eq!(a.file_name().unwrap(), "Part 1.pdf");
+        assert_eq!(b.file_name().unwrap(), "Part 1 (2).pdf");
+        assert_eq!(fs::read(&a).unwrap(), b"one");
+        assert!(write_unique(&d, "..\\evil.pdf", b"x").is_err());
+        assert!(write_unique(&d, "C:evil.pdf", b"x").is_err());
+        fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn lists_combinable_files_in_natural_order() {
+        let d = tmpdir("list");
+        for n in ["Scan 10.pdf", "Scan 2.PDF", "notes.txt", "a.tif", "b.JPG"] {
+            fs::write(d.join(n), b"x").unwrap();
+        }
+        fs::create_dir_all(d.join("sub.pdf")).unwrap();
+        let got = tauri::async_runtime::block_on(list_folder(d.to_string_lossy().into())).unwrap();
+        let names: Vec<_> = got.iter().map(|p| file_name(Path::new(p))).collect();
+        assert_eq!(names, ["a.tif", "b.jpg", "scan 2.pdf", "scan 10.pdf"]);
+        fs::remove_dir_all(d).unwrap();
     }
 
     #[test]

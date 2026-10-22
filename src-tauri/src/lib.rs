@@ -1,6 +1,7 @@
 mod fileio;
 mod launch;
 mod print;
+mod qpdf_job;
 mod repair;
 mod settings;
 
@@ -33,6 +34,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             fileio::read_pdf,
             fileio::save_pdf_as,
+            fileio::save_pdf,
+            fileio::discard_backup,
+            fileio::list_folder,
+            fileio::write_new_file,
+            qpdf_job::qpdf_run,
             launch::take_launch_paths,
             settings::get_settings,
             settings::set_settings,

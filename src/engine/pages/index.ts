@@ -9,3 +9,4 @@ export * from "./outline-io";
 export * from "./qpdf";
 export * from "./ranges";
 export * from "./structure";
+export * from "./qpdf-wire";

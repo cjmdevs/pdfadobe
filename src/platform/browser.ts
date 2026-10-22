@@ -4,6 +4,8 @@
 // it 404s ("not found"); Playwright intercepts it with page.route() to stand in for the
 // Windows file system, including locked files and network shares (see tests/e2e/fixtures.ts).
 // The response's `x-mockfs-error` header carries a FileErrorKind for simulated failures.
+import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
+import { QpdfError } from "../engine/pages/qpdf";
 import {
   PlatformError,
   baseName,
@@ -14,16 +16,31 @@ import {
 
 const SETTINGS_KEY = "pdf-workbench.settings";
 
-function pickWithInput(): Promise<File[]> {
+function pickWithInput(images = false): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = "application/pdf,.pdf";
+    input.accept = images
+      ? "application/pdf,.pdf,image/jpeg,image/png,image/tiff,.tif,.tiff"
+      : "application/pdf,.pdf";
     input.multiple = true;
     input.onchange = () => resolve(Array.from(input.files ?? []));
     input.oncancel = () => resolve([]);
     input.click();
   });
+}
+
+async function mockWrite(path: string, bytes: Uint8Array, mode: "save" | "saveAs" | "new") {
+  return fetch(`/__mockfs/${encodeURIComponent(path)}?mode=${mode}`, {
+    method: "PUT",
+    body: bytes.slice(),
+  });
+}
+
+async function mockError(res: Response): Promise<void> {
+  const kind = res.headers.get("x-mockfs-error") as FileErrorKind | null;
+  if (kind) throw new PlatformError(kind, await res.text());
+  if (!res.ok) throw new PlatformError("other", `mock file system: HTTP ${res.status}`);
 }
 
 export async function fileToOpened(file: File): Promise<OpenedFile> {
@@ -46,8 +63,52 @@ function download(name: string, bytes: ArrayBuffer) {
 export const browserPlatform: Platform = {
   kind: "browser",
 
-  async pickFiles() {
-    return Promise.all((await pickWithInput()).map(fileToOpened));
+  async pickFiles(opts) {
+    return Promise.all((await pickWithInput(opts?.images)).map(fileToOpened));
+  },
+
+  async pickFolder() {
+    // Tests queue folder choices in window.__PDFWB_NEXT_FOLDERS__.
+    const w = window as unknown as { __PDFWB_NEXT_FOLDERS__?: string[] };
+    return w.__PDFWB_NEXT_FOLDERS__?.shift() ?? null;
+  },
+
+  async listFolder(path) {
+    const res = await fetch(`/__mockfs-list/${encodeURIComponent(path)}`);
+    await mockError(res);
+    return (await res.json()) as string[];
+  },
+
+  async save(path, bytes) {
+    await mockError(await mockWrite(path, bytes, "save"));
+  },
+
+  async saveAs(target, source, bytes) {
+    if (source && target.toLowerCase() === source.toLowerCase()) {
+      throw new PlatformError("other", "Save As target is the original file; choose a new name");
+    }
+    await mockError(await mockWrite(target, bytes, "saveAs"));
+  },
+
+  async discardBackup() {
+    // Nothing to clean up in the mock file system.
+  },
+
+  async writeNewFile(folder, name, bytes) {
+    const res = await mockWrite(`${folder}\\${name}`, bytes, "new");
+    await mockError(res);
+    return res.text();
+  },
+
+  qpdf: {
+    // Playwright runs qpdf for /__qpdf (tests/e2e/fixtures.ts). Plain `npm run dev` has no
+    // qpdf: page operations need the Windows app.
+    async run(job) {
+      const res = await fetch("/__qpdf", { method: "POST", body: encodeJob(job).slice() });
+      if (res.status === 404) throw new QpdfError("Page operations need the Windows app (qpdf).");
+      if (!res.ok) throw new QpdfError(await res.text());
+      return decodeResult(new Uint8Array(await res.arrayBuffer()));
+    },
   },
 
   async readPath(path) {

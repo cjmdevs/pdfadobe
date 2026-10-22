@@ -3,6 +3,8 @@
 // - browser.ts: plain browser for dev and Playwright (files via <input>, drag-drop, and a
 //   test-only mock file system served at /__mockfs/ that Playwright intercepts).
 
+import type { Qpdf } from "../engine/pages/qpdf";
+
 /** Where an open document came from. Only `path` sources go in Recent Files. */
 export type FileSource = { kind: "path"; path: string } | { kind: "memory"; name: string };
 
@@ -20,6 +22,7 @@ export type FileErrorKind =
   | "accessDenied"
   | "isDirectory"
   | "qpdfMissing"
+  | "qpdfFailed"
   | "unrepairable"
   | "unsupported"
   | "other";
@@ -49,8 +52,12 @@ export type PrintResult = { status: "printed"; pages: number } | { status: "canc
 
 export interface Platform {
   readonly kind: "tauri" | "browser";
-  /** Native open dialog (multi-select). Empty array when cancelled. */
-  pickFiles(): Promise<OpenedFile[]>;
+  /** Native open dialog (multi-select). Empty array when cancelled. `images` also offers JPG/PNG/TIFF. */
+  pickFiles(opts?: { images?: boolean }): Promise<OpenedFile[]>;
+  /** Folder picker; null when cancelled. */
+  pickFolder(): Promise<string | null>;
+  /** PDFs and images directly in a folder (not subfolders), in natural name order. */
+  listFolder(path: string): Promise<string[]>;
   readPath(path: string): Promise<OpenedFile>;
   /** Paths passed on the command line at first launch (Explorer "Open with"). */
   takeLaunchPaths(): Promise<string[]>;
@@ -62,6 +69,16 @@ export interface Platform {
   saveSettings(value: unknown): Promise<void>;
   /** Save dialog; null when cancelled. */
   pickSavePath(suggested: string): Promise<string | null>;
+  /** Save over an opened file: temp file, previous version kept as `<path>.bak`, atomic replace. */
+  save(path: string, bytes: Uint8Array): Promise<void>;
+  /** Save As to a new path. Refuses `source` (the original is never overwritten). */
+  saveAs(target: string, source: string | null, bytes: Uint8Array): Promise<void>;
+  /** Removes `<path>.bak` once the saved file has opened successfully. */
+  discardBackup(path: string): Promise<void>;
+  /** Writes `name` into `folder`, adding " (2)", " (3)"... instead of overwriting. Returns the path. */
+  writeNewFile(folder: string, name: string, bytes: Uint8Array): Promise<string>;
+  /** qpdf for page operations (src/engine/pages). */
+  qpdf: Qpdf;
   /** qpdf-repair `source` into `target` (never the same file). */
   repair(source: string, target: string): Promise<{ hadWarnings: boolean }>;
   /** Native print. Throws PlatformError("unsupported") when only WebView print exists. */
@@ -79,4 +96,18 @@ export function baseName(path: string): string {
 export function suffixedPath(path: string, suffix: string): string {
   const m = /^(.*?)(\.pdf)?$/i.exec(path);
   return `${m?.[1] ?? path} (${suffix}).pdf`;
+}
+
+export function dirName(path: string): string {
+  const i = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+  return i > 0 ? path.slice(0, i) : path;
+}
+
+/** Characters Windows forbids in file names, replaced so bookmark titles can name files. */
+export function safeFileName(name: string): string {
+  const clean = name
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+    .replace(/[. ]+$/, "")
+    .trim();
+  return clean.slice(0, 120) || "Untitled";
 }

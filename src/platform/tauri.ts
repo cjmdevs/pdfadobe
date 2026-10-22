@@ -4,6 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
+import { QpdfError, type Qpdf } from "../engine/pages/qpdf";
 import {
   PlatformError,
   baseName,
@@ -40,14 +42,40 @@ async function readPath(path: string): Promise<OpenedFile> {
   return { source: { kind: "path", path }, name: baseName(path), bytes };
 }
 
+const headers = (h: Record<string, string>) => ({
+  headers: Object.fromEntries(Object.entries(h).map(([k, v]) => [k, encodeURIComponent(v)])),
+});
+
+const qpdf: Qpdf = {
+  async run(job) {
+    try {
+      const out = await invoke<ArrayBuffer>("qpdf_run", encodeJob(job));
+      return decodeResult(new Uint8Array(out));
+    } catch (e) {
+      const err = toPlatformError(e);
+      throw new QpdfError(
+        err.kind === "qpdfMissing" ? "qpdf is missing from this installation." : err.message,
+      );
+    }
+  },
+};
+
+export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "tif", "tiff"];
+
 export const tauriPlatform: Platform = {
   kind: "tauri",
 
-  async pickFiles() {
+  async pickFiles(opts) {
     const picked = await open({
       multiple: true,
       directory: false,
-      filters: [{ name: "PDF files", extensions: ["pdf"] }],
+      filters: opts?.images
+        ? [
+            { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
+            { name: "PDF files", extensions: ["pdf"] },
+            { name: "Images", extensions: IMAGE_EXTENSIONS },
+          ]
+        : [{ name: "PDF files", extensions: ["pdf"] }],
     });
     if (!picked) return [];
     const paths = Array.isArray(picked) ? picked : [picked];
@@ -58,6 +86,34 @@ export const tauriPlatform: Platform = {
   },
 
   readPath,
+
+  async pickFolder() {
+    const picked = await open({ directory: true, multiple: false });
+    return typeof picked === "string" ? picked : null;
+  },
+
+  listFolder: (path) => call<string[]>("list_folder", { path }),
+
+  async save(path, bytes) {
+    await call("save_pdf", bytes, headers({ "x-target": path }));
+  },
+
+  async saveAs(target, source, bytes) {
+    await call(
+      "save_pdf_as",
+      bytes,
+      headers(source ? { "x-target": target, "x-source": source } : { "x-target": target }),
+    );
+  },
+
+  async discardBackup(path) {
+    await call("discard_backup", { path });
+  },
+
+  writeNewFile: (folder, name, bytes) =>
+    call<string>("write_new_file", bytes, headers({ "x-folder": folder, "x-name": name })),
+
+  qpdf,
 
   takeLaunchPaths: () => call<string[]>("take_launch_paths"),
 

@@ -8,6 +8,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test as base, expect, type Page } from "@playwright/test";
+import { decodeJob, encodeResult } from "../../src/engine/pages/qpdf-wire";
+import { nodeQpdf } from "../helpers/qpdf-node";
 export type { Page };
 
 export const CORPUS = join(import.meta.dirname, "..", "corpus", "generated");
@@ -28,7 +30,7 @@ export const P = {
   missing: "C:\\Corpus\\moved-away.pdf",
 } as const;
 
-type Entry = { file: string } | { error: string; message: string };
+type Entry = { file: string } | { bytes: Buffer } | { error: string; message: string };
 
 const DEFAULT_FS: Record<string, Entry> = {
   [P.text]: { file: "text-1p.pdf" },
@@ -51,16 +53,47 @@ export interface MockFs {
   entries: Record<string, Entry>;
   /** Paths written by "repair" (target -> source corpus file). */
   repaired: Map<string, string>;
+  /** Every write the app made, in order: Save, Save As, new files (Split). */
+  writes: { path: string; mode: string }[];
 }
+
+export const FIXTURES = join(import.meta.dirname, "..", "corpus", "fixtures");
+
+/** Bytes the app last wrote to (or that the test placed at) a path. */
+export function bytesAt(fs: MockFs, path: string): Buffer {
+  const e = fs.entries[path];
+  if (!e || "error" in e) throw new Error(`nothing at ${path}`);
+  return "bytes" in e ? e.bytes : readFileSync(join(CORPUS, e.file));
+}
+
+const COMBINABLE = /\.(pdf|jpe?g|png|tiff?)$/i;
 
 export const test = base.extend<{ mockfs: MockFs; external: string[] }>({
   // Auto fixtures: every test gets the mock file system and the network guard.
   mockfs: [
     async ({ page }, use) => {
-      const fs: MockFs = { entries: { ...DEFAULT_FS }, repaired: new Map() };
+      const fs: MockFs = { entries: { ...DEFAULT_FS }, repaired: new Map(), writes: [] };
       await page.route("**/__mockfs/**", async (route) => {
         const url = new URL(route.request().url());
-        const path = decodeURIComponent(url.pathname.slice("/__mockfs/".length));
+        let path = decodeURIComponent(url.pathname.slice("/__mockfs/".length));
+        if (route.request().method() === "PUT") {
+          const mode = url.searchParams.get("mode") ?? "save";
+          const existing = fs.entries[path];
+          if (existing && "error" in existing)
+            return route.fulfill({
+              status: 500,
+              headers: { "x-mockfs-error": existing.error },
+              body: existing.message,
+            });
+          if (mode === "new") {
+            const m = /^(.*?)(\.[^.\\]*)?$/.exec(path)!;
+            for (let k = 2; fs.entries[path]; k++) path = `${m[1]} (${k})${m[2] ?? ""}`;
+          }
+          if (mode === "save" && existing) fs.entries[`${path}.bak`] = existing;
+          fs.entries[path] = { bytes: route.request().postDataBuffer() ?? Buffer.alloc(0) };
+          fs.writes.push({ path, mode });
+          return route.fulfill({ status: 200, body: path });
+        }
         const entry = fs.entries[path];
         if (!entry) return route.fulfill({ status: 404, body: "not found" });
         if ("error" in entry)
@@ -69,7 +102,34 @@ export const test = base.extend<{ mockfs: MockFs; external: string[] }>({
             headers: { "x-mockfs-error": entry.error },
             body: entry.message,
           });
-        return route.fulfill({ status: 200, body: readFileSync(join(CORPUS, entry.file)) });
+        return route.fulfill({ status: 200, body: bytesAt(fs, path) });
+      });
+      await page.route("**/__mockfs-list/**", async (route) => {
+        const url = new URL(route.request().url());
+        const dir = decodeURIComponent(url.pathname.slice("/__mockfs-list/".length));
+        const prefix = dir.endsWith("\\") ? dir : `${dir}\\`;
+        const files = Object.keys(fs.entries)
+          .filter((p) => p.startsWith(prefix) && !p.slice(prefix.length).includes("\\"))
+          .filter((p) => COMBINABLE.test(p))
+          .sort((a, b) => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" }));
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(files),
+        });
+      });
+      // qpdf for page operations runs here, in the test process (like the Tauri command).
+      const qpdf = nodeQpdf();
+      await page.route("**/__qpdf", async (route) => {
+        try {
+          const job = decodeJob(
+            new Uint8Array(route.request().postDataBuffer() ?? Buffer.alloc(0)),
+          );
+          const result = await qpdf.run(job);
+          return route.fulfill({ status: 200, body: Buffer.from(encodeResult(result)) });
+        } catch (e) {
+          return route.fulfill({ status: 500, body: e instanceof Error ? e.message : String(e) });
+        }
       });
       // Simulated qpdf repair: "repairs" damaged-xref.pdf by serving text-1p.pdf at the target.
       await page.route("**/__mockfs-repair", async (route) => {
