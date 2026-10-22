@@ -87,8 +87,10 @@ test.describe("bookmark editor", () => {
 
   test("delete a bookmark together with its pages; undo restores", async ({ page, mockfs }) => {
     await row(page, "Part I - Sizes").getByRole("button").last().click();
-    page.once("dialog", (d) => void d.accept());
     await page.getByRole("button", { name: "Delete bookmark and its pages…" }).click();
+    const confirm = page.getByRole("dialog", { name: "Delete bookmark and pages" });
+    await expect(confirm).toContainText("5 page(s) (pages 2-6)");
+    await confirm.getByRole("button", { name: "Delete" }).click();
     await idle(page);
     await expect(row(page, "Part I - Sizes")).toHaveCount(0);
     await expect(page.getByLabel("Page number")).toBeVisible();
@@ -145,8 +147,11 @@ test.describe("bookmark editor", () => {
     expect(outlineLines(saved.outline).slice(0, 2)).toEqual(["Engagement letter@3", "Untitled@5"]);
 
     await page.getByRole("button", { name: "More bookmark options" }).click();
-    page.once("dialog", (d) => void d.accept());
     await page.getByRole("menuitem", { name: "Bookmark every page" }).click();
+    await page
+      .getByRole("dialog", { name: "Bookmark every page" })
+      .getByRole("button", { name: "Replace" })
+      .click();
     await idle(page);
     await expect(page.getByTestId("bookmark")).toHaveCount(8);
     await expect(row(page, "Page 8")).toBeVisible();

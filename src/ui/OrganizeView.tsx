@@ -1,12 +1,13 @@
 // Organize Pages: a grid of page thumbnails. Select with click / Ctrl+click / Shift+click /
 // Ctrl+A, drag to reorder, and run page operations on the selection. Every change is one
 // undoable step (Ctrl+Z / Ctrl+Y).
-import { useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useThumbnailCapability } from "@embedpdf/plugin-thumbnail/react";
 import { usePageActions } from "../app/pageActions";
 import { useWorkbench, type PageOpDialog } from "../app/workbench";
 import { Icon, type IconName } from "./Icon";
+import { usePointerDrag } from "./usePointerDrag";
 
 export function OrganizeView({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
@@ -21,7 +22,6 @@ export function OrganizeView({ documentId }: { documentId: string }) {
   const [anchor, setAnchor] = useState(restored ?? 0);
   const [focus, setFocus] = useState(restored ?? 0);
   const [dropAt, setDropAt] = useState<number | null>(null);
-  const dragging = useRef<number[] | null>(null);
   const grid = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -89,30 +89,32 @@ export function OrganizeView({ documentId }: { documentId: string }) {
     e.stopPropagation();
   };
 
-  // Drag: the selection if the dragged page is selected, else just that page.
-  const onDragStart = (e: DragEvent, i: number) => {
-    dragging.current = selected.has(i) ? sel : [i];
-    if (!selected.has(i)) setSelected(new Set([i]));
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("application/x-pdfwb-pages", dragging.current.join(","));
+  // Drag (pointer events; see usePointerDrag): the selection if the dragged page is
+  // selected, else just that page. The drop position is before/after the page under the
+  // pointer, by which half of it the pointer is over.
+  const dropIndex = (under: Element | null, x: number): number | null => {
+    const cell = under?.closest<HTMLElement>("[data-page]");
+    if (!cell || !grid.current?.contains(cell)) return null;
+    const i = Number(cell.dataset.page);
+    const r = cell.getBoundingClientRect();
+    return x < r.left + r.width / 2 ? i : i + 1;
   };
-  const onDragOver = (e: DragEvent, i: number) => {
-    if (!dragging.current) return;
-    e.preventDefault();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setDropAt(e.clientX < r.left + r.width / 2 ? i : i + 1);
-  };
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    const pages = dragging.current;
-    const at = dropAt;
-    dragging.current = null;
-    setDropAt(null);
-    if (!pages || at === null) return;
-    // No-op if dropped inside or right next to a contiguous selection.
-    const contiguous = pages.every((p, k) => k === 0 || p === (pages[k - 1] ?? -2) + 1);
-    if (contiguous && at >= (pages[0] ?? 0) && at <= (pages[pages.length - 1] ?? 0) + 1) return;
-    void actions.move(pages, at >= count ? null : at);
+  const drag = usePointerDrag<number[]>({
+    disabled: busy,
+    onMove: (_pages, under, e) => setDropAt(dropIndex(under, e.clientX)),
+    onCancel: () => setDropAt(null),
+    onDrop: (pages, under, e) => {
+      setDropAt(null);
+      const at = dropIndex(under, e.clientX);
+      if (at === null) return;
+      // No-op if dropped inside or right next to a contiguous selection.
+      const contiguous = pages.every((p, k) => k === 0 || p === (pages[k - 1] ?? -2) + 1);
+      if (contiguous && at >= (pages[0] ?? 0) && at <= (pages[pages.length - 1] ?? 0) + 1) return;
+      void actions.move(pages, at >= count ? null : at);
+    },
+  });
+  const startDrag = (e: React.PointerEvent, i: number) => {
+    drag.start(e, selected.has(i) ? sel : [i]);
   };
 
   if (!doc) return null;
@@ -197,11 +199,6 @@ export function OrganizeView({ documentId }: { documentId: string }) {
         aria-multiselectable="true"
         aria-label="Pages"
         onKeyDown={onKey}
-        onDragLeave={(e) => {
-          if (e.currentTarget === e.target) setDropAt(null);
-        }}
-        onDrop={onDrop}
-        onDragOver={(e) => dragging.current && e.preventDefault()}
       >
         {Array.from({ length: count }, (_, i) => (
           <div
@@ -212,14 +209,8 @@ export function OrganizeView({ documentId }: { documentId: string }) {
             aria-selected={selected.has(i)}
             aria-label={`Page ${i + 1}`}
             tabIndex={i === focus ? 0 : -1}
-            className={`grid-page${selected.has(i) ? " selected" : ""}${dropAt === i ? " drop-before" : ""}${dropAt === i + 1 && i === count - 1 ? " drop-after" : ""}`}
-            draggable={!busy}
-            onDragStart={(e) => onDragStart(e, i)}
-            onDragOver={(e) => onDragOver(e, i)}
-            onDragEnd={() => {
-              dragging.current = null;
-              setDropAt(null);
-            }}
+            className={`grid-page${selected.has(i) ? " selected" : ""}${drag.source?.includes(i) ? " dragging" : ""}${dropAt === i ? " drop-before" : ""}${dropAt === i + 1 && i === count - 1 ? " drop-after" : ""}`}
+            onPointerDown={(e) => startDrag(e, i)}
             onClick={(e) => select(i, e)}
             onDoubleClick={() => wb.setOrganize(documentId, false, i)}
           >
@@ -231,6 +222,21 @@ export function OrganizeView({ documentId }: { documentId: string }) {
     </div>
   );
 }
+
+/** Short visible captions; the full label is the tooltip and accessible name. */
+const CAPTION: Record<string, string> = {
+  rotateCcw: "Rotate left",
+  rotateCw: "Rotate right",
+  trash: "Delete",
+  extract: "Extract",
+  duplicate: "Duplicate",
+  blank: "Blank page",
+  insert: "Insert",
+  replace: "Replace",
+  crop: "Crop",
+  pageSize: "Page size",
+  split: "Split",
+};
 
 function Act({
   icon,
@@ -246,13 +252,14 @@ function Act({
   return (
     <button
       type="button"
-      className="tool"
+      className="tool labeled"
       aria-label={label}
       title={label}
       onClick={onClick}
       disabled={disabled}
     >
       <Icon name={icon} />
+      <span aria-hidden="true">{CAPTION[icon] ?? label}</span>
     </button>
   );
 }

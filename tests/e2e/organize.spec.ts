@@ -187,7 +187,7 @@ test.describe("organize pages", () => {
     await page.getByRole("button", { name: "Page size…" }).click();
     const size = page.getByRole("dialog", { name: "Set page size" });
     await size.getByLabel("Page size").selectOption("legal");
-    await size.getByRole("radio", { name: /Selected/ }).check();
+    await expect(size.getByRole("radio", { name: /This page \(1\)/ })).toBeChecked();
     await size.getByRole("button", { name: "Apply" }).click();
     await idle(page);
 
@@ -220,22 +220,48 @@ test.describe("organize pages", () => {
   test("changing pages of a signed PDF asks first (signature would break)", async ({ page }) => {
     await openOrganize(page, P.signed);
     await grid(page).nth(0).click();
-    const asked: string[] = [];
-    page.once("dialog", (d) => {
-      asked.push(d.message());
-      void d.dismiss();
-    });
     await page.getByRole("button", { name: "Rotate right" }).click();
-    await expect.poll(() => asked.length).toBe(1);
-    expect(asked[0]).toContain("digitally signed (1 signature)");
+    const ask = page.getByRole("dialog", { name: "Digitally signed document" });
+    await expect(ask).toContainText("digitally signed (1 signature)");
+    await ask.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByRole("button", { name: "Undo (Ctrl+Z)" })).toBeDisabled();
-    // Accepting once covers the rest of the session for this tab.
-    page.once("dialog", (d) => void d.accept());
+    // Agreeing once covers the rest of the session for this tab.
     await page.getByRole("button", { name: "Rotate right" }).click();
+    await ask.getByRole("button", { name: "Change anyway" }).click();
     await idle(page);
     await page.getByRole("button", { name: "Rotate left" }).click();
     await idle(page);
+    await expect(ask).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Undo Rotate left (Ctrl+Z)" })).toBeEnabled();
+  });
+
+  test("toolbar rotate turns only the current page, is saved, and survives a later delete", async ({
+    page,
+    mockfs,
+  }) => {
+    // Owner report: rotate affected every page and was lost after deleting a page.
+    await openPaths(page, [P.wpA]);
+    await waitForPainted(page, 0);
+    await page.getByLabel("Page number").fill("2");
+    await page.getByLabel("Page number").press("Enter");
+    await page.getByRole("button", { name: "Rotate page 2 right" }).click();
+    await idle(page);
+    await page.getByRole("button", { name: "Organize pages" }).click();
+    await grid(page).nth(0).click();
+    await page.getByRole("button", { name: "Delete (Del)" }).click();
+    await idle(page);
+    await page.keyboard.press("Control+s");
+    await expect(activeTab(page)).not.toContainText("•");
+    const saved = await inspectPdf(new Uint8Array(bytesAt(mockfs, P.wpA)));
+    expect(ids(saved.pageText)).toEqual(["A2", "A3"]);
+    expect(saved.pageSizes.map((s) => s.rotate)).toEqual([90, 0]);
+  });
+
+  test("toolbar rotate on a signed PDF asks first", async ({ page }) => {
+    await openPaths(page, [P.signed]);
+    await waitForPainted(page, 0);
+    await page.getByRole("button", { name: "Rotate page 1 right" }).click();
+    await expect(page.getByRole("dialog", { name: "Digitally signed document" })).toBeVisible();
   });
 
   test("closing with unsaved changes asks first", async ({ page }) => {

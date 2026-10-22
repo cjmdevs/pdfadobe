@@ -115,14 +115,15 @@ test.describe("rotate view", () => {
     await open(page, P.text);
     const portrait = await box(page, 0);
     expect(portrait.height).toBeGreaterThan(portrait.width);
-    await page.getByRole("button", { name: /Rotate view clockwise/ }).click();
+    // Acrobat's View > Rotate View keys. (The toolbar buttons rotate the page itself.)
+    await page.keyboard.press("Control+Shift+Equal");
     await expect
       .poll(async () => {
         const b = await box(page, 0);
         return b.width > b.height;
       })
       .toBe(true);
-    await page.getByRole("button", { name: /Rotate view counter-clockwise/ }).click();
+    await page.keyboard.press("Control+Shift+Minus");
     await expect
       .poll(async () => {
         const b = await box(page, 0);

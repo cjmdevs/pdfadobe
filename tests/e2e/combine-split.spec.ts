@@ -40,9 +40,10 @@ test.describe("combine files", () => {
     await (await chooser).setFiles(join(CORPUS, "workpaper-b.pdf"));
     await expect(items).toHaveCount(5);
 
-    // Scan last; only pages 1 and 3 of workpaper C; drop the extra B.
-    await dlg.getByRole("button", { name: "Move scan-g4-3p.tif down" }).click();
-    await dlg.getByRole("button", { name: "Move scan-g4-3p.tif down" }).click();
+    // Scan last (drag its row onto row 4, then one step with the button); only pages 1
+    // and 3 of workpaper C; drop the extra B.
+    await items.nth(0).locator(".combine-name").dragTo(items.nth(3));
+    await expect(items.nth(3)).toContainText("scan-g4-3p.tif");
     await dlg.getByRole("button", { name: "Move scan-g4-3p.tif down" }).click();
     await dlg.getByLabel("Page range for workpaper-c.pdf").fill("1, 3");
     await dlg.getByRole("button", { name: "Remove workpaper-b.pdf" }).last().click();

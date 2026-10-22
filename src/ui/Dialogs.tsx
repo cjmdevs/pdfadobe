@@ -7,7 +7,7 @@ import type { PdfMetadataObject } from "@embedpdf/models";
 import { SHORTCUTS, displayKey } from "../app/shortcuts";
 import { useNav } from "../app/useNav";
 import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workbench";
-import { CombineDialog, PageOpDialogView, UnsavedDialog } from "./PageOpsDialogs";
+import { CombineDialog, ConfirmDialog, PageOpDialogView, UnsavedDialog } from "./PageOpsDialogs";
 import {
   decodePermissions,
   formatFileSize,
@@ -53,6 +53,16 @@ function Modal({
 }
 
 export function Dialogs() {
+  const { confirmRequest } = useWorkbench();
+  return (
+    <>
+      <MainDialog />
+      {confirmRequest && <ConfirmDialog req={confirmRequest} />}
+    </>
+  );
+}
+
+function MainDialog() {
   const { dialog, setDialog } = useWorkbench();
   if (!dialog) return null;
   const close = () => setDialog(null);

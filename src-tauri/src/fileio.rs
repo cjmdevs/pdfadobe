@@ -109,21 +109,63 @@ pub fn backup_path(target: &Path) -> PathBuf {
 }
 
 pub fn save_with_backup(target: &Path, bytes: &[u8]) -> Result<(), FileError> {
+    ensure_replaceable(target)?;
     let tmp = temp_sibling(target)?;
+    let bak = backup_path(target);
+    let mut made_bak = false;
     let result = (|| {
         let mut f = File::create(&tmp).map_err(|e| classify("create a temp file", &e))?;
         f.write_all(bytes).map_err(|e| classify("write", &e))?;
         f.sync_all().map_err(|e| classify("flush", &e))?;
         drop(f);
         if target.exists() {
-            fs::copy(target, backup_path(target)).map_err(|e| classify("keep a backup", &e))?;
+            fs::copy(target, &bak).map_err(|e| classify("keep a backup", &e))?;
+            made_bak = true;
         }
-        fs::rename(&tmp, target).map_err(|e| classify("replace the file", &e))
+        fs::rename(&tmp, target).map_err(|e| {
+            // A program holding the file (Acrobat) makes the replace fail with "access
+            // denied" rather than a sharing violation: say what is really going on.
+            ensure_replaceable(target)
+                .err()
+                .unwrap_or_else(|| classify("replace the file", &e))
+        })
     })();
     if result.is_err() {
         let _ = fs::remove_file(&tmp);
+        // Nothing was saved, so a fresh backup would only confuse.
+        if made_bak {
+            let _ = fs::remove_file(&bak);
+        }
     }
     result
+}
+
+/// Fails with `locked` when another program has `target` open in a way that stops it being
+/// replaced (no FILE_SHARE_DELETE, e.g. Acrobat or Excel). Asks for DELETE access while
+/// sharing everything, which conflicts exactly with such handles. Missing files are fine.
+#[cfg(windows)]
+pub fn ensure_replaceable(target: &Path) -> Result<(), FileError> {
+    use std::os::windows::fs::OpenOptionsExt;
+    const DELETE: u32 = 0x0001_0000;
+    const SHARE_ALL: u32 = 0x1 | 0x2 | 0x4;
+    match fs::OpenOptions::new()
+        .access_mode(DELETE)
+        .share_mode(SHARE_ALL)
+        .open(target)
+    {
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) if matches!(e.raw_os_error(), Some(32 | 33)) => Err(FileError {
+            kind: "locked",
+            message: "could not save: the file is open in another program".into(),
+        }),
+        Err(e) => Err(classify("save", &e)),
+    }
+}
+
+#[cfg(not(windows))]
+pub fn ensure_replaceable(_target: &Path) -> Result<(), FileError> {
+    Ok(())
 }
 
 /// Writes a new file into a folder (Split, Extract to folder). Body = raw bytes, headers
@@ -437,7 +479,29 @@ mod tests {
             .unwrap()
             .map(|e| e.unwrap().file_name())
             .collect();
-        assert!(names.iter().all(|n| !n.to_string_lossy().ends_with(".tmp")));
+        assert_eq!(names.len(), 1, "no temp file or backup left: {names:?}");
+    }
+
+    /// Acrobat-style: open for reading, sharing read only (others may read, not replace).
+    #[cfg(windows)]
+    #[test]
+    fn save_reports_a_file_open_for_reading_elsewhere_as_locked() {
+        use std::os::windows::fs::OpenOptionsExt;
+        let d = tmpdir("savereader");
+        let target = d.join("open-in-reader.pdf");
+        fs::write(&target, b"original").unwrap();
+        let hold = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0x1)
+            .open(&target)
+            .unwrap();
+        let err = save_with_backup(&target, b"new").unwrap_err();
+        assert_eq!(err.kind, "locked", "{}", err.message);
+        assert!(!backup_path(&target).exists());
+        drop(hold);
+        assert_eq!(fs::read(&target).unwrap(), b"original");
+        save_with_backup(&target, b"new").unwrap();
+        assert_eq!(fs::read(&target).unwrap(), b"new");
     }
 
     #[test]

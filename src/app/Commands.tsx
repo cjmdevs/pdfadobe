@@ -99,12 +99,14 @@ export function Commands() {
       case "redo":
       case "save":
       case "saveAs":
-        // Busy: a page operation is still running; it will be the next undo step.
-        if (!activeDocumentId || wb.busy) return activeDocumentId !== null;
-        if (cmd === "undo") wb.undo(activeDocumentId);
-        else if (cmd === "redo") wb.redo(activeDocumentId);
-        else if (cmd === "save") void wb.save(activeDocumentId);
-        else void wb.saveAs(activeDocumentId);
+        if (!activeDocumentId) return false;
+        // Save waits for running page operations itself. Undo/redo while one runs would
+        // be ambiguous: ignored (the running operation becomes the next undo step).
+        if (cmd === "save") void wb.save(activeDocumentId);
+        else if (cmd === "saveAs") void wb.saveAs(activeDocumentId);
+        else if (wb.busy) return true;
+        else if (cmd === "undo") wb.undo(activeDocumentId);
+        else wb.redo(activeDocumentId);
         return true;
     }
     return docRunner.current?.(cmd) ?? false;

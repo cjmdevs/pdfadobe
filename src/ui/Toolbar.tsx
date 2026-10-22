@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { useRotate } from "@embedpdf/plugin-rotate/react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import type { Theme, ViewMode } from "../app/settings";
+import { usePageActions } from "../app/pageActions";
 import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
 import {
@@ -145,7 +145,8 @@ function DocTools({ documentId }: { documentId: string }) {
   const { settings, updateSettings, meta } = useWorkbench();
   const nav = useNav(documentId);
   const { state: zoom, provides: zoomer } = useZoom(documentId);
-  const { provides: rotate } = useRotate(documentId);
+  const actions = usePageActions(documentId);
+  const busy = useWorkbench().busy !== null;
 
   // Remember the last zoom (a fit mode or a number) for the next document / session.
   useEffect(() => {
@@ -213,15 +214,19 @@ function DocTools({ documentId }: { documentId: string }) {
         onClick={() => zoomer?.requestZoom(ACTUAL_SIZE_SCALE)}
       />
       <span className="sep" />
+      {/* Rotates the page and saves with the file (undoable). Turning only the display
+          is Acrobat's View > Rotate View: Ctrl+Shift+Plus / Minus. */}
       <ToolButton
         icon="rotateCcw"
-        label="Rotate view counter-clockwise (Ctrl+Shift+-)"
-        onClick={() => rotate?.rotateBackward()}
+        label={`Rotate page ${nav.page + 1} left`}
+        disabled={busy}
+        onClick={() => void actions.rotate([nav.page], 3)}
       />
       <ToolButton
         icon="rotateCw"
-        label="Rotate view clockwise (Ctrl+Shift+=)"
-        onClick={() => rotate?.rotateForward()}
+        label={`Rotate page ${nav.page + 1} right`}
+        disabled={busy}
+        onClick={() => void actions.rotate([nav.page], 1)}
       />
       <span className="sep" />
       <label className="view-mode">

@@ -5,9 +5,10 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 2 (page organization) built, waiting on the owner's Windows check** (below).
-  On Linux (2026-10-22): `npm run check` (95 Vitest + 6 expected-fail redaction pins, 28 Rust, license-check), Windows
-  target type-check, 60/60 Playwright, `npm run build`. Tag `phase-02-done` after the check.
+- **Phase 2 (page organization): owner's first Windows check found 5 bugs, fixed
+  2026-10-22 (below); re-check pending.** On Linux: `npm run check` (95 Vitest + 6
+  expected-fail redaction pins, 28 Rust, license-check), Windows target type-check, 62/62
+  Playwright (Phase 2 specs 5x under 4 workers: 95/95). Tag `phase-02-done` after re-check.
 - Phase 1 (viewer) done, tagged `phase-01-done`. Owner decisions: VC++ runtime with qpdf
   approved (`license-policy.json`); Acrobat keys checked by the owner (Ctrl+D, F4,
   Ctrl+Shift+W, Shift+F3; Ctrl+Y is Redo, now bound).
@@ -59,6 +60,27 @@ Deviations from spec, and why:
 - Extract opens an unsaved tab (Save to keep it); "extract as separate files" = Split.
 - Split writes into the document's folder (or a chosen one).
 - Password-protected PDFs: page operations are refused and bookmarks are read-only.
+
+### Owner's Windows check, round 1 (2026-10-22) and fixes
+
+- **Dragging pages/bookmarks was blocked** (no-entry cursor). Tauri's file-drop handler
+  (`dragDropEnabled`, needed for Explorer drops with paths) blocks HTML5 drag-and-drop in
+  WebView2 (Tauri config docs). In-app drags now use pointer events
+  (`src/ui/usePointerDrag.ts`); e2e blocks HTML5 `dragstart` like the app does.
+- **Save with the file open in Acrobat said "access denied"** (original was intact). Save
+  now checks first (DELETE access, sharing all) and reports "open in another program";
+  a failed save no longer leaves a `.bak`. Windows-only Rust tests cover both holds.
+- **Rotate "affected the whole PDF" and was lost after a delete; no signed-PDF warning.**
+  The reader toolbar buttons were Acrobat's Rotate View (display only, never saved). They
+  now rotate the current page (saved, undoable, signature warning); Rotate View stays on
+  Ctrl+Shift+Plus/Minus and survives edits. Crop/page-size dialogs default to the selected
+  page(s), not all pages. Organize buttons have text captions.
+- **Race found while testing:** the busy state started after the signature check, so a
+  quick Ctrl+S/Ctrl+W could act before the edit. Busy now starts on the click; Save,
+  Save As and Close wait for running edits and follow the tab to its new revision.
+- Confirmations use the app's own dialog instead of `window.confirm`.
+- Open: report 4 (Combine "none of the old pages stay") needs clarification; 5 and 10
+  not run yet.
 
 ## Manual Windows check (owner, Phase 2)
 

@@ -129,7 +129,12 @@ function Viewer({ documentId }: { documentId: string }) {
           ? SpreadMode.Even
           : SpreadMode.Odd
         : SpreadMode.None;
-    if (spread.getSpreadMode() !== mode) spread.setSpreadMode(mode);
+    try {
+      if (spread.getSpreadMode() !== mode) spread.setSpreadMode(mode);
+    } catch {
+      // The document was just replaced by a page operation (new revision); its successor
+      // runs this effect itself.
+    }
   }, [spread, settings.viewMode, settings.coverPage]);
 
   // Switching modes keeps the reader on the same page.

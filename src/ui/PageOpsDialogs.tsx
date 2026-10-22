@@ -13,7 +13,7 @@ import {
 } from "../engine/pages";
 import { pageOp } from "../app/pages";
 import { usePageActions } from "../app/pageActions";
-import { useWorkbench, type PageOpDialog } from "../app/workbench";
+import { useWorkbench, type ConfirmRequest, type PageOpDialog } from "../app/workbench";
 import {
   PlatformError,
   baseName,
@@ -22,6 +22,7 @@ import {
   safeFileName,
   type OpenedFile,
 } from "../platform";
+import { usePointerDrag } from "./usePointerDrag";
 
 export function FormModal({
   title,
@@ -31,6 +32,7 @@ export function FormModal({
   children,
   busy,
   wide,
+  danger,
 }: {
   title: string;
   submit: string;
@@ -39,6 +41,7 @@ export function FormModal({
   children: ReactNode;
   busy?: boolean;
   wide?: boolean;
+  danger?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -68,7 +71,11 @@ export function FormModal({
           <button type="button" onClick={onClose}>
             Cancel
           </button>
-          <button type="submit" className="primary" disabled={busy}>
+          <button
+            type="submit"
+            className={danger ? "primary danger-fill" : "primary"}
+            disabled={busy}
+          >
             {submit}
           </button>
         </footer>
@@ -79,8 +86,10 @@ export function FormModal({
 
 /** Which pages an operation applies to: all, the selection, or a typed range. */
 function useScope(pageCount: number, selected: number[]) {
+  // Default to the selection (or the current page): changes must not hit every page
+  // unless the user asks for that.
   const [scope, setScope] = useState<"all" | "selected" | "range">(
-    selected.length > 1 ? "selected" : "all",
+    selected.length ? "selected" : "all",
   );
   const [text, setText] = useState(formatRanges(selected));
   const pages = (): number[] =>
@@ -97,7 +106,7 @@ function useScope(pageCount: number, selected: number[]) {
       </label>
       <label>
         <input type="radio" checked={scope === "selected"} onChange={() => setScope("selected")} />{" "}
-        Selected ({formatRanges(selected)})
+        {selected.length === 1 ? "This page" : "Selected pages"} ({formatRanges(selected)})
       </label>
       <label>
         <input type="radio" checked={scope === "range"} onChange={() => setScope("range")} /> Pages{" "}
@@ -717,7 +726,19 @@ export function CombineDialog({ onClose }: { onClose: () => void }) {
   const [perFile, setPerFile] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [working, setWorking] = useState<string | null>(null);
-  const dragFrom = useRef<number | null>(null);
+  // Drag rows to reorder (pointer events; see usePointerDrag).
+  const rowAt = (under: Element | null) => {
+    const v = under?.closest<HTMLElement>("[data-row]")?.dataset.row;
+    return v === undefined ? null : Number(v);
+  };
+  const drag = usePointerDrag<number>({
+    onMove: () => undefined,
+    onCancel: () => undefined,
+    onDrop: (from, under) => {
+      const to = rowAt(under);
+      if (to !== null && to !== from) moveItem(from, to);
+    },
+  });
 
   const add = async (files: OpenedFile[]) => {
     const added: CombineItem[] = [];
@@ -842,14 +863,9 @@ export function CombineDialog({ onClose }: { onClose: () => void }) {
             <tr
               key={it.key}
               data-testid="combine-item"
-              draggable
-              onDragStart={() => (dragFrom.current = i)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                e.preventDefault();
-                if (dragFrom.current !== null) moveItem(dragFrom.current, i);
-                dragFrom.current = null;
-              }}
+              data-row={i}
+              className={drag.source === i ? "dragging" : undefined}
+              onPointerDown={(e) => drag.start(e, i)}
             >
               <td>{i + 1}</td>
               <td className="combine-name">{it.name}</td>
@@ -963,6 +979,20 @@ export function UnsavedDialog({
           Don’t save
         </button>
       </div>
+    </FormModal>
+  );
+}
+
+export function ConfirmDialog({ req }: { req: ConfirmRequest }) {
+  return (
+    <FormModal
+      title={req.title}
+      submit={req.ok}
+      danger={req.danger ?? false}
+      onClose={() => req.resolve(false)}
+      onSubmit={() => req.resolve(true)}
+    >
+      <p data-testid="confirm-message">{req.message}</p>
     </FormModal>
   );
 }

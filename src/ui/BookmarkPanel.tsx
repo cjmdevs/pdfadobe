@@ -5,7 +5,7 @@
 //   bookmark also moves its pages and child bookmarks to the new position.
 // - Delete or extract a bookmark together with its pages.
 // Every change is one undoable step.
-import { useEffect, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useEffect, useState, type KeyboardEvent } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useBookmarkCapability } from "@embedpdf/plugin-bookmark/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
@@ -32,6 +32,7 @@ import { pageOp } from "../app/pages";
 import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
 import { Icon, type IconName } from "./Icon";
+import { usePointerDrag } from "./usePointerDrag";
 
 type Drop = { path: OutlinePath; zone: "before" | "after" | "inside" };
 
@@ -50,7 +51,16 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState<OutlinePath | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
-  const [dragFrom, setDragFrom] = useState<OutlinePath | null>(null);
+  // Pointer-event drag (see usePointerDrag). Handlers run at event time, after render.
+  const drag = usePointerDrag<OutlinePath>({
+    disabled: wb.busy !== null,
+    onMove: (_from, under, e) => setDrop(dropAt(under, e.clientY)),
+    onCancel: () => setDrop(null),
+    onDrop: (from, under, e) => {
+      setDrop(null);
+      applyDrop(from, dropAt(under, e.clientY));
+    },
+  });
   const movePages = wb.settings.bookmarkDragMovesPages;
 
   useEffect(() => {
@@ -157,12 +167,13 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
         ? `page ${(pages[0] ?? 0) + 1}`
         : `pages ${(pages[0] ?? 0) + 1}-${(pages[pages.length - 1] ?? 0) + 1}`;
     if (what === "delete") {
-      if (
-        !window.confirm(
-          `Delete “${title}” and its ${pages.length} page(s) (${range})? You can undo this.`,
-        )
-      )
-        return;
+      const yes = await wb.confirm({
+        title: "Delete bookmark and pages",
+        message: `Delete “${title}” and its ${pages.length} page(s) (${range})? You can undo this.`,
+        ok: "Delete",
+        danger: true,
+      });
+      if (!yes) return;
       setSelected(null);
       void wb.edit(
         documentId,
@@ -182,21 +193,18 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
     }
   };
 
-  const onDragOver = (e: DragEvent, path: OutlinePath) => {
-    if (!dragFrom) return;
-    e.preventDefault();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const y = (e.clientY - r.top) / r.height;
-    setDrop({ path, zone: y < 0.3 ? "before" : y > 0.7 ? "after" : "inside" });
-  };
+  /** Row under the pointer and zone: top 30% before, bottom 30% after, else inside. */
+  function dropAt(under: Element | null, y: number): Drop | null {
+    const rowEl = under?.closest<HTMLElement>("[data-path]");
+    if (!rowEl?.dataset.path) return null;
+    const path = rowEl.dataset.path.split(".").map(Number);
+    const r = rowEl.getBoundingClientRect();
+    const f = (y - r.top) / r.height;
+    return { path, zone: f < 0.3 ? "before" : f > 0.7 ? "after" : "inside" };
+  }
 
-  const onDrop = (e: DragEvent) => {
-    e.preventDefault();
-    const from = dragFrom;
-    const d = drop;
-    setDragFrom(null);
-    setDrop(null);
-    if (!from || !d || samePath(from, d.path) || isUnder(d.path, from)) return;
+  function applyDrop(from: OutlinePath, d: Drop | null) {
+    if (!outline || !d || samePath(from, d.path) || isUnder(d.path, from)) return;
     const toParent = d.zone === "inside" ? d.path : d.path.slice(0, -1);
     const last = d.path[d.path.length - 1] ?? 0;
     const index =
@@ -213,7 +221,7 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
     } else {
       save("Move bookmark", moveNode(outline, from, toParent, index).outline);
     }
-  };
+  }
 
   const onKey = (e: KeyboardEvent, path: OutlinePath, b: PdfBookmarkObject) => {
     const kids = b.children?.length ?? 0;
@@ -268,20 +276,9 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
           <div
             className={`tree-row${sel && samePath(sel, path) ? " selected" : ""}${dz}`}
             style={{ paddingLeft: (level - 1) * 14 }}
-            draggable={!busy && renaming === null}
             data-testid="bookmark"
             data-path={k}
-            onDragStart={(e) => {
-              setDragFrom(path);
-              e.dataTransfer.effectAllowed = "move";
-              e.dataTransfer.setData("application/x-pdfwb-bookmark", k);
-            }}
-            onDragOver={(e) => onDragOver(e, path)}
-            onDragEnd={() => {
-              setDragFrom(null);
-              setDrop(null);
-            }}
-            onDrop={onDrop}
+            onPointerDown={(e) => renaming === null && drag.start(e, path)}
           >
             {kids.length ? (
               <button
@@ -379,12 +376,15 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
           onExpand={() => setOpen(new Set(flatten(outline).map((f) => key(f.path))))}
           onCollapse={() => setOpen(new Set())}
           onPerPage={() => {
-            if (
-              outline.length &&
-              !window.confirm("Replace all bookmarks with one bookmark per page?")
-            )
-              return;
-            save("Bookmark every page", perPageOutline(doc.pageCount));
+            const go = () => save("Bookmark every page", perPageOutline(doc.pageCount));
+            if (!outline.length) return go();
+            void wb
+              .confirm({
+                title: "Bookmark every page",
+                message: "Replace all bookmarks with one bookmark per page? You can undo this.",
+                ok: "Replace",
+              })
+              .then((yes) => yes && go());
           }}
         />
       </div>
@@ -399,12 +399,7 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
       {outline.length === 0 ? (
         <p className="muted pad">This document has no bookmarks. Use + to add one.</p>
       ) : (
-        <ul
-          className="tree"
-          role="tree"
-          aria-label="Bookmarks"
-          onDragLeave={(e) => e.currentTarget === e.target && setDrop(null)}
-        >
+        <ul className="tree" role="tree" aria-label="Bookmarks">
           {render(outline, [], 1)}
         </ul>
       )}

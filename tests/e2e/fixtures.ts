@@ -192,6 +192,11 @@ export { expect };
 
 /** Load the app (optionally with launch paths, like Explorer "Open with") and wait until ready. */
 export async function boot(page: Page, opts: { launch?: string[]; settings?: unknown } = {}) {
+  // Like the Windows app: Tauri replaces WebView2's drag-drop handler (dragDropEnabled),
+  // which blocks HTML5 drag-and-drop inside the page. In-app drags must not rely on it.
+  await page.addInitScript(() => {
+    window.addEventListener("dragstart", (e) => e.preventDefault(), true);
+  });
   await page.addInitScript(
     ({ launch, settings }) => {
       // Init scripts re-run on reload; seed only on the first load, like a real first launch.

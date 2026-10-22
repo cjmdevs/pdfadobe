@@ -50,6 +50,15 @@ export interface EditState {
   dirty: boolean;
 }
 
+export interface ConfirmRequest {
+  title: string;
+  message: string;
+  /** Text of the confirming button. */
+  ok: string;
+  danger?: boolean;
+  resolve(yes: boolean): void;
+}
+
 export interface EditOptions {
   /** Page to show afterwards (0-based). */
   page?: number;
@@ -112,6 +121,9 @@ interface WorkbenchApi {
   setOrganize(id: string, on: boolean, page?: number): void;
   /** Close without asking about unsaved changes (after the user chose). */
   forceClose(ids: string[]): void;
+  /** In-app yes/no question (rendered by Dialogs). */
+  confirm(req: Omit<ConfirmRequest, "resolve">): Promise<boolean>;
+  confirmRequest: ConfirmRequest | null;
   /** What a page operation is doing right now, for the busy indicator. */
   busy: string | null;
   /** Page to show when a tab's view mounts (after a reload, or Organize -> reader). */
@@ -172,6 +184,33 @@ export function WorkbenchProvider({
   const [searchOpen, setSearchOpen] = useState(false);
   const [singlePage, setSinglePageState] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  // Page operations run one at a time, in order; Save and Close wait for them.
+  // Each edit reopens the tab under a new id: old id -> new id, to follow a tab.
+  const replacedBy = useRef(new Map<string, string>());
+  const resolveId = useCallback((id: string) => {
+    let cur = id;
+    for (let next = replacedBy.current.get(cur); next; next = replacedBy.current.get(cur))
+      cur = next;
+    return cur;
+  }, []);
+  const editChain = useRef(Promise.resolve(true));
+  const pendingEdits = useRef(0);
+  /** Resolves once every requested page operation has finished. */
+  const settled = useCallback(() => editChain.current.then(() => undefined), []);
+  const [confirmRequest, setConfirmRequest] = useState<ConfirmRequest | null>(null);
+  const confirm = useCallback(
+    (req: Omit<ConfirmRequest, "resolve">) =>
+      new Promise<boolean>((resolve) =>
+        setConfirmRequest({
+          ...req,
+          resolve: (yes) => {
+            setConfirmRequest(null);
+            resolve(yes);
+          },
+        }),
+      ),
+    [],
+  );
   // Edit history per tab, keyed by the EmbedPDF document id (moved when a tab reloads).
   const histories = useRef(new Map<string, EditHistory>());
   const restorePages = useRef(new Map<string, number>());
@@ -319,13 +358,17 @@ export function WorkbenchProvider({
 
   const closeDocument = useCallback(
     (id: string) => {
-      if (histories.current.get(id)?.dirty) {
-        setDialog({ kind: "unsaved", documentIds: [id], then: "close" });
-        return;
-      }
-      forceClose([id]);
+      // After any running page operation: it may make the document dirty (or replace it).
+      void settled().then(() => {
+        const current = resolveId(id);
+        if (histories.current.get(current)?.dirty) {
+          setDialog({ kind: "unsaved", documentIds: [current], then: "close" });
+          return;
+        }
+        forceClose([current]);
+      });
     },
-    [forceClose],
+    [forceClose, resolveId, settled],
   );
 
   const closeAll = useCallback(() => {
@@ -414,6 +457,7 @@ export function WorkbenchProvider({
       if (!docs || !m || !h) return null;
       const index = docs.getDocumentIndex(id);
       const newId = crypto.randomUUID();
+      replacedBy.current.set(id, newId);
       histories.current.set(newId, h);
       histories.current.delete(id);
       if (page !== null) restorePages.current.set(newId, page);
@@ -422,18 +466,21 @@ export function WorkbenchProvider({
         [newId]: { ...m, fileSize: bytes.byteLength, openStartedAt: performance.now() },
       };
       setMeta(metaRef.current);
+      // Keep the view rotation (Ctrl+Shift+Plus) the reader had.
+      const rotation = core?.documents[id]?.rotation;
       docs.openDocumentBuffer({
         buffer: bytes.slice().buffer,
         name: m.name,
         documentId: newId,
         autoActivate: true,
+        ...(rotation === undefined ? {} : { rotation }),
       });
       if (index >= 0) docs.moveDocument(newId, index);
       docs.closeDocument(id);
       forget([id]);
       return newId;
     },
-    [docs, forget],
+    [core, docs, forget],
   );
 
   const docBytes = useCallback(
@@ -455,7 +502,6 @@ export function WorkbenchProvider({
   }, []);
 
   // One page operation at a time: they all read the latest bytes.
-  const editChain = useRef(Promise.resolve(true));
   // Tabs whose digital signatures the user agreed to invalidate (asked once per tab).
   const signedOk = useRef(new WeakSet<EditHistory>());
   const edit = useCallback(
@@ -465,6 +511,10 @@ export function WorkbenchProvider({
       fn: (bytes: Uint8Array) => Promise<Uint8Array>,
       opts: EditOptions = {},
     ): Promise<boolean> => {
+      // Busy from the click on, not only once the work starts: Save, Close and the
+      // shortcuts must never act on the state before this edit.
+      pendingEdits.current++;
+      setBusy(label);
       const run = async () => {
         const h = histories.current.get(id);
         const doc = core?.documents[id]?.document;
@@ -483,17 +533,20 @@ export function WorkbenchProvider({
             .catch(() => []);
           if (
             sigs.length &&
-            !window.confirm(
-              `This document is digitally signed (${sigs.length} signature${sigs.length === 1 ? "" : "s"}). ` +
-                "Changing its pages will make the signature invalid. Continue? " +
-                "(The original file is not changed until you save.)",
-            )
+            !(await confirm({
+              title: "Digitally signed document",
+              message:
+                `This document is digitally signed (${sigs.length} signature${sigs.length === 1 ? "" : "s"}). ` +
+                "Changing its pages will make the signature invalid. The original file is not " +
+                "changed until you save.",
+              ok: "Change anyway",
+              danger: true,
+            }))
           ) {
             return false;
           }
           signedOk.current.add(h);
         }
-        setBusy(label);
         try {
           const next = await fn(h.current);
           h.push(next, label);
@@ -507,14 +560,16 @@ export function WorkbenchProvider({
         } catch (e) {
           toast(`${label} failed: ${e instanceof Error ? e.message : String(e)}`, "error");
           return false;
-        } finally {
-          setBusy(null);
         }
       };
-      editChain.current = editChain.current.then(run, run);
+      const done = (ok: boolean) => {
+        if (--pendingEdits.current === 0) setBusy(null);
+        return ok;
+      };
+      editChain.current = editChain.current.then(run, run).then(done, () => done(false));
       return editChain.current;
     },
-    [core, engine, historyChanged, showRevision, toast],
+    [confirm, core, engine, historyChanged, showRevision, toast],
   );
 
   const undo = useCallback(
@@ -544,7 +599,9 @@ export function WorkbenchProvider({
   );
 
   const saveAs = useCallback(
-    async (id: string): Promise<boolean> => {
+    async (requested: string): Promise<boolean> => {
+      await settled();
+      const id = resolveId(requested);
       const m = metaRef.current[id];
       const h = histories.current.get(id);
       if (!m || !h) return false;
@@ -574,11 +631,13 @@ export function WorkbenchProvider({
       toast(`Saved as ${name}.`);
       return true;
     },
-    [historyChanged, toast, updateSettings],
+    [historyChanged, resolveId, settled, toast, updateSettings],
   );
 
   const save = useCallback(
-    async (id: string): Promise<boolean> => {
+    async (requested: string): Promise<boolean> => {
+      await settled();
+      const id = resolveId(requested);
       const m = metaRef.current[id];
       const h = histories.current.get(id);
       if (!m || !h) return false;
@@ -595,7 +654,7 @@ export function WorkbenchProvider({
       toast(`Saved ${m.name}. The previous version is kept as ${m.name}.bak until it next opens.`);
       return true;
     },
-    [historyChanged, saveAs, toast],
+    [historyChanged, resolveId, saveAs, settled, toast],
   );
 
   const openNew = useCallback(
@@ -720,6 +779,8 @@ export function WorkbenchProvider({
       setSelectedBookmark,
       forceClose,
       busy,
+      confirm,
+      confirmRequest,
       restorePage,
       clearRestorePage,
     }),
@@ -754,6 +815,8 @@ export function WorkbenchProvider({
       setSelectedBookmark,
       forceClose,
       busy,
+      confirm,
+      confirmRequest,
       restorePage,
       clearRestorePage,
     ],
