@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import type { Engine } from "../../src/engine/pdfium";
 import { documentText } from "../../src/engine/text";
+import { qpdfBin } from "../corpus/generate.mjs";
 import { toArrayBuffer } from "./pdfium-node";
 
 export interface PdfjsView {
@@ -57,9 +58,13 @@ export function decompressedBytes(bytes: Uint8Array): Buffer {
     const out = join(dir, "out.pdf");
     writeFileSync(inp, bytes);
     try {
-      execFileSync("qpdf", ["--qdf", "--object-streams=disable", "--decode-level=all", inp, out], {
-        stdio: "pipe",
-      });
+      execFileSync(
+        qpdfBin(),
+        ["--qdf", "--object-streams=disable", "--decode-level=all", inp, out],
+        {
+          stdio: "pipe",
+        },
+      );
     } catch (e) {
       // qpdf exits 3 for warnings but still writes output.
       if ((e as { status?: number }).status !== 3) throw e;

@@ -102,28 +102,34 @@ mod tests {
         d
     }
 
-    fn qpdf_available() -> bool {
-        Command::new("qpdf").arg("--version").output().is_ok()
+    /// qpdf for tests: $QPDF, PATH, or the copy fetched into src-tauri/vendor (Windows).
+    fn test_qpdf() -> Option<PathBuf> {
+        let vendor = Path::new(env!("CARGO_MANIFEST_DIR")).join("vendor/qpdf/qpdf.exe");
+        std::env::var_os("QPDF")
+            .map(PathBuf::from)
+            .into_iter()
+            .chain([PathBuf::from("qpdf"), vendor])
+            .find(|p| Command::new(p).arg("--version").output().is_ok())
     }
 
     #[test]
     fn repairs_damaged_xref_into_a_new_file() {
         let src = corpus("damaged-xref.pdf");
-        if !qpdf_available() || !src.exists() {
-            eprintln!("skipped: needs qpdf on PATH and `npm run corpus`");
+        let (Some(qpdf), true) = (test_qpdf(), src.exists()) else {
+            eprintln!("skipped: needs qpdf and `npm run corpus`");
             return;
-        }
+        };
         let d = tmpdir("ok");
         let target = d.join("repaired.pdf");
         let before = fs::read(&src).unwrap();
-        let r = repair(Path::new("qpdf"), &src, &target).unwrap();
+        let r = repair(&qpdf, &src, &target).unwrap();
         assert!(r.had_warnings);
         assert_eq!(
             fs::read(&src).unwrap(),
             before,
             "original must be untouched"
         );
-        let check = Command::new("qpdf")
+        let check = Command::new(&qpdf)
             .arg("--check")
             .arg(&target)
             .status()
@@ -135,13 +141,13 @@ mod tests {
     #[test]
     fn reports_unrepairable_files_and_leaves_no_output() {
         let src = corpus("corrupt.pdf");
-        if !qpdf_available() || !src.exists() {
-            eprintln!("skipped: needs qpdf on PATH and `npm run corpus`");
+        let (Some(qpdf), true) = (test_qpdf(), src.exists()) else {
+            eprintln!("skipped: needs qpdf and `npm run corpus`");
             return;
-        }
+        };
         let d = tmpdir("bad");
         let target = d.join("out.pdf");
-        let err = repair(Path::new("qpdf"), &src, &target).unwrap_err();
+        let err = repair(&qpdf, &src, &target).unwrap_err();
         assert_eq!(err.kind, "unrepairable");
         assert_eq!(fs::read_dir(&d).unwrap().count(), 0);
         fs::remove_dir_all(d).unwrap();

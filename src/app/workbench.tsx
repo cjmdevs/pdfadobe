@@ -55,7 +55,8 @@ interface WorkbenchApi {
   meta: Record<string, DocMeta>;
   pickAndOpen(): Promise<void>;
   openPaths(paths: string[], opts?: { quiet?: boolean }): Promise<void>;
-  openFiles(files: OpenedFile[]): void;
+  /** `activate: false` opens in the background (a newer open request owns the focus). */
+  openFiles(files: OpenedFile[], opts?: { activate?: boolean }): void;
   /** Switch to the tab showing `path`, if open. */
   activatePath(path: string): void;
   closeDocument(id: string): void;
@@ -147,7 +148,7 @@ export function WorkbenchProvider({
   }, []);
 
   const openFiles = useCallback(
-    (files: OpenedFile[]) => {
+    (files: OpenedFile[], { activate = true }: { activate?: boolean } = {}) => {
       if (!docs) return;
       for (const f of files) {
         if (f.source.kind === "path") {
@@ -156,7 +157,7 @@ export function WorkbenchProvider({
             ([, m]) => m.source.kind === "path" && samePath(m.source.path, path),
           );
           if (existing) {
-            docs.setActiveDocument(existing[0]);
+            if (activate) docs.setActiveDocument(existing[0]);
             continue;
           }
         }
@@ -172,18 +173,27 @@ export function WorkbenchProvider({
         };
         metaRef.current = { ...metaRef.current, [documentId]: m };
         setMeta(metaRef.current);
-        docs.openDocumentBuffer({ buffer: f.bytes, name: f.name, documentId, autoActivate: true });
+        docs.openDocumentBuffer({
+          buffer: f.bytes,
+          name: f.name,
+          documentId,
+          autoActivate: activate,
+        });
       }
     },
     [docs],
   );
 
+  // Reads are async (network shares can be slow). Only the newest open request may switch
+  // tabs, so opening A then B always ends on B even if A's read finishes last.
+  const openSeq = useRef(0);
   const openPaths = useCallback(
     async (paths: string[], opts: { quiet?: boolean } = {}) => {
+      const seq = ++openSeq.current;
       for (const path of paths) {
         try {
           const file = await platform.readPath(path);
-          openFiles([file]);
+          openFiles([file], { activate: seq === openSeq.current });
           updateSettings({ recent: addRecent(settingsRef.current.recent, path) });
         } catch (e) {
           const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
@@ -198,6 +208,7 @@ export function WorkbenchProvider({
   const pickAndOpen = useCallback(async () => {
     try {
       const files = await platform.pickFiles();
+      openSeq.current++; // this choice wins over slower reads still in flight
       openFiles(files);
       let recent = settingsRef.current.recent;
       for (const f of files)

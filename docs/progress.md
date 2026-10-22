@@ -97,13 +97,15 @@ script does not scan these binaries.
 
 - Print scaling (fit / shrink / actual) and auto-rotate live in settings but have no
   UI yet; there is no in-app print preview.
-- Intermittent e2e failures: one was a real race (Ctrl+A then Ctrl+C copied before
-  the selection finished; fixed). One more failure was seen once in ~12 cold runs and
-  not captured. Playwright now keeps a trace for every failure (`test-results/`,
-  open with `npx playwright show-trace`).
+- Intermittent e2e failures were all real bugs, now fixed: Ctrl+A/Ctrl+C race;
+  duplicate PrintFrame/CopyToClipboard (EmbedPDF auto-mounts them; WebView print
+  fallback printed twice); single page → continuous losing the page (zoom plugin
+  re-fit scrolls back after 150 ms); opening A then B could end on A. Playwright keeps a
+  trace for every failure (`npx playwright show-trace`).
 - Windows checkout: `.gitattributes` forces LF (Prettier failed on CRLF). The e2e
   suite now generates the corpus itself; the generator finds qpdf on PATH, in `$QPDF`,
-  or in `src-tauri/vendor/qpdf` after a Windows build.
+  or in `src-tauri/vendor/qpdf` after a Windows build; Vitest helpers and the Rust
+  repair tests use the same lookup.
 - Whole files are held in memory (JS + WASM copies). Not tested beyond ~1 MB/500 pages;
   test large scans before the OCR phase.
 - PDFs opened from an attachment are memory-only tabs (not in Recent or restored tabs).

@@ -3,7 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { OUT_DIR } from "../corpus/generate.mjs";
+import { OUT_DIR, qpdfBin } from "../corpus/generate.mjs";
 import { decompressedBytes, pdfjsView } from "../helpers/leak-scan";
 import { nodeEngine, toArrayBuffer } from "../helpers/pdfium-node";
 import type { Engine } from "../../src/engine/pdfium";
@@ -58,7 +58,7 @@ describe("spike: stamp + free text annotations", () => {
   it("output is structurally valid per qpdf", () => {
     const tmp = join(OUT, "annotated-check.pdf");
     writeFileSync(tmp, saved);
-    expect(() => execFileSync("qpdf", ["--check", tmp], { stdio: "pipe" })).not.toThrow();
+    expect(() => execFileSync(qpdfBin(), ["--check", tmp], { stdio: "pipe" })).not.toThrow();
   });
 
   it("pdf.js sees a Stamp and a FreeText annotation with the note text", async () => {

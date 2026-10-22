@@ -96,10 +96,17 @@ function Viewer({ documentId }: { documentId: string }) {
     if (single && !prevSingle.current) setSinglePage(documentId, lastScrollPage.current - 1);
     if (!single && prevSingle.current) {
       const target = (singlePage[documentId] ?? 0) + 1;
-      // Wait one frame for the Scroller to lay out.
-      requestAnimationFrame(() =>
-        scroll?.scrollToPage({ pageNumber: target, behavior: "instant" }),
-      );
+      // The Scroller lays out over a few frames, and the zoom plugin re-fits 150 ms after
+      // the viewport resizes (scrollbar appears), scrolling back to where it was before.
+      // Keep the reader on the page for 600 ms, re-asserting whenever it drifts.
+      const until = performance.now() + 600;
+      const go = () => {
+        if (!scroll || performance.now() > until) return;
+        if (scroll.getCurrentPage() !== target)
+          scroll.scrollToPage({ pageNumber: target, behavior: "instant" });
+        requestAnimationFrame(go);
+      };
+      requestAnimationFrame(go);
     }
     prevSingle.current = single;
   }, [single, documentId, scroll, setSinglePage, singlePage]);

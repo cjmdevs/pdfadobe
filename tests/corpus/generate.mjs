@@ -486,7 +486,9 @@ async function ssnFixture() {
  * qpdf for the encrypted fixtures: $QPDF, then PATH, then the copy that
  * `npm run tauri build` fetched into src-tauri/vendor/qpdf (Windows).
  */
-function qpdfBin() {
+let qpdfCached;
+export function qpdfBin() {
+  if (qpdfCached) return qpdfCached;
   const candidates = [
     process.env.QPDF,
     "qpdf",
@@ -495,6 +497,7 @@ function qpdfBin() {
   for (const c of candidates) {
     try {
       execFileSync(c, ["--version"], { stdio: "ignore" });
+      qpdfCached = c;
       return c;
     } catch {
       // try the next one

@@ -10,12 +10,12 @@ import {
   useActiveDocument,
 } from "@embedpdf/plugin-document-manager/react";
 import { InteractionManagerPluginPackage } from "@embedpdf/plugin-interaction-manager/react";
-import { PrintFrame, PrintPluginPackage } from "@embedpdf/plugin-print/react";
+import { PrintPluginPackage } from "@embedpdf/plugin-print/react";
 import { RenderPluginPackage } from "@embedpdf/plugin-render/react";
 import { RotatePluginPackage } from "@embedpdf/plugin-rotate/react";
 import { ScrollPluginPackage, ScrollStrategy } from "@embedpdf/plugin-scroll/react";
 import { SearchPluginPackage } from "@embedpdf/plugin-search/react";
-import { CopyToClipboard, SelectionPluginPackage } from "@embedpdf/plugin-selection/react";
+import { SelectionPluginPackage } from "@embedpdf/plugin-selection/react";
 import { SpreadPluginPackage } from "@embedpdf/plugin-spread/react";
 import { ThumbnailPluginPackage } from "@embedpdf/plugin-thumbnail/react";
 import { TilingPluginPackage } from "@embedpdf/plugin-tiling/react";
@@ -194,8 +194,8 @@ function Shell({ ready }: { ready: boolean }) {
       <Commands />
       <Dialogs />
       <Toasts />
-      <CopyToClipboard />
-      <PrintFrame />
+      {/* EmbedPDF auto-mounts its PrintFrame and CopyToClipboard utilities; mounting them
+          again here would print and copy twice. */}
     </div>
   );
 }
