@@ -105,8 +105,8 @@ export function dirName(path: string): string {
 
 /** Characters Windows forbids in file names, replaced so bookmark titles can name files. */
 export function safeFileName(name: string): string {
-  const clean = name
-    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "_")
+  const clean = Array.from(name, (c) => (c < " " || '<>:"/\\|?*'.includes(c) ? "_" : c))
+    .join("")
     .replace(/[. ]+$/, "")
     .trim();
   return clean.slice(0, 120) || "Untitled";
