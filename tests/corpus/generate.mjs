@@ -480,6 +480,32 @@ async function ssnFixture() {
   return doc.save({ useObjectStreams: false });
 }
 
+// ---- qpdf -------------------------------------------------------------------
+
+/**
+ * qpdf for the encrypted fixtures: $QPDF, then PATH, then the copy that
+ * `npm run tauri build` fetched into src-tauri/vendor/qpdf (Windows).
+ */
+function qpdfBin() {
+  const candidates = [
+    process.env.QPDF,
+    "qpdf",
+    join(here, "..", "..", "src-tauri", "vendor", "qpdf", "qpdf.exe"),
+  ].filter(Boolean);
+  for (const c of candidates) {
+    try {
+      execFileSync(c, ["--version"], { stdio: "ignore" });
+      return c;
+    } catch {
+      // try the next one
+    }
+  }
+  throw new Error(
+    "qpdf not found. Install it (winget install qpdf.qpdf), set QPDF to qpdf.exe, " +
+      "or run `npm run fetch-win-binaries -- --force` to use the bundled copy.",
+  );
+}
+
 // ---- Main -------------------------------------------------------------------
 
 export async function generateCorpus({ force = false } = {}) {
@@ -511,7 +537,7 @@ export async function generateCorpus({ force = false } = {}) {
 
   if (force || !existsSync(out("encrypted.pdf"))) {
     const { user, owner } = ENCRYPTED_PASSWORDS;
-    execFileSync("qpdf", [
+    execFileSync(qpdfBin(), [
       "--encrypt",
       user,
       owner,
@@ -524,7 +550,7 @@ export async function generateCorpus({ force = false } = {}) {
   }
   if (force || !existsSync(out("no-print.pdf"))) {
     // Opens without a password, but the owner disallowed printing (and copying).
-    execFileSync("qpdf", [
+    execFileSync(qpdfBin(), [
       "--encrypt",
       "",
       ENCRYPTED_PASSWORDS.owner,

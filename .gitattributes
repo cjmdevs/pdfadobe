@@ -1,0 +1,12 @@
+# Check out LF everywhere, including Windows. Prettier (endOfLine: lf) and the corpus
+# generator expect LF; Git's autocrlf would otherwise turn every file into CRLF.
+* text=auto eol=lf
+
+# Binary: never touch line endings.
+*.pdf binary
+*.png binary
+*.ico binary
+*.icns binary
+*.wasm binary
+*.dll binary
+*.exe binary

@@ -144,6 +144,8 @@ function DocCommands({
   const { provides: selection } = useSelectionCapability();
   const { provides: viewport } = useViewportCapability();
   const doc = useDocumentState(documentId)?.document ?? null;
+  /** Resolves when the last Ctrl+A selection is in place. */
+  const pendingSelect = useRef<Promise<unknown>>(Promise.resolve());
 
   const run = (cmd: Command): boolean => {
     if (!doc) return false;
@@ -230,7 +232,8 @@ function DocCommands({
       case "copy":
         if (doc.isEncrypted && (doc.permissions & PdfPermissionFlag.CopyContents) === 0)
           wb.toast("This document's security settings do not allow copying.", "error");
-        else selection?.copyToClipboard(documentId);
+        // Wait for a pending Ctrl+A (it loads text geometry for every page first).
+        else void pendingSelect.current.then(() => selection?.copyToClipboard(documentId));
         break;
       case "selectAll":
         selectAll(documentId);
@@ -244,13 +247,16 @@ function DocCommands({
   const selectAll = (docId: string) => {
     if (!doc || !selection) return;
     // The plugin clamps indexes to each page's text, so "to the end" is simply a huge index.
-    selection.setSelection(
-      {
-        start: { page: 0, index: 0 },
-        end: { page: doc.pageCount - 1, index: Number.MAX_SAFE_INTEGER },
-      },
-      docId,
-    );
+    pendingSelect.current = selection
+      .setSelection(
+        {
+          start: { page: 0, index: 0 },
+          end: { page: doc.pageCount - 1, index: Number.MAX_SAFE_INTEGER },
+        },
+        docId,
+      )
+      .toPromise()
+      .catch(() => undefined);
   };
 
   useLayoutEffect(() => register(run));

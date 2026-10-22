@@ -4,7 +4,9 @@ import { defineConfig, devices } from "@playwright/test";
 // Tauri APIs are absent in a plain browser; tests must only touch browser-safe paths.
 export default defineConfig({
   testDir: "tests/e2e",
-  use: { baseURL: "http://localhost:1420" },
+  globalSetup: "./tests/e2e/global-setup.ts",
+  // No retries: a flaky test is a bug to find. Keep a trace of every failure for that.
+  use: { baseURL: "http://localhost:1420", trace: "retain-on-failure" },
   projects: [
     {
       name: "chromium",
