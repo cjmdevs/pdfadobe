@@ -40,6 +40,8 @@ export interface DocMeta {
   openStartedAt: number;
   /** Organize view (page grid) instead of the reader. */
   organize: boolean;
+  /** Pages selected in the Organize grid after the last edit (0-based). */
+  pageSelection?: number[] | null;
   /** Selected bookmark in the editor; survives the reload after each edit. */
   bookmark?: number[] | null;
 }
@@ -62,6 +64,8 @@ export interface ConfirmRequest {
 export interface EditOptions {
   /** Page to show afterwards (0-based). */
   page?: number;
+  /** Pages to have selected in the Organize grid afterwards (0-based). */
+  select?: number[];
 }
 
 export type Dialog =
@@ -452,7 +456,12 @@ export function WorkbenchProvider({
    * the tab order, inheriting its file info and history. Returns the new id.
    */
   const showRevision = useCallback(
-    (id: string, bytes: Uint8Array, page: number | null): string | null => {
+    (
+      id: string,
+      bytes: Uint8Array,
+      page: number | null,
+      select: number[] | null = null,
+    ): string | null => {
       const m = metaRef.current[id];
       const h = histories.current.get(id);
       if (!docs || !m || !h) return null;
@@ -464,7 +473,12 @@ export function WorkbenchProvider({
       if (page !== null) restorePages.current.set(newId, page);
       metaRef.current = {
         ...metaRef.current,
-        [newId]: { ...m, fileSize: bytes.byteLength, openStartedAt: performance.now() },
+        [newId]: {
+          ...m,
+          fileSize: bytes.byteLength,
+          openStartedAt: performance.now(),
+          pageSelection: select,
+        },
       };
       setMeta(metaRef.current);
       // Keep the view rotation (Ctrl+Shift+Plus) the reader had.
@@ -555,7 +569,7 @@ export function WorkbenchProvider({
             toast("Undo history is full; the oldest steps for this document were dropped.");
             h.trimmed = false;
           }
-          showRevision(id, next, opts.page ?? null);
+          showRevision(id, next, opts.page ?? null, opts.select ?? null);
           historyChanged();
           return true;
         } catch (e) {

@@ -50,7 +50,8 @@ export function pageBoxes(m: PdfiumModule, page: number): { media: Box; crop: Bo
   return { media, crop };
 }
 
-/** Trims `margins` off the current visible area (the crop box) of each page. */
+/** Trims `margins` off the current visible area (the crop box) of each page; the page
+ * itself (MediaBox) becomes that size. */
 export function cropPages(
   m: PdfiumModule,
   bytes: Uint8Array,
@@ -71,7 +72,18 @@ export function cropPages(
         if (box.right - box.left < 1 || box.top - box.bottom < 1) {
           throw new RangeError(`the margins leave nothing of page ${i + 1}`);
         }
-        m.FPDFPage_SetCropBox(p, box.left, box.bottom, box.right, box.top);
+        // All boxes, not just the CropBox: some viewers, printers and tax software show the
+        // MediaBox and would otherwise ignore the crop. Content outside stays in the file
+        // (hidden, not removed: use redaction for that).
+        for (const set of [
+          m.FPDFPage_SetMediaBox,
+          m.FPDFPage_SetCropBox,
+          m.FPDFPage_SetTrimBox,
+          m.FPDFPage_SetBleedBox,
+          m.FPDFPage_SetArtBox,
+        ]) {
+          set(p, box.left, box.bottom, box.right, box.top);
+        }
       });
     }
   });

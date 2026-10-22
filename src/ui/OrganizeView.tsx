@@ -16,9 +16,11 @@ export function OrganizeView({ documentId }: { documentId: string }) {
   const count = doc?.pageCount ?? 0;
   // After a reload (new revision), start at the page the operation affected.
   const [restored] = useState(() => wb.restorePage(documentId));
-  const [selected, setSelected] = useState<Set<number>>(
-    () => new Set(restored === null ? [] : [restored]),
-  );
+  // The pages an edit worked on stay selected, so the next button acts on them too.
+  const [selected, setSelected] = useState<Set<number>>(() => {
+    const kept = wb.meta[documentId]?.pageSelection;
+    return new Set(kept?.length ? kept : restored === null ? [] : [restored]);
+  });
   const [anchor, setAnchor] = useState(restored ?? 0);
   const [focus, setFocus] = useState(restored ?? 0);
   const [dropAt, setDropAt] = useState<number | null>(null);

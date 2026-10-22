@@ -32,7 +32,14 @@ export interface PdfInspection {
   annotations: { page: number; subtype: string; strings: string[] }[];
   /** First line of `qpdf --check` when it reports a problem; null when clean. */
   checkError: string | null;
-  pageSizes: { width: number; height: number; rotate: number }[];
+  /** Visible size (CropBox, else MediaBox) and the MediaBox size, in points. */
+  pageSizes: {
+    width: number;
+    height: number;
+    rotate: number;
+    mediaWidth: number;
+    mediaHeight: number;
+  }[];
 }
 
 interface QpdfOutline {
@@ -96,7 +103,15 @@ export async function inspectPdf(bytes: Uint8Array): Promise<PdfInspection> {
         /\/MediaBox \[ ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) \]/.exec(out);
       const rot = /\/Rotate (-?\d+)/.exec(out);
       const n = box ? box.slice(1).map(Number) : [0, 0, 0, 0];
-      return { width: n[2]! - n[0]!, height: n[3]! - n[1]!, rotate: rot ? Number(rot[1]) : 0 };
+      const mb = /\/MediaBox \[ ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) \]/.exec(out);
+      const m = mb ? mb.slice(1).map(Number) : n;
+      return {
+        width: n[2]! - n[0]!,
+        height: n[3]! - n[1]!,
+        rotate: rot ? Number(rot[1]) : 0,
+        mediaWidth: m[2]! - m[0]!,
+        mediaHeight: m[3]! - m[1]!,
+      };
     });
     return {
       pages: json.pages.length,

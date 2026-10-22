@@ -7,6 +7,23 @@ Not covered yet: **Organize Pages in a Tools pane (backlog B4)** is waiting on a
 question to the owner. Real office-network checks are **deferred to Phase 10**; here a
 local share (`\\localhost\PDFTest`) stands in for the network.
 
+## Quick re-test (round 3, owner asked for short re-tests)
+
+Only what changed. Rebuild and install first (section A, steps 1-2; the share and test
+files from earlier rounds are still there).
+
+1. **Rotate several pages, twice.** Open `\\localhost\PDFTest\workpaper-a.pdf`,
+   **Organize pages**, click page 1, Shift+click page 3, click **Rotate right** twice.
+   Pass: after the first click all 3 pages stay selected ("3 of 3 selected"), and after
+   the second all 3 are upside down. Ctrl+S, open in Acrobat: all 3 upside down.
+2. **Crop shows everywhere.** Copy a fresh workpaper-a, open it, Organize, select page 1,
+   **Crop**: Top `1`, Left `0.5`, **Crop**, Ctrl+S. Open the file in Acrobat, in Microsoft
+   Edge (right-click > Open with > Microsoft Edge), and in the program where it failed
+   before. Pass: page 1 is cut down in all of them (no strip at the top or left).
+
+Send back: pass/fail for 1 and 2, and for 2 the name of the program that showed it
+wrong (if any) with a screenshot.
+
 ## A. Setup (about 15 minutes, once)
 
 You need what Phase 1 installed: Node.js 22, Rust, Visual Studio Build Tools, Git, and

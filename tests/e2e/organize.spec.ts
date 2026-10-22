@@ -264,6 +264,27 @@ test.describe("organize pages", () => {
     await expect(page.getByRole("dialog", { name: "Digitally signed document" })).toBeVisible();
   });
 
+  test("rotating several selected pages twice turns all of them twice (owner report)", async ({
+    page,
+    mockfs,
+  }) => {
+    await openOrganize(page, P.wpA);
+    await grid(page).nth(0).click();
+    await grid(page)
+      .nth(2)
+      .click({ modifiers: ["Shift"] });
+    await page.getByRole("button", { name: "Rotate right", exact: true }).click();
+    await idle(page);
+    // The selection survives the edit.
+    await expect(page.getByTestId("selection-count")).toHaveText("3 of 3 selected");
+    await page.getByRole("button", { name: "Rotate right", exact: true }).click();
+    await idle(page);
+    await page.keyboard.press("Control+s");
+    await expect(activeTab(page)).not.toContainText("•");
+    const saved = await inspectPdf(new Uint8Array(bytesAt(mockfs, P.wpA)));
+    expect(saved.pageSizes.map((s) => s.rotate)).toEqual([180, 180, 180]);
+  });
+
   test("closing with unsaved changes asks first", async ({ page }) => {
     await openOrganize(page, P.wpA);
     await grid(page).nth(0).click();

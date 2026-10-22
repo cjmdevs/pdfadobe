@@ -147,6 +147,13 @@ describe("geometry", () => {
       width: before.pageSizes[5]!.width - 72,
       height: before.pageSizes[5]!.height - 36,
     });
+    // The page itself shrinks too (MediaBox), so viewers that ignore the CropBox and
+    // printers see the crop (owner report: "cropping does not apply to other software").
+    for (const i of [0, 5]) {
+      const s = after.pageSizes[i]!;
+      expect([s.mediaWidth, s.mediaHeight]).toEqual([s.width, s.height]);
+    }
+    expect(after.pageSizes[1]).toEqual(before.pageSizes[1]);
     expect(() =>
       cropPages(ctx.module, nav, [0], { left: 400, right: 400, top: 0, bottom: 0 }),
     ).toThrow(/nothing/);

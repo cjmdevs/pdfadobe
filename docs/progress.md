@@ -83,6 +83,10 @@ Deviations from spec, and why:
   outside the crop reappeared): page size now clips to the old crop box. **Combine
   started empty while a file was open**: the open file now starts the list. W-9 test
   dropped by the owner (low priority).
+- Round 3: **rotating several pages twice only turned page 1 the second time** (the
+  selection collapsed after each edit): the pages an edit worked on now stay selected.
+  **Crop "did not apply in other software"**: crop set only the CropBox; it now sets
+  MediaBox and the other boxes too (content outside is still hidden, not removed).
 - Open: spec now asks for Organize Pages "from the Tools pane (backlog B4)"; no B4
   exists in the repo yet. Test guide: `docs/testing/phase-02-test-guide.md`.
 
