@@ -79,8 +79,12 @@ Deviations from spec, and why:
   quick Ctrl+S/Ctrl+W could act before the edit. Busy now starts on the click; Save,
   Save As and Close wait for running edits and follow the tab to its new revision.
 - Confirmations use the app's own dialog instead of `window.confirm`.
-- Open: report 4 (Combine "none of the old pages stay") needs clarification; 5 and 10
-  not run yet.
+- Round 2 (owner: 1-3, 6, 7, 9, 10 pass): **crop was lost after Set page size** (content
+  outside the crop reappeared): page size now clips to the old crop box. **Combine
+  started empty while a file was open**: the open file now starts the list. W-9 test
+  dropped by the owner (low priority).
+- Open: spec now asks for Organize Pages "from the Tools pane (backlog B4)"; no B4
+  exists in the repo yet. Test guide: `docs/testing/phase-02-test-guide.md`.
 
 ## Manual Windows check (owner, Phase 2)
 

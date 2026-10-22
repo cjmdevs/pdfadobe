@@ -2,6 +2,9 @@
 
 Read CLAUDE.md. This is Phase 2: page organization. Plan first.
 
+- Organize Pages opens from the Tools pane (backlog B4) with its own toolbar like
+  Acrobat's: Insert, Extract, Replace, Split, rotate, delete (added by the owner
+  2026-10-22, after the first build; B4 is not defined in the repo yet: open question)
 - Organize view: grid of page thumbnails with multi-select, drag to reorder, rotate,
   delete, extract to new file, duplicate, insert blank page
 - Insert pages from another PDF or from images (JPG/PNG/TIFF, including multi-page TIFF
