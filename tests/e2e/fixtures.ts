@@ -33,6 +33,7 @@ export const P = {
   wpC: "C:\\Clients\\Engagement\\workpaper-c.pdf",
   scanTif: "C:\\Clients\\Engagement\\scan-g4-3p.tif",
   engagement: "C:\\Clients\\Engagement",
+  signed: "C:\\Clients\\Signed\\signed-8879.pdf",
 } as const;
 
 type Entry = { file: string } | { bytes: Buffer } | { error: string; message: string };
@@ -50,6 +51,7 @@ const DEFAULT_FS: Record<string, Entry> = {
   [P.wpA]: { file: "workpaper-a.pdf" },
   [P.wpB]: { file: "workpaper-b.pdf" },
   [P.wpC]: { file: "workpaper-c.pdf" },
+  [P.signed]: { file: "signed-fake.pdf" },
   [P.scanTif]: {
     bytes: readFileSync(join(import.meta.dirname, "..", "corpus", "fixtures", "scan-g4-3p.tif")),
   },

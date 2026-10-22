@@ -217,6 +217,27 @@ test.describe("organize pages", () => {
     expect(outlineLines(saved.outline)).toEqual(["A Cover@1", ".A Detail@2", "A Summary@3"]);
   });
 
+  test("changing pages of a signed PDF asks first (signature would break)", async ({ page }) => {
+    await openOrganize(page, P.signed);
+    await grid(page).nth(0).click();
+    const asked: string[] = [];
+    page.once("dialog", (d) => {
+      asked.push(d.message());
+      void d.dismiss();
+    });
+    await page.getByRole("button", { name: "Rotate right" }).click();
+    await expect.poll(() => asked.length).toBe(1);
+    expect(asked[0]).toContain("digitally signed (1 signature)");
+    await expect(page.getByRole("button", { name: "Undo (Ctrl+Z)" })).toBeDisabled();
+    // Accepting once covers the rest of the session for this tab.
+    page.once("dialog", (d) => void d.accept());
+    await page.getByRole("button", { name: "Rotate right" }).click();
+    await idle(page);
+    await page.getByRole("button", { name: "Rotate left" }).click();
+    await idle(page);
+    await expect(page.getByRole("button", { name: "Undo Rotate left (Ctrl+Z)" })).toBeEnabled();
+  });
+
   test("closing with unsaved changes asks first", async ({ page }) => {
     await openOrganize(page, P.wpA);
     await grid(page).nth(0).click();

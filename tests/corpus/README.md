@@ -29,6 +29,7 @@ Created by `npm run corpus` (or automatically by Vitest's global setup). Require
 | `generated/ssn-redaction.pdf`      | `generate.mjs`                                                    | Fake SSN `000-12-3456` in: page text (single run and split across two runs), page 2 text, a sticky-note annotation over the SSN, a form field value, `/Info` Subject + Keywords, XMP metadata. A red vector line sits under the first SSN. `KEEP-THIS-LINE` must survive redaction. |
 
 | `generated/workpaper-{a,b,c}.pdf` | `generate.mjs` (`WORKPAPERS`) | 3 pages each, the SAME field names (`client.name`, `tie.out`, `status` radio) with different values, a sticky note + square annotation, nested outline. Phase 2 merge/split tests |
+| `generated/signed-fake.pdf` | `generate.mjs` | Signature field with a /Sig value (zeroed contents, no certificate): viewers report it as signed. Tests the "signature will break" warning |
 
 `000-xx-xxxx` is never issued by the SSA, so the fake SSN cannot belong to anyone.
 

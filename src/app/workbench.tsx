@@ -456,6 +456,8 @@ export function WorkbenchProvider({
 
   // One page operation at a time: they all read the latest bytes.
   const editChain = useRef(Promise.resolve(true));
+  // Tabs whose digital signatures the user agreed to invalidate (asked once per tab).
+  const signedOk = useRef(new WeakSet<EditHistory>());
   const edit = useCallback(
     (
       id: string,
@@ -473,6 +475,23 @@ export function WorkbenchProvider({
             "error",
           );
           return false;
+        }
+        if (doc && !signedOk.current.has(h)) {
+          const sigs = await engine
+            .getSignatures(doc)
+            .toPromise()
+            .catch(() => []);
+          if (
+            sigs.length &&
+            !window.confirm(
+              `This document is digitally signed (${sigs.length} signature${sigs.length === 1 ? "" : "s"}). ` +
+                "Changing its pages will make the signature invalid. Continue? " +
+                "(The original file is not changed until you save.)",
+            )
+          ) {
+            return false;
+          }
+          signedOk.current.add(h);
         }
         setBusy(label);
         try {
@@ -495,7 +514,7 @@ export function WorkbenchProvider({
       editChain.current = editChain.current.then(run, run);
       return editChain.current;
     },
-    [core, historyChanged, showRevision, toast],
+    [core, engine, historyChanged, showRevision, toast],
   );
 
   const undo = useCallback(

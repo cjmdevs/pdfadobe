@@ -11,7 +11,15 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { deflateSync } from "node:zlib";
-import { PDFDocument, PDFName, PDFString, StandardFonts, degrees, rgb } from "pdf-lib";
+import {
+  PDFDocument,
+  PDFHexString,
+  PDFName,
+  PDFString,
+  StandardFonts,
+  degrees,
+  rgb,
+} from "pdf-lib";
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const OUT_DIR = join(here, "generated");
@@ -509,6 +517,49 @@ export const WORKPAPERS = ["a", "b", "c"].map((id, k) => ({
   note: `Reviewer note ${id.toUpperCase()}`,
 }));
 
+/**
+ * A page with a signature field whose value is a signature dictionary. Not a real
+ * signature (no certificate, zeroed /Contents): enough for viewers to report "signed".
+ */
+async function signedFake() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic signed document");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  page.drawText("Synthetic signed document. Not a real signature.", {
+    x: 72,
+    y: 700,
+    size: 14,
+    font,
+  });
+  const ctx = doc.context;
+  const sig = ctx.register(
+    ctx.obj({
+      Type: "Sig",
+      Filter: "Adobe.PPKLite",
+      SubFilter: "adbe.pkcs7.detached",
+      ByteRange: [0, 0, 0, 0],
+      Contents: PDFHexString.of("00".repeat(64)),
+      Name: PDFString.of("Test Signer"),
+    }),
+  );
+  const field = ctx.register(
+    ctx.obj({
+      Type: "Annot",
+      Subtype: "Widget",
+      FT: "Sig",
+      T: PDFString.of("Signature1"),
+      V: sig,
+      Rect: [72, 600, 272, 650],
+      F: 4,
+      P: page.ref,
+    }),
+  );
+  page.node.set(PDFName.of("Annots"), ctx.obj([field]));
+  doc.catalog.set(PDFName.of("AcroForm"), ctx.obj({ Fields: [field], SigFlags: 3 }));
+  return doc.save();
+}
+
 async function workpaper(spec) {
   const doc = await PDFDocument.create();
   stamp(doc, `Synthetic workpaper ${spec.id}`);
@@ -613,6 +664,7 @@ export async function generateCorpus({ force = false } = {}) {
   );
   await write("ssn-redaction.pdf", ssnFixture);
   for (const w of WORKPAPERS) await write(w.file, () => workpaper(w));
+  await write("signed-fake.pdf", signedFake);
   await write("stamp-reviewed.png", stampPng);
   // useObjectStreams: false so the xref is a plain table that damagedXref can break.
   await write("damaged-xref.pdf", async () => {

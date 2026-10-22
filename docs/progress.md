@@ -5,120 +5,101 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 1 (viewer) done** (tagged `phase-01-done`, 2026-10-22). On the owner's Windows
-  PC: `npm run check` (55 Vitest, 22 Rust incl. the Windows locked-file test,
-  license-check), 43/43 Playwright (500-page first paint 313 ms) and `tauri build`
-  (MSI + NSIS) all pass. Manual check results below.
-- Owner decisions 2026-10-22: VC++ runtime DLLs with qpdf **approved** (recorded in
-  `license-policy.json` → `bundledBinaries`). Acrobat keys checked by the owner: Ctrl+D
-  properties, F4 nav pane, Ctrl+Shift+W close all, Shift+F3 previous result; **Ctrl+Y
-  is Redo**, so it is unbound until editing adds undo/redo.
+- **Phase 2 (page organization) built, waiting on the owner's Windows check** (below).
+  On Linux (2026-10-22): `npm run check` (95 Vitest + 6 expected-fail redaction pins, 28 Rust, license-check), Windows
+  target type-check, 60/60 Playwright, `npm run build`. Tag `phase-02-done` after the check.
+- Phase 1 (viewer) done, tagged `phase-01-done`. Owner decisions: VC++ runtime with qpdf
+  approved (`license-policy.json`); Acrobat keys checked by the owner (Ctrl+D, F4,
+  Ctrl+Shift+W, Shift+F3; Ctrl+Y is Redo, now bound).
 
-## Phase log
+## Phase log (summary)
 
-### Phase 0: scaffold, tooling, corpus, EmbedPDF spike (tagged `phase-00-done`)
+- **Phase 0**: Tauri 2 + React 19 + TS strict + Vite; `npm run check`; SPDX license
+  check; synthetic corpus + IRS forms; `src/engine` (Node-safe PDFium). Redaction gaps
+  pinned in `tests/redaction` (see `docs/spike-report.md`).
+- **Phase 1**: viewer on EmbedPDF plugins (tabs, thumbnails/outline/attachments, view
+  modes, zoom, find, properties, Acrobat keys, theme, remembered state); Rust file IO with
+  classified errors, "Open with", qpdf "Repair a copy", native PDFium printing (PrintDlgEx).
 
-Tauri 2 + React 19 + TS strict + Vite; gates in `npm run check`; custom SPDX
-license-check; synthetic corpus + committed IRS forms; `src/engine` (Node-safe PDFium).
-Spike findings are in `docs/spike-report.md`. The owner confirmed the app launches on
-Windows; the rest of that report's manual check (Acrobat round trip, UNC Save As) was
-not reported back.
-
-### Phase 1: the viewer
+## Phase 2: page organization
 
 Built:
 
-- Rust (`src-tauri/src`): classified file errors (`locked`, `network`, `notFound`,
-  `accessDenied`); argv + single-instance "Open with"; settings JSON (atomic write);
-  qpdf "Repair a copy" to a new file; native printing (`print/`); WebView2 browser
-  accelerator keys disabled so Acrobat keys reach the app. `.pdf` file association in
-  `tauri.conf.json`. pdfium.dll + qpdf are fetched by `scripts/fetch-win-binaries.mjs`
-  (pinned SHA-256, git-ignored `src-tauri/vendor/`) and bundled as resources.
-- UI (`src/app`, `src/ui`, `src/platform`): EmbedPDF React plugins. Tabs, drag-drop,
-  recent files, start page; continuous / single / two-up (+cover); fit page/width,
-  actual size, zoom %; rotate view; go to page / prev / next / first / last;
-  thumbnails, outline tree, attachments; find with result list + highlights; select,
-  copy, select all; properties dialog; light/dark/system theme; remembers zoom, view
-  mode, open tabs, active tab, sidebar; window size via tauri-plugin-window-state.
-- Printing (owner chose option C): Ctrl+P → EmbedPDF `preparePrintDocument`
-  (annotations flattened, unencrypted copy) → Rust → Windows print dialog (PrintDlgEx)
-  → native PDFium `FPDF_RenderPage` onto the printer DC (vector, like Chrome). Default
-  Acrobat behaviour: shrink oversized pages, auto-rotate, centre. Falls back to WebView
-  print when pdfium.dll is missing. Refused when the PDF forbids printing.
-- Tests: 43 Playwright tests (browser platform + mock Windows file system with locked
-  and offline paths; every test asserts no external requests), Vitest for settings,
-  shortcuts, zoom, properties, corpus; 21 Rust tests incl. print layout and qpdf repair.
-  `npm run check:windows-target` type-checks the Windows-only Rust.
-- Performance (headless Chromium, Linux): 500-page file from a UNC path to first
-  painted page 0.6–1.0 s; no blank pages after jumps or wheel scrolling.
+- `src/engine/pages` (Node-safe, MCP can reuse): **qpdf `--pages` with the document as
+  primary input does every add/remove/reorder** (fields copied, clashing names renamed
+  `name`->`name+1` so values never cross-link, annotations kept, bookmarks follow pages).
+  PDFium does rotate, crop, page size (content + annotations scaled), blank pages and
+  bookmark writes. Own minimal PDF writer for image pages: JPEG and single-strip CCITT G4
+  embedded unchanged, other TIFF/PNG as 1-bit/gray/RGB Flate (+SMask). Combine (bookmark
+  per file), split (count/ranges/top-level bookmarks/size), bookmark-driven delete/extract/
+  move-with-pages. After any structural change `/AcroForm /XFA` and catalog `/Perms`
+  (Reader usage rights) are removed, since both go stale (qpdf JSON update).
+- Rust: `qpdf_run` (one framed IPC call per job, private temp folder, plain names only,
+  no paths/drive letters/@argfiles; same rules as `checkJob`), `save_pdf` (temp, copy old
+  to `<name>.bak`, atomic rename; `.bak` deleted on the next successful open),
+  `write_new_file` (never overwrites: "a (2).pdf"), `list_folder` (natural order).
+- App: page-engine Web Worker (own PDFium; qpdf calls go back to the main thread);
+  per-tab undo/redo of whole-file snapshots; each edit reopens the tab from the new bytes
+  in place. Organize grid, dialogs (insert PDF/images, replace, blank, crop, page size,
+  split, Combine Files, unsaved changes), bookmark editor, Save/Save As, signed-PDF
+  warning, dirty marker. Keys: Ctrl+Z, Ctrl+Y, Ctrl+S, Ctrl+Shift+S.
+- Tests: `tests/unit/pages-merge.test.ts` is the phase gate (3 workpapers with the same
+  field names, annotations, nested bookmarks: merge, reorder, split; checked with qpdf
+  JSON + pdf.js, not PDFium). Every op has a unit test; rendered-pixel checks catch
+  inverted G4 scans. Playwright: organize, bookmark editor, combine/split specs inspect
+  the saved bytes. Browser tests run qpdf in the test process (`/__qpdf` route).
 
 Deviations from spec, and why:
 
-- Shortcuts: Adobe's published table (fetched with a real browser) has navigation,
-  find, tabs and nav-pane keys but no menu accelerators. Ctrl+0/1/2 come from Adobe
-  Community answers; Ctrl+D, F4, Ctrl+Shift+W, Shift+F3 were checked in Acrobat by the
-  owner. Ctrl+Y (Acrobat: Redo) is unbound.
-- Ctrl+Shift+N focuses the toolbar page box instead of opening a Go To Page dialog.
-- Single Page mode is our own renderer (EmbedPDF's scroll plugin has no single-page
-  mode). It renders one full bitmap, no tiling, so very high zoom costs memory.
-- Two-up is two-up _continuous_ only (no non-scrolling two-page view).
-- qpdf is a bundled resource run with `std::process::Command` (no shell plugin), version
-  12.4.2 on Windows; Linux tests use system qpdf 11.9.0.
-- Settings use a tiny Rust command, not tauri-plugin-store (one less dependency).
-- E2E runs in Chromium against the browser platform; Tauri IPC, native dialogs and the
-  print dialog are not exercised by Playwright (Rust unit tests + manual check).
+- PDFium's `importPages` drops `/AcroForm` (verified), so merging uses qpdf.
+- Field renames use qpdf's scheme (`client+1.name`), not a custom suffix.
+- Image pages are written by our own writer: PDFium's PNG import stores 8-bit RGB
+  (24x larger for black-and-white scans).
+- Bookmark drag moves pages by default; a panel checkbox switches to nesting only.
+- Extract opens an unsaved tab (Save to keep it); "extract as separate files" = Split.
+- Split writes into the document's folder (or a chosen one).
+- Password-protected PDFs: page operations are refused and bookmarks are read-only.
 
-## Manual Windows check (owner, 2026-10-22)
+## Manual Windows check (owner, Phase 2)
 
-Run from copies of `tests/corpus/generated` (synthetic files only).
+Synthetic files only (copies of `tests/corpus/generated`, `tests/corpus/fixtures`).
 
-1. Installer (NSIS, unsigned: SmartScreen "Run anyway"): **pass**.
-2. Default app + double-click; "Open with" while running adds a tab: **pass**.
-3. 500-page file from a `\\server\share`: **not tested (deferred)**. Re-check when a share
-   is handy; local e2e timing was 313 ms.
-4. Ctrl+P: Windows print dialog, Microsoft Print to PDF output sharp, landscape page
-   rotated, `no-print.pdf` refused: **pass**.
-5. File open in Acrobat/Edge: opens normally (they allow shared read), no crash:
-   **pass** (the "locked" message only appears for exclusive locks; covered by
-   `fileio::tests::classifies_locked_file_on_windows`). Owner: low priority.
-6. Browser keys suppressed; window size, tabs, zoom restored: **pass**.
-
-Notes: the installer is not code-signed (SmartScreen warning). The license-check
-script prints Node's DEP0190 warning on Windows (`shell: true` with args); cosmetic.
+1. On a `\\server\share` copy: Organize, drag pages, Ctrl+S. File replaced, `<name>.bak`
+   beside it; reopen: `.bak` gone. Repeat with the file open in Acrobat: clear message,
+   original intact.
+2. Combine Files > Add folder with PDFs plus a multi-page TIFF from the office scanner.
+   Open the result in Acrobat: pages, bookmark per file, sticky notes visible.
+3. Combine two filled copies of `irs/fw9.pdf`: in Acrobat and Reader both keep their own
+   values, fields fillable, no "extended features" warning.
+4. Split by bookmarks into a folder that already has a same-named file: nothing overwritten.
+5. Crop, page size, rotate: results look right in Acrobat. Drag a bookmark with children
+   on a real-sized binder: pages and child bookmarks move.
+6. Timing: Organize + reorder on a 200-page scan from the share.
 
 ## Dependency versions and licenses
 
-Phase 0 table: `docs/spike-report.md`. Added in Phase 1: @embedpdf/core and 15
-@embedpdf/plugin-\* 2.15.1 (MIT); tauri-plugin-single-instance 2.x,
-tauri-plugin-window-state 2.x, windows 0.62 / webview2-com 0.39 (MIT OR Apache-2.0);
-libloading 0.8 (ISC). Bundled binaries: pdfium-binaries chromium/8111 (PDFium
-BSD-3-Clause; bundled FreeType FTL, libjpeg-turbo IJG/BSD, libpng, zlib, lcms MIT,
-OpenJPEG BSD-2, ICU Unicode-3.0, abseil/highway Apache-2.0, Boost: no copyleft);
-qpdf 12.4.2 msvc64 (Apache-2.0) **with Microsoft VC++ runtime DLLs (Microsoft
-redistributable license, proprietary): owner review requested.** The license-check
-script does not scan these binaries.
+Phase 0: `docs/spike-report.md`. Phase 1: @embedpdf/core and 15 plugins 2.15.1 (MIT),
+tauri-plugin-single-instance/window-state 2.x, windows 0.62, webview2-com 0.39 (MIT OR
+Apache-2.0), libloading 0.8 (ISC); bundled pdfium-binaries chromium/8111 (BSD-3 + permissive
+deps), qpdf 12.4.2 (Apache-2.0) with VC++ runtime (approved). **Phase 2:** utif2 4.1.0
+(MIT; pulls pako 1.0.11, MIT), fflate 0.8.2 (MIT). No new Rust crates.
 
 ## Known gaps / notes for later phases
 
-- Print scaling (fit / shrink / actual) and auto-rotate live in settings but have no
-  UI yet; there is no in-app print preview.
-- Intermittent e2e failures were all real bugs, now fixed: Ctrl+A/Ctrl+C race;
-  duplicate PrintFrame/CopyToClipboard (EmbedPDF auto-mounts them; WebView print
-  fallback printed twice); single page → continuous losing the page (zoom plugin
-  re-fit scrolls back after 150 ms); opening A then B could end on A. Playwright keeps a
-  trace for every failure (`npx playwright show-trace`).
-- Windows checkout: `.gitattributes` forces LF (Prettier failed on CRLF). The e2e
-  suite now generates the corpus itself; the generator finds qpdf on PATH, in `$QPDF`,
-  or in `src-tauri/vendor/qpdf` after a Windows build; Vitest helpers and the Rust
-  repair tests use the same lookup.
-- Whole files are held in memory (JS + WASM copies). Not tested beyond ~1 MB/500 pages;
-  test large scans before the OCR phase.
-- PDFs opened from an attachment are memory-only tabs (not in Recent or restored tabs).
-- Redaction gaps from Phase 0 still open (see spike report); `tests/redaction` unchanged.
-- EmbedPDF drops a document's plugin state slightly before core state on close;
-  `src/ui/Guard.tsx` absorbs the render race. Keep document-bound UI inside a `Guard`.
-- The zoom plugin ignores requests until the viewport has a size; see the
-  remembered-zoom effect in `src/ui/DocumentView.tsx`.
-- Windows 10/11 do not let apps make themselves the default PDF handler; users pick it.
-- Files are read once at open; a file locked with no shared read cannot be opened
-  (by design: message + Try again).
+- After an edit the tab reopens as a new document; EmbedPDF's zoom plugin re-fits ~150 ms
+  later and scrolls back once. A jump made in that instant is undone (rare by hand;
+  `idle()` in e2e waits for it). Thumbnails re-render after each edit.
+- Rewriting the bookmark tree (only when it must change) drops bookmark colour/bold and
+  open/closed state (EmbedPDF's model is title + target), and drops links to other files.
+  "Add from current view" stores the visible top (XYZ) assuming the crop box starts at 0;
+  rotated pages get Fit Page.
+- Tagged-PDF structure (StructTreeRoot) is not updated after page changes.
+- Crop hides content, it does not remove it (redaction phase). Signatures: warning only.
+- Memory: every open file is held twice (viewer + undo base); undo history up to 400 MB
+  per tab. Test large scans before the OCR phase. JPEG EXIF orientation is ignored.
+- Tauri IPC paths (qpdf_run, save, dialogs) are covered by Rust tests and the manual check;
+  Playwright runs the browser platform. In the cloud container Playwright 1.64 needs
+  `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
+- Phase 1 notes still apply: keep document-bound UI inside a `Guard`; the zoom plugin
+  ignores requests until the viewport has a size; PDFs opened from attachments are
+  memory-only tabs; Windows 10/11 users pick the default PDF app themselves.
