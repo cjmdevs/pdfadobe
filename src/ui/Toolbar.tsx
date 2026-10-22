@@ -59,7 +59,7 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
       <ToolButton
         icon="combine"
         label="Combine Files…"
-        onClick={() => wb.setDialog({ kind: "combine" })}
+        onClick={() => wb.setDialog({ kind: "combine", documentId })}
       />
       <ToolButton
         icon="print"

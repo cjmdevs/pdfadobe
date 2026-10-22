@@ -92,7 +92,7 @@ function MainDialog() {
         />
       );
     case "combine":
-      return <CombineDialog onClose={close} />;
+      return <CombineDialog startWith={dialog.documentId} onClose={close} />;
   }
 }
 

@@ -70,7 +70,8 @@ export type Dialog =
   | { kind: "shortcuts" }
   | { kind: "unsaved"; documentIds: string[]; then: "close" | "closeAll" }
   | { kind: "pageOp"; op: PageOpDialog; documentId: string; pages: number[] }
-  | { kind: "combine" }
+  /** `documentId`: the open document to start the list with (owner request). */
+  | { kind: "combine"; documentId: string | null }
   | null;
 
 /** Dialog-driven page operations (src/ui/PageOpsDialogs.tsx). */

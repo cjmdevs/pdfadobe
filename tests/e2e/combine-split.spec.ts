@@ -104,6 +104,30 @@ test.describe("combine files", () => {
   });
 });
 
+test.describe("combine files from an open document", () => {
+  test("the open document starts the list (owner report: its pages were left out)", async ({
+    page,
+  }) => {
+    await boot(page);
+    await openPaths(page, [P.wpB]);
+    await waitForPainted(page, 0);
+    await page.getByRole("button", { name: "Combine Files…" }).click();
+    const dlg = page.getByRole("dialog", { name: "Combine Files" });
+    const items = dlg.getByTestId("combine-item");
+    await expect(items).toHaveCount(1);
+    await expect(items.nth(0)).toContainText("workpaper-b.pdf");
+    const chooser = page.waitForEvent("filechooser");
+    await dlg.getByRole("button", { name: "Add files…" }).click();
+    await (await chooser).setFiles(join(CORPUS, "workpaper-c.pdf"));
+    await expect(items).toHaveCount(2);
+    await dlg.getByRole("button", { name: "Combine", exact: true }).click();
+    await expect(page.getByRole("tab", { name: /Combined\.pdf/ })).toBeVisible();
+    await expect(page.getByTestId("page-count")).toHaveText("/ 6");
+    // The original is still open and unchanged.
+    await expect(page.getByRole("tab", { name: /workpaper-b\.pdf/ })).not.toContainText("•");
+  });
+});
+
 test.describe("split", () => {
   test("by top-level bookmarks into the document's folder, never overwriting", async ({
     page,

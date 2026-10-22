@@ -15,7 +15,8 @@ forms, OCR, and a local MCP server for Claude.
 
 ## Non-negotiables
 
-- Licenses: MIT, BSD, Apache-2.0, MPL-2.0, ISC only. NEVER AGPL/GPL/LGPL-static.
+- Licenses: MIT, BSD, Apache-2.0, MPL-2.0, ISC, Unicode-3.0, Zlib, OFL-1.1 (fonts),
+  CC-BY-4.0 (build-time only). NEVER AGPL/GPL/LGPL-static.
   No MuPDF, no Ghostscript. State the license of every new dependency in the PR summary.
 - Never overwrite an original file. Save As by default; Save writes to a temp file then
   atomically replaces, keeping a `.bak` until the next successful open.
@@ -32,15 +33,23 @@ forms, OCR, and a local MCP server for Claude.
 - Plan before coding. Show the plan, wait for approval.
 - Check current library docs before using an API; do not rely on memory.
 - Small steps, each with tests, each committed.
-- Git: commit and push directly to `main` (solo project, no feature branches).
-  Never push a commit with failing tests. Tag `phase-NN-done` at the end of each phase.
 - If a requirement is ambiguous or a library can't do something, stop and ask.
 - Read `docs/progress.md` at the start of every session.
 - At the end of every phase, update `docs/progress.md`: what was built, every deviation
   from the phase spec and why, package versions, known gaps, and anything a later
   phase must know. Keep it under 2 pages; summarize older phases.
+- At the end of every phase or backlog item, write `docs/testing/<item>-test-guide.md`
+  and paste it in chat. Assume the tester knows nothing. Include: exact setup
+  commands for PowerShell, anything to install, where test files are; then numbered
+  steps for EVERY feature built: what to open, what to click, what should appear,
+  how to check the result in Adobe Acrobat, and how to tell pass from fail. End with
+  a checklist to tick and exactly what to send back if a step fails.
 - Windows paths, long paths, UNC network shares (`\\server\share`), and files locked
   by other programs are normal here. Handle them.
+- The build PC has no firm network. Test UNC handling against a local share
+  (`\\localhost\<share>`) on the build PC; mark real-network checks "deferred to
+  Phase 10" in test guides. Phase 10 tests on a work PC with the installed app
+  only: no dev tools get installed there.
 
 ## Commands
 

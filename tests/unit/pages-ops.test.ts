@@ -161,6 +161,32 @@ describe("geometry", () => {
     expect(i.fields.find((f) => f.name === "client.name")?.value).toBe("Sample Client A");
   });
 
+  it("set page size after a crop keeps the crop (owner report: crop lost in Acrobat)", async () => {
+    // Crop 1.5 in off the top of page 1 (removes the "Workpaper A" heading at y=720),
+    // then make it Legal. The heading must stay hidden.
+    const cropped = cropPages(ctx.module, wpA, [0], { left: 0, top: 108, right: 0, bottom: 0 });
+    const legal = setPageSize(ctx.module, cropped, [0], { width: 612, height: 1008 });
+    const i = await inspectPdf(legal);
+    expect(i.pageSizes[0]).toMatchObject({ width: 612, height: 1008 });
+    // Render and look for ink in the band above the placed (cropped) area: the content is
+    // 684 pt tall, centred on 1008, so the top 162 pt must be blank.
+    const doc = await ctx.engine
+      .openDocumentBuffer({ id: "crop-size", content: legal.slice().buffer })
+      .toPromise();
+    try {
+      const img = await ctx.engine
+        .renderPageRaw(doc, doc.pages[0]!, { scaleFactor: 1 })
+        .toPromise();
+      let ink = 0;
+      for (let y = 0; y < 150; y++) {
+        for (let x = 0; x < img.width; x++) if (img.data[(y * img.width + x) * 4]! < 200) ink++;
+      }
+      expect(ink).toBe(0);
+    } finally {
+      await ctx.engine.closeDocument(doc).toPromise();
+    }
+  });
+
   it("inserts blank pages sized like their neighbour", async () => {
     const i = await inspectPdf(insertBlankPages(ctx.module, nav, 2, 2));
     expect(i.pages).toBe(10);

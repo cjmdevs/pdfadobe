@@ -720,7 +720,14 @@ interface CombineItem {
 
 let combineKey = 0;
 
-export function CombineDialog({ onClose }: { onClose: () => void }) {
+export function CombineDialog({
+  startWith,
+  onClose,
+}: {
+  /** The document open when Combine was chosen: it starts the list (remove it if unwanted). */
+  startWith: string | null;
+  onClose: () => void;
+}) {
   const wb = useWorkbench();
   const [items, setItems] = useState<CombineItem[]>([]);
   const [perFile, setPerFile] = useState(true);
@@ -777,6 +784,21 @@ export function CombineDialog({ onClose }: { onClose: () => void }) {
       setWorking(null);
     }
   };
+
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || !startWith) return;
+    started.current = true;
+    const bytes = wb.docBytes(startWith);
+    const m = wb.meta[startWith];
+    if (!bytes || !m) return;
+    // Reading the page count is async; the list updates when it arrives.
+    void Promise.resolve().then(() =>
+      add([{ source: m.source, name: m.name, bytes: bytes.slice().buffer }]),
+    );
+    // Once, when the dialog opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const addOpen = () => {
     const files: OpenedFile[] = [];

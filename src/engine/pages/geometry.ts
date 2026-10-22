@@ -79,8 +79,8 @@ export function cropPages(
 
 /**
  * Gives each page a new size (as seen, i.e. after /Rotate) and scales its content and
- * annotations to fit, centred, keeping the aspect ratio. What was outside the crop box
- * stays outside.
+ * annotations to fit, centred, keeping the aspect ratio. Content outside the old crop box
+ * is clipped, so an earlier crop stays in effect (content is hidden, not removed).
  */
 export function setPageSize(
   m: PdfiumModule,
@@ -100,7 +100,15 @@ export function setPageSize(
         const s = Math.min(W / w, H / h);
         const e = (W - w * s) / 2 - crop.left * s;
         const f = (H - h * s) / 2 - crop.bottom * s;
-        transformPage(m, p, [s, 0, 0, s, e, f], { left: 0, bottom: 0, right: W, top: H });
+        // Clip to where the old visible area lands, so a crop stays a crop.
+        const left = (W - w * s) / 2;
+        const bottom = (H - h * s) / 2;
+        transformPage(m, p, [s, 0, 0, s, e, f], {
+          left,
+          bottom,
+          right: left + w * s,
+          top: bottom + h * s,
+        });
         m.FPDFPage_TransformAnnots(p, s, 0, 0, s, e, f);
         for (const set of [
           m.FPDFPage_SetMediaBox,
