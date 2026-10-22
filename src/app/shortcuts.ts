@@ -7,8 +7,8 @@
 //   adobeHub  adobe.com/acrobat/hub/how-to-rotate-pdf-pc.html (rotate counter-clockwise)
 //   community Adobe Community answers (Acrobat menu accelerators not in the published table)
 //   windows   standard Windows accelerators Acrobat also uses
-//   unverified  Acrobat menu accelerator from memory; not on any Adobe page we could reach.
-//             Check in Acrobat before relying on it.
+//   owner     menu accelerators not on Adobe's pages, checked by the owner in Acrobat
+//             (2026-10-22). Ctrl+Y is Redo in Acrobat: left unbound until editing has undo.
 //
 // Key tokens match either KeyboardEvent.code (layout-independent: Equal, Minus, Digit0,
 // NumpadAdd) or KeyboardEvent.key (letters, PageUp, F3...).
@@ -31,7 +31,6 @@ export type Command =
   | "fitPage"
   | "actualSize"
   | "fitWidth"
-  | "zoomTo"
   | "rotateCw"
   | "rotateCcw"
   | "find"
@@ -46,7 +45,7 @@ export type Command =
   | "escape"
   | "help";
 
-export type Source = "adobe" | "adobeView" | "adobeHub" | "community" | "windows" | "unverified";
+export type Source = "adobe" | "adobeView" | "adobeHub" | "community" | "windows" | "owner";
 
 export interface Shortcut {
   command: Command;
@@ -62,7 +61,7 @@ export const SHORTCUTS: Shortcut[] = [
     command: "closeAll",
     label: "Close all documents",
     keys: ["Ctrl+Shift+W"],
-    source: "unverified",
+    source: "owner",
   },
   {
     command: "nextTab",
@@ -133,7 +132,6 @@ export const SHORTCUTS: Shortcut[] = [
     keys: ["Ctrl+Digit2", "Ctrl+Numpad2"],
     source: "community",
   },
-  { command: "zoomTo", label: "Zoom to…", keys: ["Ctrl+Y"], source: "unverified" },
   {
     command: "rotateCw",
     label: "Rotate view clockwise",
@@ -151,16 +149,16 @@ export const SHORTCUTS: Shortcut[] = [
   {
     command: "findPrev",
     label: "Previous search result",
-    keys: ["Shift+F3", "Ctrl+Shift+G"],
-    source: "unverified",
+    keys: ["Shift+F3"],
+    source: "owner",
   },
   { command: "print", label: "Print", keys: ["Ctrl+P"], source: "windows" },
-  { command: "properties", label: "Document properties", keys: ["Ctrl+D"], source: "unverified" },
+  { command: "properties", label: "Document properties", keys: ["Ctrl+D"], source: "owner" },
   {
     command: "toggleNavPane",
     label: "Show/hide navigation pane",
     keys: ["F4"],
-    source: "unverified",
+    source: "owner",
   },
   {
     command: "focusNavPane",

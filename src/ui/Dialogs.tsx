@@ -227,9 +227,6 @@ function ShortcutsDialog({ onClose }: { onClose: () => void }) {
                 {s.keys.map((k) => (
                   <kbd key={k}>{displayKey(k)}</kbd>
                 ))}
-                {s.source === "unverified" && (
-                  <span className="muted small"> (not on Adobe's list)</span>
-                )}
               </td>
             </tr>
           ))}

@@ -16,5 +16,9 @@
     "CC-BY-4.0": "Attribution-only data license. caniuse-lite browser table, build-time only, not shipped. Not copyleft.",
     "OFL-1.1": "SIL Open Font License. @embedpdf/fonts-* (deps of @embedpdf/engines). Only their file-list JS is imported; the font files are not bundled (CDN font fallback is disabled). OFL copyleft applies only to modified fonts; bundling with software is permitted. Flagged for owner review in docs/spike-report.md."
   },
-  "packageOverrides": {}
+  "packageOverrides": {},
+  "bundledBinaries": {
+    "pdfium-binaries chromium/8111": "BSD-3-Clause/Apache-2.0 with permissive third-party code (FreeType FTL, IJG, libpng, zlib, lcms, OpenJPEG, ICU, Boost). Native printing. Fetched by scripts/fetch-win-binaries.mjs (SHA-256 pinned); not scanned by license-check.",
+    "qpdf 12.4.2 msvc64": "Apache-2.0. Ships Microsoft Visual C++ runtime DLLs (Microsoft redistributable license, proprietary, not copyleft): approved by the owner 2026-10-22. Fetched by scripts/fetch-win-binaries.mjs (SHA-256 pinned); not scanned by license-check."
+  }
 }

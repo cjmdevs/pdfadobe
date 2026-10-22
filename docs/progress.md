@@ -9,8 +9,10 @@ Keep it under 2 pages; summarize older phases.
   PC: `npm run check` (55 Vitest, 22 Rust incl. the Windows locked-file test,
   license-check), 43/43 Playwright (500-page first paint 313 ms) and `tauri build`
   (MSI + NSIS) all pass. Manual check results below.
-- **Open owner decisions:** (a) shipping the Microsoft VC++ runtime DLLs with qpdf;
-  (b) Acrobat behaviour of Ctrl+D, Ctrl+Y, F4, Ctrl+Shift+W, Shift+F3 (unverified keys).
+- Owner decisions 2026-10-22: VC++ runtime DLLs with qpdf **approved** (recorded in
+  `license-policy.json` → `bundledBinaries`). Acrobat keys checked by the owner: Ctrl+D
+  properties, F4 nav pane, Ctrl+Shift+W close all, Shift+F3 previous result; **Ctrl+Y
+  is Redo**, so it is unbound until editing adds undo/redo.
 
 ## Phase log
 
@@ -54,11 +56,9 @@ Deviations from spec, and why:
 
 - Shortcuts: Adobe's published table (fetched with a real browser) has navigation,
   find, tabs and nav-pane keys but no menu accelerators. Ctrl+0/1/2 come from Adobe
-  Community answers; **Ctrl+D, Ctrl+Y, F4, Ctrl+Shift+W, Shift+F3/Ctrl+Shift+G are
-  unverified** and marked so in `src/app/shortcuts.ts` and the F1 sheet. Check in
-  Acrobat.
-- Ctrl+Shift+N and Ctrl+Y focus the toolbar page / zoom boxes instead of opening
-  dialogs.
+  Community answers; Ctrl+D, F4, Ctrl+Shift+W, Shift+F3 were checked in Acrobat by the
+  owner. Ctrl+Y (Acrobat: Redo) is unbound.
+- Ctrl+Shift+N focuses the toolbar page box instead of opening a Go To Page dialog.
 - Single Page mode is our own renderer (EmbedPDF's scroll plugin has no single-page
   mode). It renders one full bitmap, no tiling, so very high zoom costs memory.
 - Two-up is two-up _continuous_ only (no non-scrolling two-page view).

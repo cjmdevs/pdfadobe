@@ -187,9 +187,6 @@ function DocCommands({
       case "goToPage":
         focusAndSelect("page-input");
         break;
-      case "zoomTo":
-        focusAndSelect("zoom-input");
-        break;
       case "zoomIn":
         zoom?.zoomIn();
         break;

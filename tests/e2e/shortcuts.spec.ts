@@ -68,8 +68,9 @@ test.describe("keyboard shortcuts", () => {
       "aria-pressed",
       "true",
     );
+    // Ctrl+Y is Redo in Acrobat (owner-verified); the viewer leaves it unbound.
     await page.keyboard.press("Control+y");
-    await expect(page.getByLabel("Zoom percentage")).toBeFocused();
+    await expect(page.getByLabel("Zoom percentage")).not.toBeFocused();
   });
 
   test("rotate view keys (Ctrl+Shift+Plus / Minus)", async ({ page }) => {
