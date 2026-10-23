@@ -87,6 +87,9 @@ Deviations from spec, and why:
   selection collapsed after each edit): the pages an edit worked on now stay selected.
   **Crop "did not apply in other software"**: crop set only the CropBox; it now sets
   MediaBox and the other boxes too (content outside is still hidden, not removed).
+- Crop in PDF-to-drawing importers (LibreOffice/Word) still shows the hidden content
+  (reproduced with LibreOffice; same for Acrobat-cropped files). Owner decision
+  2026-10-23: keep Acrobat behaviour (hide, not remove); removal belongs to redaction.
 - Open: spec now asks for Organize Pages "from the Tools pane (backlog B4)"; no B4
   exists in the repo yet. Test guide: `docs/testing/phase-02-test-guide.md`.
 
