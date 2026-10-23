@@ -5,7 +5,7 @@
 //   bookmark also moves its pages and child bookmarks to the new position.
 // - Delete or extract a bookmark together with its pages.
 // Every change is one undoable step.
-import { useEffect, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useBookmarkCapability } from "@embedpdf/plugin-bookmark/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
@@ -44,7 +44,12 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
   const { provides: scroll } = useScroll(documentId);
   const { provides: selection } = useSelectionCapability();
   const doc = useDocumentState(documentId)?.document ?? null;
-  const bytes = wb.docBytes(documentId);
+  // Password-protected documents cannot be rewritten: read-only bookmarks.
+  const editable = !doc?.isEncrypted;
+  const wbRef = useRef(wb);
+  useEffect(() => {
+    wbRef.current = wb;
+  });
   const [outline, setOutline] = useState<Outline | null>(null);
   const selected = wb.meta[documentId]?.bookmark ?? null;
   const setSelected = (path: OutlinePath | null) => wb.setSelectedBookmark(documentId, path);
@@ -63,23 +68,27 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
   });
   const movePages = wb.settings.bookmarkDragMovesPages;
 
+  // Each edit reopens the tab under a new id, so this re-reads after every change.
   useEffect(() => {
-    if (!bytes) return;
+    if (!editable) return;
     let live = true;
-    pageOp("readOutline", bytes).then(
-      (o) => {
-        if (!live) return;
-        setOutline(o);
-        setOpen(new Set(o.map((_, i) => String(i))));
-      },
-      () => live && setOutline([]),
-    );
+    wbRef.current
+      .docBytes(documentId)
+      .then((b): Promise<Outline> | Outline => (b ? pageOp("readOutline", b) : []))
+      .then(
+        (o) => {
+          if (!live) return;
+          setOutline(o);
+          setOpen(new Set(o.map((_, i) => String(i))));
+        },
+        () => live && setOutline([]),
+      );
     return () => {
       live = false;
     };
-  }, [bytes]);
+  }, [documentId, editable]);
 
-  if (!bytes) return <ReadOnlyBookmarks documentId={documentId} />;
+  if (!editable) return <ReadOnlyBookmarks documentId={documentId} />;
   if (!outline || !doc) return <p className="muted pad">Loading…</p>;
 
   const busy = wb.busy !== null;
@@ -163,6 +172,8 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
   };
 
   const withPages = async (what: "delete" | "extract", path: OutlinePath) => {
+    const bytes = await wb.docBytes(documentId);
+    if (!bytes) return;
     const pages = await pageOp("bookmarkPages", bytes, path).catch((e: unknown) => {
       wb.toast(e instanceof Error ? e.message : String(e), "error");
       return null;

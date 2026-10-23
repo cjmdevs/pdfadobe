@@ -26,6 +26,8 @@ export type FileErrorKind =
   | "qpdfFailed"
   | "unrepairable"
   | "unsupported"
+  /** Saved, but the file did not read back as written; `<name>.bak` was kept. */
+  | "unverified"
   | "other";
 
 export class PlatformError extends Error {
@@ -70,7 +72,8 @@ export interface Platform {
   saveSettings(value: unknown): Promise<void>;
   /** Save dialog; null when cancelled. */
   pickSavePath(suggested: string): Promise<string | null>;
-  /** Save over an opened file: temp file, previous version kept as `<path>.bak`, atomic replace. */
+  /** Save over an opened file: temp file, previous version copied to `<path>.bak`, atomic
+   * replace, then read back; the `.bak` is deleted when the file matches. */
   save(path: string, bytes: Uint8Array): Promise<void>;
   /** Save As to a new path. Refuses `source` (the original is never overwritten). */
   saveAs(target: string, source: string | null, bytes: Uint8Array): Promise<void>;

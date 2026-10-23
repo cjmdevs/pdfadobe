@@ -19,7 +19,9 @@ forms, OCR, and a local MCP server for Claude.
   CC-BY-4.0 (build-time only). NEVER AGPL/GPL/LGPL-static.
   No MuPDF, no Ghostscript. State the license of every new dependency in the PR summary.
 - Never overwrite an original file. Save As by default; Save writes to a temp file then
-  atomically replaces, keeping a `.bak` until the next successful open.
+  atomically replaces, keeping a `.bak` until the saved file reads back exactly as
+  written (then the `.bak` is deleted; if not, it stays and the user is told). A leftover
+  `.bak` is deleted on the next successful open. (Owner decision 2026-10-23.)
 - All markup is stored as standard PDF annotations that render in Adobe Acrobat.
   No proprietary sidecar files for anything a reviewer must see.
 - Redaction must physically remove content (text, images, vectors, metadata, form values,
@@ -33,6 +35,8 @@ forms, OCR, and a local MCP server for Claude.
 - Plan before coding. Show the plan, wait for approval.
 - Check current library docs before using an API; do not rely on memory.
 - Small steps, each with tests, each committed.
+- Git: commit and push directly to `main` (solo project, no feature branches).
+  Never push a commit with failing tests. Tag `phase-NN-done` at the end of each phase.
 - If a requirement is ambiguous or a library can't do something, stop and ask.
 - Read `docs/progress.md` at the start of every session.
 - At the end of every phase, update `docs/progress.md`: what was built, every deviation

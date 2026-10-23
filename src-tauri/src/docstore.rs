@@ -431,7 +431,7 @@ mod tests {
     }
 
     #[test]
-    fn save_writes_the_current_revision_with_a_backup() {
+    fn save_writes_the_current_revision_and_drops_the_checked_backup() {
         let dir = std::env::temp_dir().join(format!("pdfwb-docstore-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let file = dir.join("doc.pdf");
@@ -441,7 +441,10 @@ mod tests {
         s.push("a", b"new".to_vec(), "Edit".into()).unwrap();
         assert!(!s.save("a").unwrap().dirty);
         assert_eq!(std::fs::read(&file).unwrap(), b"new");
-        assert_eq!(std::fs::read(dir.join("doc.pdf.bak")).unwrap(), b"old");
+        assert!(
+            !dir.join("doc.pdf.bak").exists(),
+            "read back fine: no .bak left"
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

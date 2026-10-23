@@ -578,7 +578,7 @@ function SplitDialog({ documentId, pageCount, onClose }: OpProps) {
 
   const run = async () => {
     setErr(null);
-    const bytes = wb.docBytes(documentId);
+    const bytes = await wb.docBytes(documentId);
     if (!bytes) return;
     if (!folder) {
       setErr("Choose a folder for the new files.");
@@ -790,21 +790,20 @@ export function CombineDialog({
   useEffect(() => {
     if (started.current || !startWith) return;
     started.current = true;
-    const bytes = wb.docBytes(startWith);
     const m = wb.meta[startWith];
-    if (!bytes || !m) return;
-    // Reading the page count is async; the list updates when it arrives.
-    void Promise.resolve().then(() =>
-      add([{ source: m.source, name: m.name, bytes: bytes.slice().buffer }]),
-    );
+    if (!m) return;
+    // Reading the bytes and page count is async; the list updates when they arrive.
+    void wb.docBytes(startWith).then((bytes) => {
+      if (bytes) void add([{ source: m.source, name: m.name, bytes: bytes.slice().buffer }]);
+    });
     // Once, when the dialog opens.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addOpen = () => {
+  const addOpen = async () => {
     const files: OpenedFile[] = [];
     for (const id of Object.keys(wb.meta)) {
-      const bytes = wb.docBytes(id);
+      const bytes = await wb.docBytes(id);
       const m = wb.meta[id];
       if (bytes && m) files.push({ source: m.source, name: m.name, bytes: bytes.slice().buffer });
     }
@@ -867,7 +866,11 @@ export function CombineDialog({
         <button type="button" onClick={() => void addFolder()}>
           Add folder…
         </button>
-        <button type="button" onClick={addOpen} disabled={!Object.keys(wb.meta).length}>
+        <button
+          type="button"
+          onClick={() => void addOpen()}
+          disabled={!Object.keys(wb.meta).length}
+        >
           Add open files
         </button>
       </div>

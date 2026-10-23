@@ -47,7 +47,7 @@ Open files with **Ctrl+O** and type the path, e.g. `\\localhost\PDFTest\workpape
    Split, rotate, Delete...). Drag page 3 in front of page 1. Click page 1, Shift+click
    page 2, click **Rotate right** twice. Click page 3, **Delete**. Press **Ctrl+Z**:
    page 3 comes back. Press **Ctrl+S**.
-   Pass: the tab's dot (•) disappears; `C:\PDFTest\workpaper-a.pdf.bak` exists. Open
+   Pass: the tab's dot (•) disappears; no `workpaper-a.pdf.bak` is left in the folder. Open
    the file in Acrobat: 3 pages in the order page 3, page 1, page 2; the first two are
    upside down.
 2. **Save while Acrobat has it open.** Keep it open in Acrobat. In the app rotate any
@@ -100,7 +100,7 @@ Open files with **Ctrl+O** and type the path, e.g. `\\localhost\PDFTest\workpape
     Explorer). Pass: no second copy; the window that has it comes to the front.
 15. **Quit prompt.** Make an unsaved change in a file in each window, then press
     **Ctrl+Q**. Pass: one prompt listing both files. Click **Cancel** (nothing closes),
-    Ctrl+Q again, **Save all and quit**: both files saved (each has a `.bak`), app exits.
+    Ctrl+Q again, **Save all and quit**: both files saved (no `.bak` left), app exits.
 16. **Close one window.** Open 2 windows, change a file in one, click its X. Pass: asks
     only about that window's file; the other window stays open.
 17. **Memory (optional).** Open `long-500p.pdf`, `combined.pdf` and `navigation.pdf` in

@@ -91,7 +91,9 @@ pub fn save_pdf_as(request: Request<'_>) -> Result<(), FileError> {
 
 /// Save over the opened file. Body = raw PDF bytes, header `x-target`.
 /// CLAUDE.md: write a temp file, keep the previous version as `<name>.bak`, then
-/// atomically replace. The `.bak` stays until the file next opens successfully
+/// atomically replace. The saved file is then read back; if it matches what was shown
+/// the `.bak` is deleted, otherwise it stays and the save reports `unverified`.
+/// A `.bak` left over (e.g. a crash mid-save) is deleted on the next successful open
 /// (`discard_backup`).
 #[tauri::command]
 pub fn save_pdf(request: Request<'_>) -> Result<(), FileError> {
@@ -136,8 +138,32 @@ pub fn save_with_backup(target: &Path, bytes: &[u8]) -> Result<(), FileError> {
         if made_bak {
             let _ = fs::remove_file(&bak);
         }
+        return result;
     }
-    result
+    if made_bak {
+        drop_backup_if_saved(target, bytes, &bak)?;
+    }
+    Ok(())
+}
+
+/// Reads the saved file back. Same bytes as the app showed: the backup is not needed
+/// (owner decision 2026-10-23, so `.bak` files do not pile up on the share). Anything
+/// else: keep the backup and say so.
+pub fn drop_backup_if_saved(target: &Path, bytes: &[u8], bak: &Path) -> Result<(), FileError> {
+    match fs::read(target) {
+        Ok(on_disk) if on_disk == bytes => {
+            // If this fails the next successful open removes it.
+            let _ = fs::remove_file(bak);
+            Ok(())
+        }
+        _ => Err(FileError {
+            kind: "unverified",
+            message: format!(
+                "the file was saved but did not read back correctly; the previous version is kept as {}",
+                bak.file_name().unwrap_or_default().to_string_lossy()
+            ),
+        }),
+    }
 }
 
 /// Fails with `locked` when another program has `target` open in a way that stops it being
@@ -451,11 +477,27 @@ mod tests {
         fs::write(&target, b"version 1").unwrap();
         save_with_backup(&target, b"version 2").unwrap();
         assert_eq!(fs::read(&target).unwrap(), b"version 2");
-        assert_eq!(fs::read(backup_path(&target)).unwrap(), b"version 1");
-        assert_eq!(fs::read_dir(&d).unwrap().count(), 2, "no temp file left");
-        discard_backup(target.to_string_lossy().into()).unwrap();
+        // Read back fine: no backup and no temp file left.
         assert!(!backup_path(&target).exists());
-        discard_backup(target.to_string_lossy().into()).unwrap(); // already gone: fine
+        assert_eq!(fs::read_dir(&d).unwrap().count(), 1, "only the saved file");
+        discard_backup(target.to_string_lossy().into()).unwrap(); // nothing there: fine
+        fs::remove_dir_all(d).unwrap();
+    }
+
+    #[test]
+    fn a_save_that_does_not_read_back_keeps_the_backup() {
+        let d = tmpdir("verify");
+        let target = d.join("Return 2025.pdf");
+        let bak = backup_path(&target);
+        fs::write(&target, b"damaged on the way").unwrap();
+        fs::write(&bak, b"version 1").unwrap();
+        let err = drop_backup_if_saved(&target, b"version 2", &bak).unwrap_err();
+        assert_eq!(err.kind, "unverified");
+        assert!(err.message.contains("Return 2025.pdf.bak"));
+        assert_eq!(fs::read(&bak).unwrap(), b"version 1");
+        // A leftover backup is still removed by the next successful open.
+        discard_backup(target.to_string_lossy().into()).unwrap();
+        assert!(!bak.exists());
         fs::remove_dir_all(d).unwrap();
     }
 

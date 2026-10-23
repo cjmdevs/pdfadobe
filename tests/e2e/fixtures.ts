@@ -102,7 +102,8 @@ export const test = base.extend<{ mockfs: MockFs; external: string[] }>({
             const m = /^(.*?)(\.[^.\\]*)?$/.exec(path)!;
             for (let k = 2; fs.entries[path]; k++) path = `${m[1]} (${k})${m[2] ?? ""}`;
           }
-          if (mode === "save" && existing) fs.entries[`${path}.bak`] = existing;
+          // Like save_with_backup: the .bak is dropped once the file reads back as written
+          // (always here); only the recorded write is left.
           fs.entries[path] = { bytes: route.request().postDataBuffer() ?? Buffer.alloc(0) };
           fs.writes.push({ path, mode });
           return route.fulfill({ status: 200, body: path });

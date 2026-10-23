@@ -118,8 +118,9 @@ export interface WorkbenchApi {
   closeAll(): void;
   repairCopy(id: string): Promise<void>;
   print(id: string, currentPage: number): Promise<void>;
-  /** Current bytes of a tab (null for tabs that cannot be edited, e.g. encrypted). */
-  docBytes(id: string): Uint8Array | null;
+  /** Current bytes of a tab, from the document store (null for tabs that cannot be
+   * edited, e.g. encrypted). */
+  docBytes(id: string): Promise<Uint8Array | null>;
   editState(id: string): EditState;
   /**
    * Runs a page operation on a tab: `fn` gets the current bytes and returns new ones,
@@ -241,9 +242,9 @@ export function WorkbenchProvider({
       ),
     [],
   );
-  // Per document (store id): the bytes this window shows, and a mirror of the store's
-  // state for rendering (undo labels, unsaved flag). The store has the full history.
-  const current = useRef(new Map<string, Uint8Array>());
+  // Per document (store id): a mirror of the store's state for rendering (undo labels,
+  // unsaved flag). The bytes stay in the store only (in the Windows app, in Rust): the
+  // window fetches them when an operation needs them, so it holds no extra copy.
   const [infos, setInfos] = useState<Record<string, DocInfo>>({});
   const infosRef = useRef(infos);
   const setInfo = useCallback((info: DocInfo) => {
@@ -350,7 +351,6 @@ export function WorkbenchProvider({
         const storeId = crypto.randomUUID();
         // A copy: the viewer's worker may take ownership of f.bytes.
         const copy = new Uint8Array(f.bytes.slice(0));
-        current.current.set(storeId, copy);
         const path = f.source.kind === "path" ? f.source.path : null;
         void queued(storeId, () =>
           platform.docs.create(storeId, copy, { name: f.name, path, saved: true }).then(setInfo),
@@ -440,7 +440,6 @@ export function WorkbenchProvider({
         docs?.closeDocument(id);
         const sid = metaRef.current[id]?.storeId;
         if (!sid) continue;
-        current.current.delete(sid);
         unsigned.current.delete(sid);
         void queued(sid, () => platform.docs.release(sid)).catch(() => undefined);
       }
@@ -454,8 +453,6 @@ export function WorkbenchProvider({
     (ids: string[]) => {
       for (const id of ids) {
         docs?.closeDocument(id);
-        const sid = metaRef.current[id]?.storeId;
-        if (sid) current.current.delete(sid);
       }
       forget(ids);
       // An extra window closes once its last tab has left (like a browser).
@@ -475,7 +472,6 @@ export function WorkbenchProvider({
           platform.docs.info(sid),
           platform.docs.current(sid),
         ]);
-        current.current.set(sid, bytes);
         setInfo(info);
         const source: FileSource = info.path
           ? { kind: "path", path: info.path }
@@ -676,14 +672,20 @@ export function WorkbenchProvider({
     [core, docs, forget],
   );
 
+  /** A document's current bytes from the store (after its pending store calls). */
+  const storeBytes = useCallback(
+    (sid: string) => queued(sid, () => platform.docs.current(sid)),
+    [queued],
+  );
+
   const docBytes = useCallback(
-    (id: string) => {
+    async (id: string) => {
       const doc = core?.documents[id]?.document;
       if (doc?.isEncrypted) return null;
       const sid = metaRef.current[id]?.storeId;
-      return (sid && current.current.get(sid)) || null;
+      return sid ? storeBytes(sid).catch(() => null) : null;
     },
-    [core],
+    [core, storeBytes],
   );
 
   const editState = useCallback(
@@ -712,9 +714,8 @@ export function WorkbenchProvider({
       setBusy(label);
       const run = async () => {
         const sid = metaRef.current[id]?.storeId;
-        const bytes = sid ? current.current.get(sid) : undefined;
         const doc = core?.documents[id]?.document;
-        if (!sid || !bytes) return false;
+        if (!sid) return false;
         if (doc?.isEncrypted) {
           toast(
             "This document is password-protected. Page changes need an unprotected copy.",
@@ -746,9 +747,8 @@ export function WorkbenchProvider({
           else unsigned.current.add(sid);
         }
         try {
-          const next = await fn(bytes);
+          const next = await fn(await storeBytes(sid));
           let info = await queued(sid, () => platform.docs.push(sid, next, label));
-          current.current.set(sid, next);
           if (info.trimmed) {
             toast("Undo history is full; the oldest steps for this document were dropped.");
             info = await queued(sid, () => platform.docs.clearTrimmed(sid));
@@ -768,7 +768,7 @@ export function WorkbenchProvider({
       editChain.current = editChain.current.then(run, run).then(done, () => done(false));
       return editChain.current;
     },
-    [confirm, core, engine, infoOf, queued, setInfo, showRevision, toast],
+    [confirm, core, engine, infoOf, queued, setInfo, showRevision, storeBytes, toast],
   );
 
   /** Undo / redo: run after any page operation still in progress. */
@@ -784,7 +784,6 @@ export function WorkbenchProvider({
           which === "undo" ? platform.docs.undo(sid) : platform.docs.redo(sid),
         );
         if (!r) return true;
-        current.current.set(sid, r.bytes);
         setInfo(r.info);
         showRevision(now, r.bytes, null);
         toast(`${which === "undo" ? "Undid" : "Redid"}: ${label}`);
@@ -802,8 +801,7 @@ export function WorkbenchProvider({
       await settled();
       const id = resolveId(requested);
       const m = metaRef.current[id];
-      const bytes = m && current.current.get(m.storeId);
-      if (!m || !bytes) return false;
+      if (!m) return false;
       const source = m.source.kind === "path" ? m.source.path : null;
       const target = await platform.pickSavePath(source ?? m.name);
       if (!target) return false;
@@ -812,7 +810,7 @@ export function WorkbenchProvider({
         return false;
       }
       try {
-        await platform.saveAs(target, source, bytes);
+        await platform.saveAs(target, source, await storeBytes(m.storeId));
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
         toast(`Could not save: ${describeOpenError(err)}`, "error");
@@ -831,7 +829,7 @@ export function WorkbenchProvider({
       toast(`Saved as ${name}.`);
       return true;
     },
-    [queued, resolveId, setInfo, settled, toast, updateSettings],
+    [queued, resolveId, setInfo, settled, storeBytes, toast, updateSettings],
   );
 
   const save = useCallback(
@@ -839,21 +837,26 @@ export function WorkbenchProvider({
       await settled();
       const id = resolveId(requested);
       const m = metaRef.current[id];
-      const bytes = m && current.current.get(m.storeId);
-      if (!m || !bytes) return false;
+      if (!m) return false;
       if (m.source.kind !== "path") return saveAs(id);
       try {
-        await platform.save(m.source.path, bytes);
+        await platform.save(m.source.path, await storeBytes(m.storeId));
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
-        toast(`Could not save: ${describeOpenError(err)} Try Save As.`, "error");
+        if (err.kind === "unverified") {
+          // Written, but not what the app showed: the tab stays unsaved, .bak stays.
+          toast(
+            `${m.name} was saved, but reading it back did not match. The previous version is kept as ${m.name}.bak. Check the file before closing it.`,
+            "error",
+          );
+        } else toast(`Could not save: ${describeOpenError(err)} Try Save As.`, "error");
         return false;
       }
       setInfo(await queued(m.storeId, () => platform.docs.markSaved(m.storeId)));
-      toast(`Saved ${m.name}. The previous version is kept as ${m.name}.bak until it next opens.`);
+      toast(`Saved ${m.name}.`);
       return true;
     },
-    [queued, resolveId, saveAs, setInfo, settled, toast],
+    [queued, resolveId, saveAs, setInfo, settled, storeBytes, toast],
   );
 
   const openNew = useCallback(
@@ -875,7 +878,6 @@ export function WorkbenchProvider({
         },
       };
       setMeta(metaRef.current);
-      current.current.set(storeId, bytes);
       void queued(storeId, () =>
         platform.docs.create(storeId, bytes, { name, path: null, saved: false }).then(setInfo),
       );

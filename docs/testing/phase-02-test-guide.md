@@ -134,11 +134,11 @@ unsaved changes. While the app works, a small bar at the top says what it is doi
 14. **Undo / redo.** Press **Ctrl+Z** several times: each change goes back one at a
     time (a message says "Undid: ..."). **Ctrl+Y** redoes. Hover the curved-arrow
     buttons: they name the step.
-15. **Save and check in Acrobat.** Press **Ctrl+S**. Pass: the `•` goes away and
-    `workpaper-a.pdf.bak` appears in `C:\PDFTest` (open the folder in Explorer). Open
-    `\\localhost\PDFTest\workpaper-a.pdf` in **Acrobat**: everything from steps 3-14 is
-    there (rotations, crop, Legal page, inserted pages, sticky note still visible).
-    Close it in Acrobat, close and reopen it in PDF Workbench: the `.bak` is gone.
+15. **Save and check in Acrobat.** Press **Ctrl+S**. Pass: the `•` goes away and no
+    `workpaper-a.pdf.bak` is left in `C:\PDFTest` (the app checks the saved file, then
+    deletes the backup). Open `\\localhost\PDFTest\workpaper-a.pdf` in **Acrobat**:
+    everything from steps 3-14 is there (rotations, crop, Legal page, inserted pages,
+    sticky note still visible).
 16. **Save while Acrobat has the file open.** Open workpaper-a in Acrobat AND PDF
     Workbench. In Workbench rotate a page, press Ctrl+S. Pass: a message says the file is
     open in another program; nothing changes on disk; no new `.bak`. Close Acrobat,

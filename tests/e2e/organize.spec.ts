@@ -39,7 +39,7 @@ test.describe("organize pages", () => {
     await boot(page);
   });
 
-  test("rotate, undo, redo, then Save keeps a .bak and writes a valid PDF", async ({
+  test("rotate, undo, redo, then Save writes a valid PDF and leaves no .bak", async ({
     page,
     mockfs,
   }) => {
@@ -60,7 +60,7 @@ test.describe("organize pages", () => {
     await page.keyboard.press("Control+s");
     await expect(activeTab(page)).not.toContainText("•");
     expect(mockfs.writes).toEqual([{ path: P.wpA, mode: "save" }]);
-    expect(mockfs.entries[`${P.wpA}.bak`]).toEqual({ file: "workpaper-a.pdf" });
+    expect(mockfs.entries[`${P.wpA}.bak`]).toBeUndefined();
 
     const saved = await inspectPdf(new Uint8Array(bytesAt(mockfs, P.wpA)));
     expect(saved.checkError).toBeNull();

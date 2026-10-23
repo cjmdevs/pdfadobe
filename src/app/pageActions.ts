@@ -95,7 +95,7 @@ export function usePageActions(documentId: string) {
         ),
       /** Selected pages as a new, unsaved document in a new tab. */
       extract: async (pages: number[]) => {
-        const bytes = wb.docBytes(documentId);
+        const bytes = await wb.docBytes(documentId);
         if (!bytes) return;
         try {
           const out = await pageOp("extractPages", bytes, pages);

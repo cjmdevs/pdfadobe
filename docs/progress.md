@@ -5,10 +5,15 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 2 + backlog B4 (workspace) + B1 (multiple windows) built; owner's Windows
-  check pending** (`docs/testing/b1-b4-test-guide.md`). On Linux 2026-10-23: `npm run
-check` (103 Vitest + 6 expected-fail redaction pins, 34 Rust, license-check), Windows
-  target `cargo check`, 75/75 Playwright. Tag `phase-02-done` after the owner's check.
+- **Phase 2 + backlog B4 (workspace) + B1 (multiple windows) done; owner passed the
+  Windows check 2026-10-23; tagged `phase-02-done`.** Follow-ups that day (owner
+  approved): `.bak` deleted once the saved file reads back (below); the renderer no
+  longer keeps its own copy of document bytes. On Linux: `npm run check` (103 Vitest + 6
+  expected-fail redaction pins, 35 Rust, license-check), Windows target `cargo check`,
+  75/75 Playwright. Re-check: `docs/testing/save-backup-test-guide.md`.
+- Owner decisions 2026-10-23: Ctrl+Q = Exit confirmed; firm layout share path not
+  needed yet; "Coming in Phase N" stays "Coming in a later phase" until phase numbers
+  are set; git rule restored in CLAUDE.md (push to `main`, tag each phase).
 - Phase 1 (viewer) done, tagged `phase-01-done`. Owner decisions: VC++ runtime with qpdf
   approved (`license-policy.json`); Acrobat keys checked by the owner (Ctrl+D, F4,
   Ctrl+Shift+W, Shift+F3; Ctrl+Y is Redo, now bound).
@@ -37,7 +42,8 @@ Built:
   (Reader usage rights) are removed, since both go stale (qpdf JSON update).
 - Rust: `qpdf_run` (one framed IPC call per job, private temp folder, plain names only,
   no paths/drive letters/@argfiles; same rules as `checkJob`), `save_pdf` (temp, copy old
-  to `<name>.bak`, atomic rename; `.bak` deleted on the next successful open),
+  to `<name>.bak`, atomic rename, read back: same bytes -> `.bak` deleted, otherwise
+  kept and the save reports `unverified`; a leftover `.bak` goes on the next open),
   `write_new_file` (never overwrites: "a (2).pdf"), `list_folder` (natural order).
 - App: page-engine Web Worker (own PDFium; qpdf calls go back to the main thread);
   per-tab undo/redo of whole-file snapshots; each edit reopens the tab from the new bytes
@@ -107,8 +113,8 @@ Design (owner approved "switch to the existing window" for a file opened twice):
   tab leaves. Tabs reorder by drag within the bar. Normal OS windows, so Snap works.
 - Same file opened again (Open, Recent, Explorer) switches to the window that has it.
   "Open with" from Explorer goes to the last-used window.
-- Close button: asks about that window's unsaved files. **Ctrl+Q** (Acrobat's Exit; the
-  owner should confirm the key): one prompt listing unsaved files in every window; Save
+- Close button: asks about that window's unsaved files. **Ctrl+Q** (Acrobat's Exit,
+  confirmed by the owner): one prompt listing unsaved files in every window; Save
   all saves this window's tabs normally and other windows' files from the store (same
   temp file + `.bak` rules); files never saved must be saved from their window first.
 - Settings: each save writes only the changed keys over what is on disk. Extra windows
@@ -135,10 +141,10 @@ the same in whichever window they are, and a file cannot be open in two windows,
 nothing is duplicated. Sharing one PDFium across windows (SharedWorker) would save at
 most ~100 MB per extra window, but puts every window's rendering on one thread and one
 WASM heap (one crash or heap limit hits all windows). Decision: keep per-window. In the
-Windows app, undo history sits in the Rust process instead of the renderer, but the
-renderer keeps its own copy of each document's current bytes (1x file size per
-document; could be dropped by fetching bytes from the store when an operation needs
-them). Owner to confirm on Windows in Task Manager.
+Windows app, undo history and the current bytes sit in the Rust process only: windows
+fetch a document's bytes from the store when an operation needs them (one IPC copy,
+freed afterwards), saving 1x file size per open document in the renderer (not
+measurable in the browser build, where the store shares the same objects).
 
 ## Manual Windows check
 
