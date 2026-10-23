@@ -5,10 +5,10 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 2 (page organization): owner's first Windows check found 5 bugs, fixed
-  2026-10-22 (below); re-check pending.** On Linux: `npm run check` (95 Vitest + 6
-  expected-fail redaction pins, 28 Rust, license-check), Windows target type-check, 62/62
-  Playwright (Phase 2 specs 5x under 4 workers: 95/95). Tag `phase-02-done` after re-check.
+- **Phase 2 + backlog B4 (workspace) + B1 (multiple windows) built; owner's Windows
+  check pending** (`docs/testing/b1-b4-test-guide.md`). On Linux 2026-10-23: `npm run
+check` (103 Vitest + 6 expected-fail redaction pins, 34 Rust, license-check), Windows
+  target `cargo check`, 75/75 Playwright. Tag `phase-02-done` after the owner's check.
 - Phase 1 (viewer) done, tagged `phase-01-done`. Owner decisions: VC++ runtime with qpdf
   approved (`license-policy.json`); Acrobat keys checked by the owner (Ctrl+D, F4,
   Ctrl+Shift+W, Shift+F3; Ctrl+Y is Redo, now bound).
@@ -44,54 +44,25 @@ Built:
   in place. Organize grid, dialogs (insert PDF/images, replace, blank, crop, page size,
   split, Combine Files, unsaved changes), bookmark editor, Save/Save As, signed-PDF
   warning, dirty marker. Keys: Ctrl+Z, Ctrl+Y, Ctrl+S, Ctrl+Shift+S.
-- Tests: `tests/unit/pages-merge.test.ts` is the phase gate (3 workpapers with the same
-  field names, annotations, nested bookmarks: merge, reorder, split; checked with qpdf
-  JSON + pdf.js, not PDFium). Every op has a unit test; rendered-pixel checks catch
-  inverted G4 scans. Playwright: organize, bookmark editor, combine/split specs inspect
-  the saved bytes. Browser tests run qpdf in the test process (`/__qpdf` route).
+- Tests: `tests/unit/pages-merge.test.ts` is the phase gate (merge/reorder/split of 3
+  workpapers, checked with qpdf JSON + pdf.js). Browser tests run qpdf in the test
+  process (`/__qpdf` route).
 
-Deviations from spec, and why:
+Deviations: merging uses qpdf (PDFium's `importPages` drops `/AcroForm`); field renames
+use qpdf's `name+1` scheme; image pages use our own writer (PDFium's PNG import stores
+8-bit RGB, 24x larger for scans); bookmark drag moves pages by default (panel option for
+nesting only); Extract opens an unsaved tab; Split writes next to the document (or a
+chosen folder); password-protected PDFs refuse page operations.
 
-- PDFium's `importPages` drops `/AcroForm` (verified), so merging uses qpdf.
-- Field renames use qpdf's scheme (`client+1.name`), not a custom suffix.
-- Image pages are written by our own writer: PDFium's PNG import stores 8-bit RGB
-  (24x larger for black-and-white scans).
-- Bookmark drag moves pages by default; a panel checkbox switches to nesting only.
-- Extract opens an unsaved tab (Save to keep it); "extract as separate files" = Split.
-- Split writes into the document's folder (or a chosen one).
-- Password-protected PDFs: page operations are refused and bookmarks are read-only.
-
-### Owner's Windows check, round 1 (2026-10-22) and fixes
-
-- **Dragging pages/bookmarks was blocked** (no-entry cursor). Tauri's file-drop handler
-  (`dragDropEnabled`, needed for Explorer drops with paths) blocks HTML5 drag-and-drop in
-  WebView2 (Tauri config docs). In-app drags now use pointer events
-  (`src/ui/usePointerDrag.ts`); e2e blocks HTML5 `dragstart` like the app does.
-- **Save with the file open in Acrobat said "access denied"** (original was intact). Save
-  now checks first (DELETE access, sharing all) and reports "open in another program";
-  a failed save no longer leaves a `.bak`. Windows-only Rust tests cover both holds.
-- **Rotate "affected the whole PDF" and was lost after a delete; no signed-PDF warning.**
-  The reader toolbar buttons were Acrobat's Rotate View (display only, never saved). They
-  now rotate the current page (saved, undoable, signature warning); Rotate View stays on
-  Ctrl+Shift+Plus/Minus and survives edits. Crop/page-size dialogs default to the selected
-  page(s), not all pages. Organize buttons have text captions.
-- **Race found while testing:** the busy state started after the signature check, so a
-  quick Ctrl+S/Ctrl+W could act before the edit. Busy now starts on the click; Save,
-  Save As and Close wait for running edits and follow the tab to its new revision.
-- Confirmations use the app's own dialog instead of `window.confirm`.
-- Round 2 (owner: 1-3, 6, 7, 9, 10 pass): **crop was lost after Set page size** (content
-  outside the crop reappeared): page size now clips to the old crop box. **Combine
-  started empty while a file was open**: the open file now starts the list. W-9 test
-  dropped by the owner (low priority).
-- Round 3: **rotating several pages twice only turned page 1 the second time** (the
-  selection collapsed after each edit): the pages an edit worked on now stay selected.
-  **Crop "did not apply in other software"**: crop set only the CropBox; it now sets
-  MediaBox and the other boxes too (content outside is still hidden, not removed).
-- Crop in PDF-to-drawing importers (LibreOffice/Word) still shows the hidden content
-  (reproduced with LibreOffice; same for Acrobat-cropped files). Owner decision
-  2026-10-23: keep Acrobat behaviour (hide, not remove); removal belongs to redaction.
-- Open: spec now asks for Organize Pages "from the Tools pane (backlog B4)"; no B4
-  exists in the repo yet. Test guide: `docs/testing/phase-02-test-guide.md`.
+Owner's Windows checks (rounds 1-3), fixes: in-app drags use pointer events (Tauri's
+`dragDropEnabled` blocks HTML5 drag-and-drop in WebView2; e2e blocks it too); Save
+reports "open in another program" instead of "access denied" and leaves no `.bak` on
+failure; reader rotate buttons rotate the page (saved, undoable; Rotate View stays on
+Ctrl+Shift+Plus/Minus); busy starts on the click and Save/Close wait for running edits;
+page size clips to the old crop; Combine starts with the open file; an edit keeps its
+pages selected; crop sets MediaBox and all boxes. Crop hides, it does not remove (shows
+in LibreOffice/Word imports, like Acrobat's crop): owner kept Acrobat behaviour. W-9
+duplicate-form test dropped by the owner.
 
 ## Backlog B4: Acrobat-style workspace (2026-10-23)
 
@@ -119,21 +90,60 @@ quickToolbar}` on the share) with the last copy cached for offline use.
   asks first; inside Organize it does not (pages picked explicitly, Ctrl+Z undoes).
 - Tests: `src/tools/registry.test.ts`, `tests/e2e/workspace.spec.ts` (7).
 
-## Manual Windows check (owner, Phase 2)
+## Backlog B1: multiple windows (2026-10-23)
 
-Synthetic files only (copies of `tests/corpus/generated`, `tests/corpus/fixtures`).
+Design (owner approved "switch to the existing window" for a file opened twice):
 
-1. On a `\\server\share` copy: Organize, drag pages, Ctrl+S. File replaced, `<name>.bak`
-   beside it; reopen: `.bak` gone. Repeat with the file open in Acrobat: clear message,
-   original intact.
-2. Combine Files > Add folder with PDFs plus a multi-page TIFF from the office scanner.
-   Open the result in Acrobat: pages, bookmark per file, sticky notes visible.
-3. Combine two filled copies of `irs/fw9.pdf`: in Acrobat and Reader both keep their own
-   values, fields fillable, no "extended features" warning.
-4. Split by bookmarks into a folder that already has a same-named file: nothing overwritten.
-5. Crop, page size, rotate: results look right in Acrobat. Drag a bookmark with children
-   on a real-sized binder: pages and child bookmarks move.
-6. Timing: Organize + reorder on a 200-page scan from the share.
+- **Documents live in a store, windows only show them.** `src-tauri/src/docstore.rs`
+  (one per app, shared by all windows) holds each document's revisions (undo/redo), the
+  saved revision, path/name, signature consent and the window showing it. Each tab's
+  `DocMeta.storeId` survives edits and moves. JS keeps only the current bytes and a
+  mirror (`DocInfo`) for display. Browser/tests: `MemoryDocStore` (`src/app/docstore.ts`).
+- **Windows** (`src-tauri/src/app_windows.rs`): a tab dragged out of its window goes to
+  the window under the pointer (`AppHandle::cursor_position` + window rects), or to a new
+  window opened there; tab right-click > Move to New Window. The store re-assigns the
+  documents before the source tab closes, so nothing is reloaded from disk and history,
+  unsaved marker and signature consent come along. An extra window closes when its last
+  tab leaves. Tabs reorder by drag within the bar. Normal OS windows, so Snap works.
+- Same file opened again (Open, Recent, Explorer) switches to the window that has it.
+  "Open with" from Explorer goes to the last-used window.
+- Close button: asks about that window's unsaved files. **Ctrl+Q** (Acrobat's Exit; the
+  owner should confirm the key): one prompt listing unsaved files in every window; Save
+  all saves this window's tabs normally and other windows' files from the store (same
+  temp file + `.bak` rules); files never saved must be saved from their window first.
+- Settings: each save writes only the changed keys over what is on disk. Extra windows
+  never save view settings (zoom, panes, view mode) or the reopen-tabs list; only the
+  main window's tabs reopen at next start, and only its size/place is remembered.
+- Deviation: other windows do not pick up a quick-toolbar change until reopened.
+- Tests: Rust store + drop-target unit tests; `tests/e2e/windows.spec.ts` uses a browser
+  stand-in for the other window (`__PDFWB_FAKE_WINDOWS__`), so real cross-window drags
+  are only in the manual check.
+
+**Memory** (Chromium on Linux, PSS; 3 synthetic 120-page scans of 60 MB each per window):
+
+|                                           | renderer       | all processes |
+| ----------------------------------------- | -------------- | ------------- |
+| 1 window, empty                           | 134 MB         | 390 MB        |
+| 1 window, 3 scans open                    | 814 MB         | 1.08 GB       |
+| same, one rotate each                     | 1.70 GB        | 1.97 GB       |
+| 2 windows, 3 scans each (1 window edited) | 1.40 + 0.81 GB | 2.48 GB       |
+| 2 windows, both edited                    | 1.69 + 1.40 GB | 3.36 GB       |
+
+PDFium is **per window** (each window's renderer has its own PDFium for display plus one
+in the page-operation worker). A second window costs about 130 MB empty; documents cost
+the same in whichever window they are, and a file cannot be open in two windows, so
+nothing is duplicated. Sharing one PDFium across windows (SharedWorker) would save at
+most ~100 MB per extra window, but puts every window's rendering on one thread and one
+WASM heap (one crash or heap limit hits all windows). Decision: keep per-window. In the
+Windows app, undo history sits in the Rust process instead of the renderer, but the
+renderer keeps its own copy of each document's current bytes (1x file size per
+document; could be dropped by fetching bytes from the store when an operation needs
+them). Owner to confirm on Windows in Task Manager.
+
+## Manual Windows check
+
+`docs/testing/b1-b4-test-guide.md` (current, short) and
+`docs/testing/phase-02-test-guide.md` (full Phase 2 list, setup details).
 
 ## Dependency versions and licenses
 
@@ -141,7 +151,8 @@ Phase 0: `docs/spike-report.md`. Phase 1: @embedpdf/core and 15 plugins 2.15.1 (
 tauri-plugin-single-instance/window-state 2.x, windows 0.62, webview2-com 0.39 (MIT OR
 Apache-2.0), libloading 0.8 (ISC); bundled pdfium-binaries chromium/8111 (BSD-3 + permissive
 deps), qpdf 12.4.2 (Apache-2.0) with VC++ runtime (approved). **Phase 2:** utif2 4.1.0
-(MIT; pulls pako 1.0.11, MIT), fflate 0.8.2 (MIT). No new Rust crates.
+(MIT; pulls pako 1.0.11, MIT), fflate 0.8.2 (MIT). **B4:** @fluentui/svg-icons 1.1.344
+(MIT). **B1:** none. No new Rust crates.
 
 ## Known gaps / notes for later phases
 
@@ -154,8 +165,8 @@ deps), qpdf 12.4.2 (Apache-2.0) with VC++ runtime (approved). **Phase 2:** utif2
   rotated pages get Fit Page.
 - Tagged-PDF structure (StructTreeRoot) is not updated after page changes.
 - Crop hides content, it does not remove it (redaction phase). Signatures: warning only.
-- Memory: every open file is held twice (viewer + undo base); undo history up to 400 MB
-  per tab. Test large scans before the OCR phase. JPEG EXIF orientation is ignored.
+- Memory: see B1 table; roughly 4x file size per open scan, more after edits; undo
+  history up to 400 MB per document. JPEG EXIF orientation is ignored.
 - Tauri IPC paths (qpdf_run, save, dialogs) are covered by Rust tests and the manual check;
   Playwright runs the browser platform. In the cloud container Playwright 1.64 needs
   `PW_CHROMIUM_PATH=/opt/pw-browsers/chromium`.
