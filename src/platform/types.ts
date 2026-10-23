@@ -69,6 +69,8 @@ export interface Platform {
   /** Native drag-drop of files from Explorer (Tauri). Browser drops use DOM events. */
   onFileDrop(cb: (paths: string[]) => void): Promise<() => void>;
   loadSettings(): Promise<unknown>;
+  /** The Windows user's display name (markup author default); null when unknown. */
+  userDisplayName(): Promise<string | null>;
   saveSettings(value: unknown): Promise<void>;
   /** Save dialog; null when cancelled. */
   pickSavePath(suggested: string): Promise<string | null>;

@@ -69,6 +69,7 @@ pub fn run() {
             launch::take_launch_paths,
             settings::get_settings,
             settings::set_settings,
+            settings::user_display_name,
             stamps::stamps_list,
             stamps::stamp_read,
             stamps::stamp_add,

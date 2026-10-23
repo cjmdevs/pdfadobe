@@ -37,6 +37,8 @@ export interface Settings {
   firmLayoutPath: string | null;
   /** Last firm layout read from that file, used when the share is unreachable. */
   firmLayoutCache: string[] | null;
+  /** Comments panel shown (right side, Phase 3). */
+  commentsOpen: boolean;
   /** Markup author; null = the Windows user's display name. */
   authorName: string | null;
   /** Color swatches offered by the markup tools ("#rrggbb"). */
@@ -56,6 +58,7 @@ export const WINDOW_LOCAL_SETTINGS: readonly (keyof Settings)[] = [
   "sidebarOpen",
   "sidebarTab",
   "toolsPaneOpen",
+  "commentsOpen",
   "openTabs",
   "activeTab",
 ];
@@ -79,6 +82,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quickToolbar: null,
   firmLayoutPath: null,
   firmLayoutCache: null,
+  commentsOpen: false,
   authorName: null,
   markupColors: [
     "#FFFF00",
@@ -145,6 +149,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     firmLayoutPath:
       typeof r.firmLayoutPath === "string" && r.firmLayoutPath.trim() ? r.firmLayoutPath : null,
     firmLayoutCache: stringList(r.firmLayoutCache),
+    commentsOpen: typeof r.commentsOpen === "boolean" ? r.commentsOpen : d.commentsOpen,
     authorName:
       typeof r.authorName === "string" && r.authorName.trim()
         ? r.authorName.trim().slice(0, 100)

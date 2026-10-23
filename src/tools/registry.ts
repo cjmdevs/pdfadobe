@@ -278,6 +278,15 @@ export const TOOLS: ToolDef[] = [
         run: openStamps,
         enabled: (c) => hasDoc(c) && c.markup !== null,
       },
+      {
+        id: "commentsList",
+        label: "Comments list",
+        caption: "List",
+        icon: "comments",
+        run: (c) => c.wb.updateSettings({ commentsOpen: !c.wb.settings.commentsOpen }),
+        pressed: (c) => c.wb.settings.commentsOpen,
+        enabled: (c) => c.documentId !== null,
+      },
     ),
   },
   {

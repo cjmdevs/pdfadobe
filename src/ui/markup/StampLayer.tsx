@@ -9,7 +9,7 @@ import {
 } from "@embedpdf/plugin-interaction-manager/react";
 import { PdfAnnotationSubtype, type PdfStampAnnoObject, type Position } from "@embedpdf/models";
 import { useWorkbench } from "../../app/workbench";
-import { FALLBACK_AUTHOR, STAMP_MODE } from "../../markup/config";
+import { STAMP_MODE } from "../../markup/config";
 import { stampPlacement, usePendingStamp } from "./stampPlacement";
 
 export function StampLayer({ documentId, pageIndex }: { documentId: string; pageIndex: number }) {
@@ -23,9 +23,9 @@ export function StampLayer({ documentId, pageIndex }: { documentId: string; page
   const pageSize = doc?.document?.pages[pageIndex]?.size;
   const stamp = usePendingStamp();
   const [cursor, setCursor] = useState<Position | null>(null);
-  const latest = useRef({ scope, im, pageSize, author: wb.settings.authorName, toast: wb.toast });
+  const latest = useRef({ scope, im, pageSize, author: wb.author, toast: wb.toast });
   useEffect(() => {
-    latest.current = { scope, im, pageSize, author: wb.settings.authorName, toast: wb.toast };
+    latest.current = { scope, im, pageSize, author: wb.author, toast: wb.toast };
   });
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export function StampLayer({ documentId, pageIndex }: { documentId: string; page
         if (!s || !sc || !size) return;
         stampPlacement.set(null);
         m?.activateDefaultMode();
-        const who = author ?? FALLBACK_AUTHOR;
+        const who = author;
         void s
           .make(who)
           .then((art) => {

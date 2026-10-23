@@ -5,7 +5,7 @@ import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManagerCapability } from "@embedpdf/plugin-interaction-manager/react";
 import { useWorkbench } from "../../app/workbench";
 import { TEXT_STAMPS } from "../../engine/stamps";
-import { FALLBACK_AUTHOR, STAMP_MODE } from "../../markup/config";
+import { STAMP_MODE } from "../../markup/config";
 import { platform, type CustomStamp } from "../../platform";
 import { imageStamp, stampPlacement, textStamp, type PendingStamp } from "./stampPlacement";
 
@@ -18,7 +18,7 @@ export function StampPicker({ documentId, onClose }: { documentId: string; onClo
   const { provides: annots } = useAnnotationCapability();
   const { provides: im } = useInteractionManagerCapability();
   const [custom, setCustom] = useState<CustomStamp[]>(lastList);
-  const author = wb.settings.authorName ?? FALLBACK_AUTHOR;
+  const author = wb.author;
 
   const reload = () =>
     platform.stamps

@@ -106,6 +106,11 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
         <span className="theme-label">{settings.theme}</span>
       </button>
       <ToolButton
+        icon="settings"
+        label="Settings…"
+        onClick={() => wb.setDialog({ kind: "settings" })}
+      />
+      <ToolButton
         icon="customize"
         label="Customize quick toolbar…"
         onClick={() => wb.setDialog({ kind: "customize" })}

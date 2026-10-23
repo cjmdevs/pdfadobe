@@ -134,6 +134,7 @@ const stamps: StampLibrary = {
 };
 
 export const tauriPlatform: Platform = {
+  userDisplayName: () => call<string | null>("user_display_name").catch(() => null),
   kind: "tauri",
 
   async pickFiles(opts) {

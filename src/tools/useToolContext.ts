@@ -5,7 +5,7 @@ import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
-import { ERASER_MODE, FALLBACK_AUTHOR, STAMP_MODE } from "../markup/config";
+import { ERASER_MODE, STAMP_MODE } from "../markup/config";
 import { TEXT_STAMPS } from "../engine/stamps";
 import { stampPlacement, textStamp } from "../ui/markup/stampPlacement";
 import { usePageActions } from "../app/pageActions";
@@ -62,7 +62,7 @@ export function useDocToolContext(documentId: string): ToolContext {
               pickStamp: (id) => {
                 const def = TEXT_STAMPS.find((d) => d.id === id);
                 if (!def) return;
-                void textStamp(def, wb.settings.authorName ?? FALLBACK_AUTHOR).then((s) => {
+                void textStamp(def, wb.author).then((s) => {
                   annots.setActiveTool(null);
                   stampPlacement.set(s);
                   im?.activate(STAMP_MODE);

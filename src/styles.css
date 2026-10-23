@@ -1163,3 +1163,112 @@ button.primary.danger-fill {
   flex: 1;
   text-align: left;
 }
+
+/* Comments panel */
+.comments-panel {
+  width: 320px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  border-left: 1px solid var(--border);
+  min-height: 0;
+}
+.comments-panel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+}
+.comments-panel .panel-header h2 {
+  font-size: 13px;
+  margin: 0;
+}
+.comment-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.comment-filters select {
+  min-width: 0;
+  flex: 1;
+}
+.comment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+.comment {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+.comment.selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.comment-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+}
+.comment-type {
+  font-weight: 600;
+}
+.comment-meta {
+  color: var(--fg-muted, #777);
+  margin-left: auto;
+}
+.comment-text {
+  margin: 4px 0;
+  white-space: pre-wrap;
+  width: 100%;
+  font: inherit;
+}
+.replies {
+  list-style: none;
+  margin: 4px 0 4px 12px;
+  padding: 0 0 0 8px;
+  border-left: 2px solid var(--border);
+}
+.comment-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.reply-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 420px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-row input {
+  flex: 1;
+  max-width: 240px;
+}

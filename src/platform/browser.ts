@@ -166,6 +166,11 @@ const stamps: StampLibrary = {
 export const browserPlatform: Platform = {
   kind: "browser",
 
+  // No OS account in the browser build (tests can set one).
+  async userDisplayName() {
+    return (window as unknown as { __PDFWB_USER__?: string }).__PDFWB_USER__ ?? null;
+  },
+
   async pickFiles(opts) {
     return Promise.all((await pickWithInput(opts?.images)).map(fileToOpened));
   },

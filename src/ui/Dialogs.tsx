@@ -9,6 +9,7 @@ import { useNav } from "../app/useNav";
 import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workbench";
 import { CustomizeDialog } from "./CustomizeDialog";
 import { StampPicker } from "./markup/StampPicker";
+import { SettingsBody } from "./SettingsDialog";
 import {
   CombineDialog,
   ConfirmDialog,
@@ -75,6 +76,12 @@ function MainDialog() {
   if (!dialog) return null;
   const close = () => setDialog(null);
   switch (dialog.kind) {
+    case "settings":
+      return (
+        <Modal title="Settings" onClose={close}>
+          <SettingsBody />
+        </Modal>
+      );
     case "stamps":
       return (
         <Modal title="Stamps" onClose={close}>

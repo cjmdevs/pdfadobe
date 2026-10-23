@@ -27,6 +27,33 @@ pub fn set_settings(app: AppHandle, value: Value) -> Result<(), String> {
     store(&settings_path(&app)?, &value)
 }
 
+/// Markup author default (Phase 3): the Windows user's display name ("Jane Smith"),
+/// falling back to the logon name. Settings can override it.
+#[tauri::command]
+pub fn user_display_name() -> Option<String> {
+    display_name()
+        .or_else(|| std::env::var("USERNAME").ok())
+        .or_else(|| std::env::var("USER").ok())
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+#[cfg(windows)]
+fn display_name() -> Option<String> {
+    use windows::Win32::Security::Authentication::Identity::{GetUserNameExW, NameDisplay};
+    use windows::core::PWSTR;
+    let mut buf = [0u16; 256];
+    let mut len = buf.len() as u32;
+    // Fails on PCs without a domain/Microsoft account display name; then the logon name.
+    let ok = unsafe { GetUserNameExW(NameDisplay, Some(PWSTR(buf.as_mut_ptr())), &mut len) };
+    ok.then(|| String::from_utf16_lossy(&buf[..len as usize]))
+}
+
+#[cfg(not(windows))]
+fn display_name() -> Option<String> {
+    None
+}
+
 /// Missing or unreadable settings fall back to defaults (Null) rather than failing startup.
 pub fn load(path: &Path) -> Value {
     fs::read(path)

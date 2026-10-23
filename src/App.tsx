@@ -40,7 +40,8 @@ import { ToolToolbar, Toolbar } from "./ui/Toolbar";
 import { ToolsPane } from "./ui/ToolsPane";
 import { PropertiesBar } from "./ui/markup/PropertiesBar";
 import { MarkupBridge } from "./ui/markup/MarkupBridge";
-import { FALLBACK_AUTHOR } from "./markup/config";
+import { CommentsPanel } from "./ui/markup/CommentsPanel";
+
 import { markupConfig } from "./markup/config";
 
 function plugins(settings: Settings) {
@@ -228,6 +229,11 @@ function Shell({ ready }: { ready: boolean }) {
             <SearchPanel key={loadedId} documentId={loadedId} />
           </Guard>
         )}
+        {loadedId && wb.settings.commentsOpen && (
+          <Guard resetKey={loadedId}>
+            <CommentsPanel key={loadedId} documentId={loadedId} />
+          </Guard>
+        )}
         {ready && wb.settings.toolsPaneOpen && (
           <Guard resetKey={loadedId} fallback={<ToolsPane documentId={null} />}>
             <ToolsPane key={loadedId ?? "none"} documentId={loadedId} />
@@ -241,7 +247,7 @@ function Shell({ ready }: { ready: boolean }) {
         </div>
       )}
       <Commands />
-      {ready && <MarkupBridge author={wb.settings.authorName ?? FALLBACK_AUTHOR} />}
+      {ready && <MarkupBridge author={wb.author} />}
       <Dialogs />
       <Toasts />
       {/* EmbedPDF auto-mounts its PrintFrame and CopyToClipboard utilities; mounting them

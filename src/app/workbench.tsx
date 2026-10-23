@@ -34,6 +34,7 @@ import {
   type OpenedFile,
 } from "../platform";
 import type { DocInfo } from "./docstore";
+import { FALLBACK_AUTHOR } from "../markup/config";
 import {
   WINDOW_LOCAL_SETTINGS,
   addRecent,
@@ -97,6 +98,7 @@ export type Dialog =
   | { kind: "pageOp"; op: PageOpDialog; documentId: string; pages: number[] }
   /** `documentId`: the open document to start the list with (owner request). */
   | { kind: "combine"; documentId: string | null }
+  | { kind: "settings" }
   /** Stamps picker (Phase 3). */
   | { kind: "stamps"; documentId: string }
   | null;
@@ -113,6 +115,10 @@ export interface Toast {
 export interface WorkbenchApi {
   engine: PdfEngine;
   settings: Settings;
+  /** Markup author: the Settings name, else the Windows display name. */
+  author: string;
+  /** The Windows display name (shown in Settings as the default). */
+  osUserName: string | null;
   updateSettings(patch: Partial<Settings>): void;
   meta: Record<string, DocMeta>;
   pickAndOpen(): Promise<void>;
@@ -225,6 +231,11 @@ export function WorkbenchProvider({
   const [searchOpen, setSearchOpen] = useState(false);
   const [singlePage, setSinglePageState] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [osUserName, setOsUserName] = useState<string | null>(null);
+  useEffect(() => {
+    void platform.userDisplayName().then(setOsUserName);
+  }, []);
+  const author = settings.authorName ?? osUserName ?? FALLBACK_AUTHOR;
   // Page operations run one at a time, in order; Save and Close wait for them.
   // Each edit reopens the tab under a new id: old id -> new id, to follow a tab.
   const replacedBy = useRef(new Map<string, string>());
@@ -1086,6 +1097,8 @@ export function WorkbenchProvider({
     () => ({
       engine,
       settings,
+      author,
+      osUserName,
       updateSettings,
       meta,
       pickAndOpen,
@@ -1129,6 +1142,8 @@ export function WorkbenchProvider({
     [
       engine,
       settings,
+      author,
+      osUserName,
       updateSettings,
       meta,
       pickAndOpen,

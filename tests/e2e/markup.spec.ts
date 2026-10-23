@@ -287,4 +287,92 @@ test.describe("markup", () => {
     expect(stamps[0]!.dict["/Name"]).toBe("/Image");
     expect(stamps[0]!.subject).toBe("stamp-reviewed");
   });
+
+  test("comments panel: lists comments, edits a note, replies, sets status, filters, jumps", async ({
+    page,
+    mockfs,
+  }) => {
+    await openComment(page, P.wpA);
+    await tb(page, "Comments list").click();
+    const panel = page.getByTestId("comments-panel");
+    const items = panel.getByTestId("comment");
+    // workpaper-a: a sticky note on page 1 and a square on page 2.
+    await expect(items).toHaveCount(2);
+    await expect(items.nth(0)).toContainText("Sticky note");
+    await expect(items.nth(0)).toContainText("Reviewer");
+    await expect(items.nth(0)).toContainText("p. 1");
+    await expect(items.nth(1)).toContainText("p. 2");
+
+    await panel.getByLabel("Filter by type").selectOption("Rectangle");
+    await expect(items).toHaveCount(1);
+    await panel.getByLabel("Filter by type").selectOption("");
+
+    // Jump to the square on page 2, which selects it.
+    await items
+      .nth(1)
+      .getByRole("button", { name: /Rectangle/ })
+      .click();
+    await expect(props(page)).toContainText("Rectangle");
+    await expect(page.getByLabel("Page number")).toHaveValue("2");
+
+    // Edit the note's text, reply, set a status.
+    await items
+      .nth(0)
+      .getByRole("button", { name: /Sticky note/ })
+      .click();
+    const text = items.nth(0).getByLabel("Comment text");
+    await text.fill("Tied to TB, see A-1");
+    await text.blur();
+    await items.nth(0).getByRole("button", { name: "Reply" }).click();
+    await items.nth(0).getByLabel("Reply").fill("Agreed");
+    await items.nth(0).getByRole("button", { name: "Post reply" }).click();
+    await expect(items.nth(0).getByLabel("Replies")).toContainText("Agreed");
+    await items.nth(0).getByLabel("Review status").selectOption("Accepted");
+    await expect(items.nth(0).getByLabel("Review status")).toHaveValue("Accepted");
+    // Replies and states are not listed as comments of their own.
+    await expect(items).toHaveCount(2);
+
+    await page.keyboard.press("Control+s");
+    await idle(page);
+    const annots = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.wpA)));
+    const note = annots.find((a) => a.contents === "Tied to TB, see A-1");
+    expect(note?.subtype).toBe("/Text");
+    const reply = annots.find((a) => a.contents === "Agreed");
+    expect(reply?.dict["/IRT"]).toBe(note?.ref);
+    expect(reply?.author).toBe("Reviewer");
+    const state = annots.find((a) => a.dict["/StateModel"] !== undefined);
+    expect(state?.dict["/State"]).toBe("u:Accepted");
+    expect(state?.dict["/IRT"]).toBe(note?.ref);
+  });
+
+  test("author: the Windows name by default, the Settings name when set", async ({
+    page,
+    mockfs,
+  }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __PDFWB_USER__: string }).__PDFWB_USER__ = "Jane Smith";
+    });
+    await page.reload();
+    await expect(page.locator("html[data-app-ready=true]")).toBeAttached();
+    await openComment(page, P.text);
+    await tb(page, "Rectangle").click();
+    await drawOnPage(page, [0.2, 0.2], [0.3, 0.3]);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+
+    await page.getByRole("button", { name: "Settings…" }).click();
+    const dlg = page.getByRole("dialog", { name: "Settings" });
+    await expect(dlg.getByLabel("Author name")).toHaveAttribute("placeholder", "Jane Smith");
+    await dlg.getByLabel("Author name").fill("J. Partner");
+    await dlg.getByLabel("Author name").press("Enter");
+    await dlg.getByRole("button", { name: "Close" }).click();
+
+    await tb(page, "Ellipse").click();
+    await drawOnPage(page, [0.4, 0.2], [0.5, 0.3]);
+    await page.keyboard.press("Control+s");
+    await idle(page);
+    const annots = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text)));
+    expect(annots.find((a) => a.subtype === "/Square")?.author).toBe("Jane Smith");
+    expect(annots.find((a) => a.subtype === "/Circle")?.author).toBe("J. Partner");
+  });
 });
