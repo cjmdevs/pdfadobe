@@ -226,6 +226,14 @@ async function navigation() {
   addOutline(doc, pages, NAV_LAYOUT.outline);
 
   const enc = new TextEncoder();
+  // pdf-lib writes the EmbeddedFiles name tree in attach order, and name trees must be
+  // sorted by name (qpdf 12 warns otherwise), so attach in name order.
+  await doc.attach(enc.encode("Synthetic notes. No client data.\n"), "notes.txt", {
+    mimeType: "text/plain",
+    description: "Synthetic notes",
+    creationDate: FIXED_DATE,
+    modificationDate: FIXED_DATE,
+  });
   await doc.attach(
     enc.encode("account,debit,credit\n1000,100.00,0.00\n2000,0.00,100.00\n"),
     "trial-balance.csv",
@@ -236,12 +244,6 @@ async function navigation() {
       modificationDate: FIXED_DATE,
     },
   );
-  await doc.attach(enc.encode("Synthetic notes. No client data.\n"), "notes.txt", {
-    mimeType: "text/plain",
-    description: "Synthetic notes",
-    creationDate: FIXED_DATE,
-    modificationDate: FIXED_DATE,
-  });
   return doc.save();
 }
 
