@@ -5,7 +5,9 @@ import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
-import { ERASER_MODE } from "../markup/config";
+import { ERASER_MODE, FALLBACK_AUTHOR, STAMP_MODE } from "../markup/config";
+import { TEXT_STAMPS } from "../engine/stamps";
+import { stampPlacement, textStamp } from "../ui/markup/stampPlacement";
 import { usePageActions } from "../app/pageActions";
 import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
@@ -56,6 +58,16 @@ export function useDocToolContext(documentId: string): ToolContext {
                 annots.setActiveTool(null);
                 annots.deselectAnnotation();
                 im?.activate(ERASER_MODE);
+              },
+              pickStamp: (id) => {
+                const def = TEXT_STAMPS.find((d) => d.id === id);
+                if (!def) return;
+                void textStamp(def, wb.settings.authorName ?? FALLBACK_AUTHOR).then((s) => {
+                  annots.setActiveTool(null);
+                  stampPlacement.set(s);
+                  im?.activate(STAMP_MODE);
+                  wb.toast(`Click on the page to place the ${s.subject} stamp (Esc cancels).`);
+                });
               },
             }
           : null,

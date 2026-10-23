@@ -87,12 +87,29 @@ export interface Platform {
   docs: DocStore;
   /** Several windows; null where there is only one (browser). */
   windows: AppWindows | null;
+  /** The user's custom stamp images (Phase 3). */
+  stamps: StampLibrary;
   /** qpdf-repair `source` into `target` (never the same file). */
   repair(source: string, target: string): Promise<{ hadWarnings: boolean }>;
   /** Native print. Throws PlatformError("unsupported") when only WebView print exists. */
   print(req: PrintRequest): Promise<PrintResult>;
   saveAttachment(name: string, bytes: ArrayBuffer): Promise<string | null>;
   setTitle(title: string): void;
+}
+
+export interface CustomStamp {
+  id: string;
+  name: string;
+  mime: "image/png" | "image/jpeg";
+}
+
+/** Custom stamp images, per user (Windows: config folder; browser: this session). */
+export interface StampLibrary {
+  list(): Promise<CustomStamp[]>;
+  read(id: string): Promise<Uint8Array>;
+  /** PNG or JPEG only, up to 5 MB. */
+  add(name: string, bytes: Uint8Array): Promise<CustomStamp>;
+  remove(id: string): Promise<void>;
 }
 
 /** Several app windows (backlog B1). Documents move by store id (platform.docs). */

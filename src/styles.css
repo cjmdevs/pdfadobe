@@ -1132,3 +1132,34 @@ button.primary.danger-fill {
   align-items: center;
   gap: 6px;
 }
+
+.stamp-picker h3 {
+  margin: 8px 0 6px;
+  font-size: 13px;
+}
+.stamp-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(140px, 1fr));
+  gap: 8px;
+}
+.stamp-choice {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: 2px solid;
+  padding: 8px;
+  background: transparent;
+}
+.stamp-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.stamp-list li {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.stamp-list li button:first-child {
+  flex: 1;
+  text-align: left;
+}

@@ -12,6 +12,8 @@ import {
   PlatformError,
   baseName,
   type AppWindows,
+  type CustomStamp,
+  type StampLibrary,
   type FileErrorKind,
   type OpenedFile,
   type Platform,
@@ -119,6 +121,18 @@ const windows: AppWindows = {
 
 export const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "tif", "tiff"];
 
+const stamps: StampLibrary = {
+  list: () => call<CustomStamp[]>("stamps_list"),
+  read: async (id) => new Uint8Array(await call<ArrayBuffer>("stamp_read", { id })),
+  add: (name, bytes) =>
+    call<CustomStamp>("stamp_add", bytes, {
+      headers: { "x-stamp": encodeURIComponent(JSON.stringify({ name })) },
+    }),
+  remove: async (id) => {
+    await call("stamp_remove", { id });
+  },
+};
+
 export const tauriPlatform: Platform = {
   kind: "tauri",
 
@@ -173,6 +187,7 @@ export const tauriPlatform: Platform = {
   qpdf,
   docs,
   windows,
+  stamps,
 
   takeLaunchPaths: () => call<string[]>("take_launch_paths"),
 

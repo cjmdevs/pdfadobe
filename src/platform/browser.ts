@@ -13,6 +13,8 @@ import {
   type FileErrorKind,
   type OpenedFile,
   type AppWindows,
+  type CustomStamp,
+  type StampLibrary,
   type Platform,
 } from "./types";
 
@@ -135,6 +137,32 @@ function fakeWindows(): AppWindows | null {
   };
 }
 
+/** Browser build: custom stamps last for the session (tests, development). */
+const sessionStamps = new Map<string, { info: CustomStamp; bytes: Uint8Array }>();
+const stamps: StampLibrary = {
+  list: async () => [...sessionStamps.values()].map((s) => s.info),
+  read: async (id) => {
+    const s = sessionStamps.get(id);
+    if (!s) throw new PlatformError("notFound", "this stamp no longer exists");
+    return s.bytes;
+  },
+  add: async (name, bytes) => {
+    const mime =
+      bytes[0] === 0x89 && bytes[1] === 0x50
+        ? "image/png"
+        : bytes[0] === 0xff && bytes[1] === 0xd8
+          ? "image/jpeg"
+          : null;
+    if (!mime) throw new PlatformError("other", "only PNG and JPEG images can be stamps");
+    const info: CustomStamp = { id: crypto.randomUUID(), name: name.trim().slice(0, 60), mime };
+    sessionStamps.set(info.id, { info, bytes });
+    return info;
+  },
+  remove: async (id) => {
+    sessionStamps.delete(id);
+  },
+};
+
 export const browserPlatform: Platform = {
   kind: "browser",
 
@@ -176,6 +204,7 @@ export const browserPlatform: Platform = {
   },
 
   docs,
+  stamps,
   get windows() {
     return fakeWindowsOnce();
   },

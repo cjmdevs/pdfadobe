@@ -6,6 +6,7 @@ mod print;
 mod qpdf_job;
 mod repair;
 mod settings;
+mod stamps;
 
 use tauri::Manager;
 
@@ -68,6 +69,10 @@ pub fn run() {
             launch::take_launch_paths,
             settings::get_settings,
             settings::set_settings,
+            stamps::stamps_list,
+            stamps::stamp_read,
+            stamps::stamp_add,
+            stamps::stamp_remove,
             repair::repair_pdf,
             print::print_pdf,
             docstore::doc_create,

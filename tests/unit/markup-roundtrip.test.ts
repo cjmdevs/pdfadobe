@@ -18,6 +18,8 @@ import { pdfjsView } from "../helpers/leak-scan";
 import { inspectAnnots, rgb, type RawAnnot } from "../helpers/annot-inspect";
 import { AUTHOR, SAMPLES } from "../helpers/markup-samples";
 import type { Engine } from "../../src/engine/pdfium";
+import { TEXT_STAMPS, drawTextStamp } from "../../src/engine/stamps";
+import { decompressedBytes } from "../helpers/leak-scan";
 
 const OUT = join(OUT_DIR, "..", "out");
 const MARKUP_CORPUS = join(OUT, "markup-all.pdf");
@@ -57,7 +59,29 @@ beforeAll(async () => {
       { data: png, mimeType: "image/png" },
     )
     .toPromise();
-  // A reply thread and a review state on the sticky note, plus a locked rectangle.
+  // A built-in text stamp: our one-page PDF becomes its appearance.
+  const approved = await drawTextStamp(TEXT_STAMPS[0]!, "Test Reviewer, 10/23/2026 9:00 AM");
+  await engine
+    .createPageAnnotation(
+      doc,
+      page,
+      {
+        type: PdfAnnotationSubtype.STAMP,
+        id: "text-stamp",
+        pageIndex: 0,
+        rect: {
+          origin: { x: 72, y: 640 },
+          size: { width: approved.width, height: approved.height },
+        },
+        contents: "Approved stamp",
+        author: AUTHOR,
+        subject: "Approved",
+        flags: ["print"],
+      },
+      { data: toArrayBuffer(approved.pdf), mimeType: "application/pdf" },
+    )
+    .toPromise();
+  // A reply thread and a review state on the sticky note.
   const note = SAMPLES.find((s) => s.anno.id === "note")!.anno;
   await engine
     .createPageAnnotation(doc, page, {
@@ -171,6 +195,18 @@ describe("markup round trip (Phase 3 gate)", () => {
   it("cloud has a cloudy border effect (/BE /S /C)", () => {
     const be = JSON.stringify(find("Cloud").dict["/BE"]);
     expect(be).toContain('"/S":"/C"');
+  });
+
+  it("text stamp is a /Stamp whose appearance draws our title and detail line", () => {
+    const a = find("Approved stamp");
+    expect(a.subtype).toBe("/Stamp");
+    expect(a.subject).toBe("Approved");
+    expect(a.hasAppearance).toBe(true);
+    // pdf-lib writes text as hex strings: <415050...> Tj.
+    const raw = decompressedBytes(saved).toString("latin1").toUpperCase();
+    const hex = (t: string) => Buffer.from(t, "latin1").toString("hex").toUpperCase();
+    expect(raw).toContain(hex("APPROVED"));
+    expect(raw).toContain(hex("Test Reviewer, 10/23/2026"));
   });
 
   it("image stamp is a /Stamp with an appearance", () => {

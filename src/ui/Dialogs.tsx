@@ -8,6 +8,7 @@ import { SHORTCUTS, displayKey } from "../app/shortcuts";
 import { useNav } from "../app/useNav";
 import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workbench";
 import { CustomizeDialog } from "./CustomizeDialog";
+import { StampPicker } from "./markup/StampPicker";
 import {
   CombineDialog,
   ConfirmDialog,
@@ -22,7 +23,7 @@ import {
   type PermissionName,
 } from "../engine/properties";
 
-function Modal({
+export function Modal({
   title,
   onClose,
   children,
@@ -74,6 +75,12 @@ function MainDialog() {
   if (!dialog) return null;
   const close = () => setDialog(null);
   switch (dialog.kind) {
+    case "stamps":
+      return (
+        <Modal title="Stamps" onClose={close}>
+          <StampPicker documentId={dialog.documentId} onClose={close} />
+        </Modal>
+      );
     case "openError":
       return (
         <OpenErrorDialog

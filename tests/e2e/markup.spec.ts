@@ -1,6 +1,8 @@
 // Phase 3: markup in the reader. Saved files are read back with qpdf (no PDFium code).
 import { inspectAnnots, rgb } from "../helpers/annot-inspect";
+import { join } from "node:path";
 import {
+  CORPUS,
   P,
   boot,
   bytesAt,
@@ -219,5 +221,70 @@ test.describe("markup", () => {
     );
     expect(poly).toHaveLength(1);
     expect(JSON.stringify(poly[0]!.dict["/BE"])).toContain('"/S":"/C"');
+  });
+
+  test("Approved stamp from the Stamp tool: saved as /Stamp /Approved with our appearance", async ({
+    page,
+    mockfs,
+  }) => {
+    await openPaths(page, [P.text]);
+    await waitForPainted(page, 0);
+    await page.getByRole("button", { name: "Stamp", exact: true }).click();
+    await tb(page, "Approved stamp").click();
+    const box = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
+    await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    await expect(page.getByTestId("stamp-ghost")).toBeVisible();
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    await expect(props(page)).toBeVisible();
+    await expect(page.getByTestId("stamp-ghost")).toHaveCount(0);
+
+    await page.keyboard.press("Control+s");
+    await idle(page);
+    const stamps = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
+      (a) => a.subtype === "/Stamp",
+    );
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0]!.dict["/Name"]).toBe("/Approved");
+    expect(stamps[0]!.subject).toBe("Approved");
+    expect(stamps[0]!.author).toBe("Reviewer");
+    expect(stamps[0]!.hasAppearance).toBe(true);
+  });
+
+  test("add an image to My stamps, place it; Esc cancels a picked stamp", async ({
+    page,
+    mockfs,
+  }) => {
+    await openComment(page, P.text);
+    await tb(page, "Stamp").click();
+    const dialog = page.getByRole("dialog", { name: "Stamps" });
+    const chooser = page.waitForEvent("filechooser");
+    await dialog.getByRole("button", { name: /Add image/ }).click();
+    await (await chooser).setFiles(join(CORPUS, "stamp-reviewed.png"));
+    await dialog.getByRole("button", { name: "stamp-reviewed", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByText(/place the stamp-reviewed stamp/)).toBeVisible();
+
+    // Esc: nothing placed.
+    await page.keyboard.press("Escape");
+    const box = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toHaveCount(0);
+
+    await tb(page, "Stamp").click();
+    await dialog.getByRole("button", { name: "stamp-reviewed", exact: true }).click();
+    // The image loads first; then its outline follows the pointer.
+    await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    await page.mouse.move(box.x + box.width * 0.5 + 5, box.y + box.height * 0.3);
+    await expect(page.getByTestId("stamp-ghost")).toBeVisible();
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toBeEnabled();
+    await page.keyboard.press("Control+s");
+    await idle(page);
+    const stamps = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
+      (a) => a.subtype === "/Stamp",
+    );
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0]!.dict["/Name"]).toBe("/Image");
+    expect(stamps[0]!.subject).toBe("stamp-reviewed");
   });
 });

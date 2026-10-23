@@ -12,6 +12,8 @@ export const FALLBACK_AUTHOR = "Reviewer";
 export const CLOUD_TOOL = "cloud";
 /** Interaction mode of the ink eraser (EraserLayer). */
 export const ERASER_MODE = "markupEraser";
+/** Interaction mode while a picked stamp waits for its click (StampLayer). */
+export const STAMP_MODE = "markupStamp";
 
 /** Markup buttons in the Comment toolbar: EmbedPDF tool id, label, icon. */
 export const MARKUP_TOOLS = [

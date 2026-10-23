@@ -10,7 +10,7 @@ import {
 } from "@embedpdf/models";
 import { useWorkbench } from "../../app/workbench";
 import { CLOUD_INTENSITY } from "../../markup/properties";
-import { CLOUD_TOOL, ERASER_MODE, toolDefaults } from "../../markup/config";
+import { CLOUD_TOOL, ERASER_MODE, STAMP_MODE, toolDefaults } from "../../markup/config";
 
 export function MarkupBridge({ author }: { author: string }) {
   const { settings } = useWorkbench();
@@ -43,9 +43,10 @@ export function MarkupBridge({ author }: { author: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [annots]);
 
-  // Eraser: an exclusive page mode handled by EraserLayer on each page.
+  // Eraser and stamp placement: exclusive page modes (EraserLayer, StampLayer).
   useEffect(() => {
     im?.registerMode({ id: ERASER_MODE, scope: "page", exclusive: true, cursor: "cell" });
+    im?.registerMode({ id: STAMP_MODE, scope: "page", exclusive: true, cursor: "copy" });
   }, [im]);
 
   // New markup is signed with the current author name.

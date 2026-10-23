@@ -97,6 +97,8 @@ export type Dialog =
   | { kind: "pageOp"; op: PageOpDialog; documentId: string; pages: number[] }
   /** `documentId`: the open document to start the list with (owner request). */
   | { kind: "combine"; documentId: string | null }
+  /** Stamps picker (Phase 3). */
+  | { kind: "stamps"; documentId: string }
   | null;
 
 /** Dialog-driven page operations (src/ui/PageOpsDialogs.tsx). */

@@ -6,6 +6,7 @@ import type { PageActions } from "../app/pageActions";
 import type { PageOpDialog, WorkbenchApi } from "../app/workbench";
 import type { IconName } from "../ui/Icon";
 import { MARKUP_TOOLS } from "../markup/config";
+import { TEXT_STAMPS } from "../engine/stamps";
 
 /** What an action works on. */
 export interface ToolContext {
@@ -29,7 +30,14 @@ export interface MarkupCommands {
   /** The ink eraser is on. */
   erasing: boolean;
   setErasing(on: boolean): void;
+  /** Arms a built-in stamp (src/engine/stamps.ts id) for the next click on a page. */
+  pickStamp(id: string): void;
 }
+
+const openStamps = (c: ToolContext) => {
+  if (c.documentId) c.wb.setDialog({ kind: "stamps", documentId: c.documentId });
+};
+const titleCase = (t: string) => `${t.charAt(0)}${t.slice(1).toLowerCase()}`;
 
 export interface ViewCommands {
   /** Current zoom mode, for pressed buttons. */
@@ -254,14 +262,50 @@ export const TOOLS: ToolDef[] = [
       run: (c) => c.markup?.setTool(c.markup.activeTool === m.id ? null : m.id),
       pressed: (c) => c.markup?.activeTool === m.id,
       enabled: (c) => hasDoc(c) && c.markup !== null,
-    })).concat({
-      id: "eraser",
-      label: "Eraser",
-      icon: "eraser",
-      run: (c) => c.markup?.setErasing(!c.markup.erasing),
-      pressed: (c) => c.markup?.erasing ?? false,
-      enabled: (c) => hasDoc(c) && c.markup !== null,
-    }),
+    })).concat(
+      {
+        id: "eraser",
+        label: "Eraser",
+        icon: "eraser",
+        run: (c) => c.markup?.setErasing(!c.markup.erasing),
+        pressed: (c) => c.markup?.erasing ?? false,
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+      {
+        id: "stamps",
+        label: "Stamp",
+        icon: "stamp",
+        run: openStamps,
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+    ),
+  },
+  {
+    id: "stamp",
+    name: "Stamp",
+    icon: "stamp",
+    color: "#7b5cd6",
+    description: "Approved, Reviewed, Draft, Confidential and your own image stamps",
+    comingIn: null,
+    open: "toolbar",
+    toolbar: [
+      ...TEXT_STAMPS.map((d): ToolAction => ({
+        id: d.id,
+        label: `${titleCase(d.title)} stamp`,
+        caption: titleCase(d.title),
+        icon: "stamp",
+        run: (c) => c.markup?.pickStamp(d.id),
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      })),
+      {
+        id: "myStamps",
+        label: "All stamps and my image stamps",
+        caption: "More stamps",
+        icon: "stamp",
+        run: openStamps,
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+    ],
   },
   // ---- Not built yet: hidden unless "Show tools that are coming later" is on. ----
   planned(
@@ -275,9 +319,6 @@ export const TOOLS: ToolDef[] = [
       { id: "calculator", label: "Calculator", icon: "calculator" },
     ],
   ),
-  planned("stamp", "Stamp", "stamp", "#7b5cd6", "Reviewed / approved stamps", [
-    { id: "stamps", label: "Stamps", icon: "stamp", dropdown: true },
-  ]),
   planned("redact", "Redact", "redact", "#d0336c", "Permanently remove sensitive content", []),
   planned("forms", "Fill Forms", "form", "#8a4fd8", "Fill and create form fields", []),
   planned("ocr", "Scan & OCR", "ocr", "#2e9e44", "Make scanned pages searchable", []),
