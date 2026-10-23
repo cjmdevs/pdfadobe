@@ -32,6 +32,8 @@ Owner decisions during planning (2026-10-23):
 - Undo: markup steps use EmbedPDF's history on top of the whole-file history; pending
   markup is committed as one "Markup" revision before anything that needs the bytes.
 
+Built as planned; deviations and gaps are in `docs/progress.md` (Phase 3).
+
 ## Gate
 
 - `npm run check` passes and `npm run check:windows-target` type-checks.

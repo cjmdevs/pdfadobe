@@ -402,7 +402,7 @@ test.describe("markup", () => {
     expect(mockfs.writes.some((w) => w.path === P.wpA)).toBe(false);
   });
 
-  test("export comments to XFDF, import them into another file (one undo step)", async ({
+  test("export comments to XFDF, import them into another file (undoable)", async ({
     page,
     mockfs,
   }) => {

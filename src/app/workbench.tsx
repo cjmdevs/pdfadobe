@@ -1058,6 +1058,11 @@ export function WorkbenchProvider({
           if (tab) {
             // Shown here: the normal Save (Save As for a file never saved).
             if (!(await save(tab))) return;
+          } else if (d.markupPending) {
+            // Its comments live in the other window's document until that window saves.
+            toast(`“${d.name}” has unsaved comments. Save it from its window first.`, "error");
+            void wins.focusDoc(d.id);
+            return;
           } else if (d.path) {
             try {
               await wins.saveDoc(d.id);
