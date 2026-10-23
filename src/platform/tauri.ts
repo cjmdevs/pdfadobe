@@ -141,13 +141,15 @@ export const tauriPlatform: Platform = {
     const picked = await open({
       multiple: true,
       directory: false,
-      filters: opts?.images
-        ? [
-            { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
-            { name: "PDF files", extensions: ["pdf"] },
-            { name: "Images", extensions: IMAGE_EXTENSIONS },
-          ]
-        : [{ name: "PDF files", extensions: ["pdf"] }],
+      filters: opts?.xfdf
+        ? [{ name: "Comments (XFDF)", extensions: ["xfdf"] }]
+        : opts?.images
+          ? [
+              { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
+              { name: "PDF files", extensions: ["pdf"] },
+              { name: "Images", extensions: IMAGE_EXTENSIONS },
+            ]
+          : [{ name: "PDF files", extensions: ["pdf"] }],
     });
     if (!picked) return [];
     const paths = Array.isArray(picked) ? picked : [picked];
@@ -208,8 +210,12 @@ export const tauriPlatform: Platform = {
     await call("set_settings", { value });
   },
 
-  async pickSavePath(suggested) {
-    return save({ defaultPath: suggested, filters: [{ name: "PDF files", extensions: ["pdf"] }] });
+  async pickSavePath(suggested, kind = "pdf") {
+    const filter =
+      kind === "xfdf"
+        ? { name: "Comments (XFDF)", extensions: ["xfdf"] }
+        : { name: "PDF files", extensions: ["pdf"] };
+    return save({ defaultPath: suggested, filters: [filter] });
   },
 
   repair: (source, target) => call<{ hadWarnings: boolean }>("repair_pdf", { source, target }),

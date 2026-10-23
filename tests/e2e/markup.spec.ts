@@ -1,6 +1,9 @@
 // Phase 3: markup in the reader. Saved files are read back with qpdf (no PDFium code).
 import { inspectAnnots, rgb } from "../helpers/annot-inspect";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pdfjsView } from "../helpers/leak-scan";
 import {
   CORPUS,
   P,
@@ -9,6 +12,7 @@ import {
   expect,
   idle,
   openPaths,
+  queueChoices,
   test,
   waitForPainted,
   type Page,
@@ -374,5 +378,79 @@ test.describe("markup", () => {
     const annots = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text)));
     expect(annots.find((a) => a.subtype === "/Square")?.author).toBe("Jane Smith");
     expect(annots.find((a) => a.subtype === "/Circle")?.author).toBe("J. Partner");
+  });
+
+  test("flatten the whole document into a new file; the original keeps its comments", async ({
+    page,
+    mockfs,
+  }) => {
+    await openComment(page, P.wpA);
+    await tb(page, "Flatten comments into a new file…").click();
+    const dlg = page.getByRole("dialog", { name: "Flatten comments" });
+    await expect(dlg.getByLabel(/Selected comments/)).toBeDisabled();
+    await dlg.getByLabel("All comments in the document").check();
+    await dlg.getByRole("button", { name: "Flatten to new file" }).click();
+    const out = P.wpA.replace(".pdf", " (flattened).pdf");
+    await expect.poll(() => mockfs.writes.map((w) => w.path)).toContain(out);
+    // Opened in a new tab.
+    await expect(activeTab(page)).toContainText("workpaper-a (flattened)");
+    const left = inspectAnnots(new Uint8Array(bytesAt(mockfs, out))).map((a) => a.subtype);
+    expect(left).not.toContain("/Text");
+    expect(left).not.toContain("/Square");
+    // Form fields are still there (widgets are not flattened).
+    expect(left).toContain("/Widget");
+    expect(mockfs.writes.some((w) => w.path === P.wpA)).toBe(false);
+  });
+
+  test("export comments to XFDF, import them into another file (one undo step)", async ({
+    page,
+    mockfs,
+  }) => {
+    const xfdfPath = P.wpA.replace(".pdf", ".xfdf");
+    await openComment(page, P.wpA);
+    await queueChoices(page, { savePaths: [xfdfPath] });
+    await tb(page, "Export comments (XFDF)…").click();
+    await expect.poll(() => mockfs.writes.map((w) => w.path)).toContain(xfdfPath);
+    const xml = bytesAt(mockfs, xfdfPath).toString("utf8");
+    expect(xml).toContain("<square ");
+    expect(xml).toContain('title="Reviewer"');
+
+    await openComment(page, P.text);
+    const dir = mkdtempSync(join(tmpdir(), "pdfwb-xfdf-"));
+    const file = join(dir, "comments.xfdf");
+    writeFileSync(file, xml);
+    const chooser = page.waitForEvent("filechooser");
+    await tb(page, "Import comments (XFDF)…").click();
+    await (await chooser).setFiles(file);
+    // workpaper-a has comments on pages 1 and 2; text-1p has one page.
+    await expect(
+      page.getByText(/Imported 1 comment\(s\); 1 on pages this document does not have/),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toBeEnabled();
+    await page.keyboard.press("Control+s");
+    await idle(page);
+    const notes = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
+      (a) => a.subtype === "/Text",
+    );
+    expect(notes).toHaveLength(1);
+    expect(notes[0]!.author).toBe("Reviewer");
+  });
+
+  test("comment summary: a new PDF listing the comments, opened in a tab", async ({
+    page,
+    mockfs,
+  }) => {
+    await openComment(page, P.wpA);
+    await tb(page, "Summarize comments into a printable PDF").click();
+    const out = P.wpA.replace(".pdf", " (comment summary).pdf");
+    await expect.poll(() => mockfs.writes.map((w) => w.path)).toContain(out);
+    await expect(activeTab(page)).toContainText("comment summary");
+    const v = await pdfjsView(new Uint8Array(bytesAt(mockfs, out)));
+    const text = v.pageText.join(" ");
+    expect(text).toContain("Comment summary: workpaper-a.pdf");
+    expect(text).toContain("Page 1");
+    expect(text).toContain("Page 2");
+    expect(text).toContain("Square A");
+    expect(text).toContain("2. Rectangle");
   });
 });

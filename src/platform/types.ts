@@ -56,7 +56,7 @@ export type PrintResult = { status: "printed"; pages: number } | { status: "canc
 export interface Platform {
   readonly kind: "tauri" | "browser";
   /** Native open dialog (multi-select). Empty array when cancelled. `images` also offers JPG/PNG/TIFF. */
-  pickFiles(opts?: { images?: boolean }): Promise<OpenedFile[]>;
+  pickFiles(opts?: { images?: boolean; xfdf?: boolean }): Promise<OpenedFile[]>;
   /** Folder picker; null when cancelled. */
   pickFolder(): Promise<string | null>;
   /** PDFs and images directly in a folder (not subfolders), in natural name order. */
@@ -73,7 +73,7 @@ export interface Platform {
   userDisplayName(): Promise<string | null>;
   saveSettings(value: unknown): Promise<void>;
   /** Save dialog; null when cancelled. */
-  pickSavePath(suggested: string): Promise<string | null>;
+  pickSavePath(suggested: string, kind?: "pdf" | "xfdf"): Promise<string | null>;
   /** Save over an opened file: temp file, previous version copied to `<path>.bak`, atomic
    * replace, then read back; the `.bak` is deleted when the file matches. */
   save(path: string, bytes: Uint8Array): Promise<void>;

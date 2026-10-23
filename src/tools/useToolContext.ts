@@ -8,6 +8,7 @@ import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/reac
 import { ERASER_MODE, STAMP_MODE } from "../markup/config";
 import { TEXT_STAMPS } from "../engine/stamps";
 import { stampPlacement, textStamp } from "../ui/markup/stampPlacement";
+import { importXfdf } from "../ui/markup/importXfdf";
 import { usePageActions } from "../app/pageActions";
 import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
@@ -27,7 +28,8 @@ export function useDocToolContext(documentId: string): ToolContext {
   const level = zoomState.zoomLevel;
   const mode =
     level === ZoomMode.FitPage ? "fit-page" : level === ZoomMode.FitWidth ? "fit-width" : "other";
-  const encrypted = useDocumentState(documentId)?.document?.isEncrypted ?? false;
+  const docState = useDocumentState(documentId);
+  const encrypted = docState?.document?.isEncrypted ?? false;
   const m = wb.meta[documentId];
   const organizing = m?.activeTool === "organize";
   const stored = m?.pageSelection;
@@ -59,6 +61,10 @@ export function useDocToolContext(documentId: string): ToolContext {
                 annots.deselectAnnotation();
                 im?.activate(ERASER_MODE);
               },
+              selectedIds: annotState.selectedUids
+                .map((u) => annotState.byUid[u]?.object.id)
+                .filter((x): x is string => x !== undefined),
+              importXfdf: () => importXfdf(wb, documentId, annots, annotState, docState),
               pickStamp: (id) => {
                 const def = TEXT_STAMPS.find((d) => d.id === id);
                 if (!def) return;
@@ -84,6 +90,8 @@ export function useDocToolContext(documentId: string): ToolContext {
       zoom,
       mode,
       annots,
+      annotState,
+      docState,
       activeMarkup,
       im,
       erasing,

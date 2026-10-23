@@ -1272,3 +1272,13 @@ button.primary.danger-fill {
   flex: 1;
   max-width: 240px;
 }
+.flatten-form fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+}
+.flatten-form p {
+  max-width: 440px;
+}

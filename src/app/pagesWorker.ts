@@ -4,6 +4,9 @@
 
 import * as P from "../engine/pages";
 import { createPdfium } from "../engine/pdfium";
+import { flattenMarkup, type FlattenTarget } from "../engine/flatten";
+import { summarizeComments } from "../engine/summary";
+import { documentXfdf } from "../engine/xfdf";
 import type { QpdfJob, QpdfResult } from "../engine/pages";
 
 type Ctx = P.PagesCtx;
@@ -40,6 +43,15 @@ export const OPS = {
     count: number,
     size?: { width: number; height: number },
   ) => P.insertBlankPages(c.module, b, at, count, size),
+  // Markup (Phase 3).
+  flattenMarkup: (c: Ctx, b: Uint8Array, t: FlattenTarget) => flattenMarkup(c.engine, b, t),
+  exportXfdf: (c: Ctx, b: Uint8Array, fileName: string) => documentXfdf(c.engine, b, fileName),
+  summarizeComments: (c: Ctx, b: Uint8Array, fileName: string, locale: string) =>
+    summarizeComments(c.engine, b, {
+      fileName,
+      generated: new Date(),
+      formatDate: (d) => d.toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }),
+    }),
   /** Images (JPEG/PNG/TIFF files) -> one PDF, one page per image. */
   imagesToPdf: async (_c: Ctx, files: Uint8Array[]) =>
     P.imagesToPdf(files.flatMap((f) => P.imagePages(f))),

@@ -99,6 +99,8 @@ export type Dialog =
   /** `documentId`: the open document to start the list with (owner request). */
   | { kind: "combine"; documentId: string | null }
   | { kind: "settings" }
+  /** Flatten markup to a new file (Phase 3). */
+  | { kind: "flatten"; documentId: string; page: number; selectedIds: string[] }
   /** Stamps picker (Phase 3). */
   | { kind: "stamps"; documentId: string }
   | null;

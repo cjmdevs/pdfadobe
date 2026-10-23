@@ -7,6 +7,8 @@ import type { PageOpDialog, WorkbenchApi } from "../app/workbench";
 import type { IconName } from "../ui/Icon";
 import { MARKUP_TOOLS } from "../markup/config";
 import { TEXT_STAMPS } from "../engine/stamps";
+/** File commands load the platform layer; imported on use so this list stays Node-safe. */
+const markupFiles = () => import("../ui/markup/markupFiles");
 
 /** What an action works on. */
 export interface ToolContext {
@@ -32,6 +34,10 @@ export interface MarkupCommands {
   setErasing(on: boolean): void;
   /** Arms a built-in stamp (src/engine/stamps.ts id) for the next click on a page. */
   pickStamp(id: string): void;
+  /** Ids (/NM) of the selected annotations. */
+  selectedIds: string[];
+  /** Picks an XFDF file and adds its comments (undoable). */
+  importXfdf(): Promise<void>;
 }
 
 const openStamps = (c: ToolContext) => {
@@ -276,6 +282,51 @@ export const TOOLS: ToolDef[] = [
         label: "Stamp",
         icon: "stamp",
         run: openStamps,
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+      {
+        id: "flatten",
+        label: "Flatten comments into a new file…",
+        caption: "Flatten",
+        icon: "flatten",
+        run: (c) =>
+          c.documentId &&
+          c.wb.setDialog({
+            kind: "flatten",
+            documentId: c.documentId,
+            page: c.pages[0] ?? 0,
+            selectedIds: c.markup?.selectedIds ?? [],
+          }),
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+      {
+        id: "exportXfdf",
+        label: "Export comments (XFDF)…",
+        caption: "Export",
+        icon: "exportFile",
+        run: (c) => {
+          const id = c.documentId;
+          if (id) void markupFiles().then((m) => m.exportXfdfFile(c.wb, id));
+        },
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+      {
+        id: "importXfdf",
+        label: "Import comments (XFDF)…",
+        caption: "Import",
+        icon: "importFile",
+        run: (c) => void c.markup?.importXfdf(),
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+      {
+        id: "summary",
+        label: "Summarize comments into a printable PDF",
+        caption: "Summary",
+        icon: "summary",
+        run: (c) => {
+          const id = c.documentId;
+          if (id) void markupFiles().then((m) => m.summaryToNewFile(c.wb, id));
+        },
         enabled: (c) => hasDoc(c) && c.markup !== null,
       },
       {

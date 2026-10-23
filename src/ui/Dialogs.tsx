@@ -10,6 +10,7 @@ import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workben
 import { CustomizeDialog } from "./CustomizeDialog";
 import { StampPicker } from "./markup/StampPicker";
 import { SettingsBody } from "./SettingsDialog";
+import { FlattenBody } from "./markup/FlattenDialog";
 import {
   CombineDialog,
   ConfirmDialog,
@@ -76,6 +77,17 @@ function MainDialog() {
   if (!dialog) return null;
   const close = () => setDialog(null);
   switch (dialog.kind) {
+    case "flatten":
+      return (
+        <Modal title="Flatten comments" onClose={close}>
+          <FlattenBody
+            documentId={dialog.documentId}
+            page={dialog.page}
+            selectedIds={dialog.selectedIds}
+            onClose={close}
+          />
+        </Modal>
+      );
     case "settings":
       return (
         <Modal title="Settings" onClose={close}>
