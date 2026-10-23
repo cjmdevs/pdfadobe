@@ -220,6 +220,15 @@ select {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.tab.dragging {
+  opacity: 0.5;
+}
+.tab.drop-before {
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.tab.drop-after {
+  box-shadow: inset -2px 0 0 var(--accent);
+}
 .tab-close {
   border: none;
   background: transparent;

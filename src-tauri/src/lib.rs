@@ -1,3 +1,5 @@
+mod app_windows;
+mod docstore;
 mod fileio;
 mod launch;
 mod print;
@@ -15,9 +17,33 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             launch::on_second_instance(app, args, cwd);
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        // Only the main window's size and place are remembered; extra windows open where a
+        // tab was dropped (backlog B1).
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_filter(|label| label == "main")
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .manage(launch::PendingPaths::default())
+        .manage(docstore::DocStore::default())
+        .manage(app_windows::Windows::default())
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::Focused(true) => {
+                window
+                    .state::<app_windows::Windows>()
+                    .focused(window.label());
+            }
+            tauri::WindowEvent::Destroyed => {
+                window
+                    .state::<app_windows::Windows>()
+                    .destroyed(window.label());
+                window
+                    .state::<docstore::DocStore>()
+                    .release_window(window.label());
+            }
+            _ => {}
+        })
         .setup(|app| {
             let cwd = std::env::current_dir().unwrap_or_default();
             let paths = launch::paths_from_args(std::env::args(), &cwd);
@@ -44,6 +70,23 @@ pub fn run() {
             settings::set_settings,
             repair::repair_pdf,
             print::print_pdf,
+            docstore::doc_create,
+            docstore::doc_push,
+            docstore::doc_info,
+            docstore::doc_current,
+            docstore::doc_step,
+            docstore::doc_mark_saved,
+            docstore::doc_accept_signature,
+            docstore::doc_clear_trimmed,
+            docstore::doc_release,
+            docstore::doc_dirty,
+            docstore::doc_find_path,
+            docstore::doc_save,
+            app_windows::tab_drop,
+            app_windows::move_to_new_window,
+            app_windows::take_window_docs,
+            app_windows::focus_doc,
+            app_windows::quit_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -53,7 +96,7 @@ pub fn run() {
 /// Turn those off so the Acrobat-compatible shortcuts in `src/app/shortcuts.ts` work.
 /// Tauri does not expose this setting, so reach the controller directly.
 #[cfg(windows)]
-fn disable_browser_accelerators(window: &tauri::WebviewWindow) {
+pub(crate) fn disable_browser_accelerators(window: &tauri::WebviewWindow) {
     use webview2_com::Microsoft::Web::WebView2::Win32::{
         ICoreWebView2Controller, ICoreWebView2Settings3,
     };

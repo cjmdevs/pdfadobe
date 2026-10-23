@@ -4,7 +4,7 @@
 //   test-only mock file system served at /__mockfs/ that Playwright intercepts).
 
 import type { Qpdf } from "../engine/pages/qpdf";
-import type { DocStore } from "../app/docstore";
+import type { DocInfo, DocStore } from "../app/docstore";
 
 /** Where an open document came from. Only `path` sources go in Recent Files. */
 export type FileSource = { kind: "path"; path: string } | { kind: "memory"; name: string };
@@ -82,12 +82,37 @@ export interface Platform {
   qpdf: Qpdf;
   /** Per-document state shared by all windows (backlog B1). */
   docs: DocStore;
+  /** Several windows; null where there is only one (browser). */
+  windows: AppWindows | null;
   /** qpdf-repair `source` into `target` (never the same file). */
   repair(source: string, target: string): Promise<{ hadWarnings: boolean }>;
   /** Native print. Throws PlatformError("unsupported") when only WebView print exists. */
   print(req: PrintRequest): Promise<PrintResult>;
   saveAttachment(name: string, bytes: ArrayBuffer): Promise<string | null>;
   setTitle(title: string): void;
+}
+
+/** Several app windows (backlog B1). Documents move by store id (platform.docs). */
+export interface AppWindows {
+  /** This window's label: "main" for the first window. */
+  readonly label: string;
+  /** A tab drag ended outside this window. True when the documents moved to another
+   * window (the one under the pointer, or a new one there). */
+  tabDrop(storeIds: string[]): Promise<boolean>;
+  moveToNewWindow(storeIds: string[]): Promise<void>;
+  /** Store ids handed to this window (at start, and after `onAdopt`). */
+  takeDocs(): Promise<string[]>;
+  onAdopt(cb: () => void): Promise<() => void>;
+  /** Shows the window that has this document; false if no window has it. */
+  focusDoc(storeId: string): Promise<boolean>;
+  onFocusDoc(cb: (storeId: string) => void): Promise<() => void>;
+  /** Close button. `cb` returns false to keep the window open. */
+  onCloseRequested(cb: () => Promise<boolean>): Promise<() => void>;
+  closeWindow(): Promise<void>;
+  /** Saves a document shown in another window over its file (quit prompt). */
+  saveDoc(storeId: string): Promise<DocInfo>;
+  /** Exits the app (after the quit prompt). */
+  quit(): Promise<void>;
 }
 
 export function baseName(path: string): string {

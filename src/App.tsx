@@ -24,7 +24,7 @@ import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { ZoomPluginPackage } from "@embedpdf/plugin-zoom/react";
 import { Commands, useLoadedDocumentId } from "./app/Commands";
 import type { Settings } from "./app/settings";
-import { WorkbenchProvider, useWorkbench } from "./app/workbench";
+import { WINDOW_LABEL, WorkbenchProvider, useWorkbench } from "./app/workbench";
 import { fileToOpened, platform } from "./platform";
 import { DocumentView } from "./ui/DocumentView";
 import { Dialogs } from "./ui/Dialogs";
@@ -119,7 +119,10 @@ function Shell({ ready }: { ready: boolean }) {
     if (!ready || started.current) return;
     started.current = true;
     void (async () => {
-      const { openTabs, activeTab } = wb.settings;
+      // Only the first window reopens last session's tabs; extra windows start with the
+      // tabs moved into them (workbench adopts those).
+      const { openTabs, activeTab } =
+        WINDOW_LABEL === "main" ? wb.settings : { openTabs: [], activeTab: null };
       const launch = await platform.takeLaunchPaths();
       await wb.openPaths(openTabs, { quiet: true });
       if (activeTab) wb.activatePath(activeTab);

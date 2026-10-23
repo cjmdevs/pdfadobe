@@ -47,7 +47,8 @@ export type Command =
   | "undo"
   | "redo"
   | "save"
-  | "saveAs";
+  | "saveAs"
+  | "quit";
 
 export type Source = "adobe" | "adobeView" | "adobeHub" | "community" | "windows" | "owner";
 
@@ -60,6 +61,8 @@ export interface Shortcut {
 
 export const SHORTCUTS: Shortcut[] = [
   { command: "open", label: "Open", keys: ["Ctrl+O"], source: "windows" },
+  // Acrobat's File > Exit Application shows Ctrl+Q (not in Adobe's published table).
+  { command: "quit", label: "Exit (all windows)", keys: ["Ctrl+Q"], source: "community" },
   { command: "close", label: "Close document", keys: ["Ctrl+W", "Ctrl+F4"], source: "adobe" },
   {
     command: "closeAll",

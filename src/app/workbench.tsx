@@ -29,7 +29,17 @@ import {
   type OpenedFile,
 } from "../platform";
 import type { DocInfo } from "./docstore";
-import { addRecent, removeRecent, samePath, type Settings } from "./settings";
+import {
+  WINDOW_LOCAL_SETTINGS,
+  addRecent,
+  removeRecent,
+  samePath,
+  sanitizeSettings,
+  type Settings,
+} from "./settings";
+
+/** This window: "main" is the first one; extra windows are "w-1", "w-2"... (backlog B1). */
+export const WINDOW_LABEL = platform.windows?.label ?? "main";
 
 export interface DocMeta {
   /** Id in the document store (platform.docs); the same across edits and windows. */
@@ -76,7 +86,9 @@ export type Dialog =
   | { kind: "properties"; documentId: string }
   | { kind: "shortcuts" }
   | { kind: "customize" }
-  | { kind: "unsaved"; documentIds: string[]; then: "close" | "closeAll" }
+  | { kind: "unsaved"; documentIds: string[]; then: "close" | "closeAll" | "closeWindow" }
+  /** Ctrl+Q with unsaved documents in any window. */
+  | { kind: "quit"; docs: DocInfo[] }
   | { kind: "pageOp"; op: PageOpDialog; documentId: string; pages: number[] }
   /** `documentId`: the open document to start the list with (owner request). */
   | { kind: "combine"; documentId: string | null }
@@ -132,6 +144,13 @@ export interface WorkbenchApi {
   setPageSelection(id: string, pages: number[]): void;
   /** Close without asking about unsaved changes (after the user chose). */
   forceClose(ids: string[]): void;
+  /** Tab drag ended outside the window: move the tab to the window under the pointer. */
+  dropTabOutside(id: string): Promise<void>;
+  moveToNewWindow(id: string): Promise<void>;
+  /** Ctrl+Q: one prompt for unsaved documents in every window, then exit. */
+  quit(): Promise<void>;
+  /** After the quit prompt: save (or not) the listed documents, then exit. */
+  finishQuit(docs: DocInfo[], save: boolean): Promise<void>;
   /** In-app yes/no question (rendered by Dialogs). */
   confirm(req: Omit<ConfirmRequest, "resolve">): Promise<boolean>;
   confirmRequest: ConfirmRequest | null;
@@ -259,16 +278,29 @@ export function WorkbenchProvider({
   });
 
   // Settings: persist every change, in order (tiny JSON; a debounce could lose the
-  // last change when the window closes).
+  // last change when the window closes). Only the changed keys are written, on top of
+  // what is on disk, since another window may have saved meanwhile. Extra windows keep
+  // their view settings to themselves.
   const saveChain = useRef(Promise.resolve());
   const updateSettings = useCallback((patch: Partial<Settings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...patch };
-      saveChain.current = saveChain.current
-        .then(() => platform.saveSettings(next))
-        .catch(() => undefined);
-      return next;
-    });
+    setSettings((prev) => ({ ...prev, ...patch }));
+    const keep = Object.fromEntries(
+      Object.entries(patch).filter(
+        ([k]) => WINDOW_LABEL === "main" || !WINDOW_LOCAL_SETTINGS.includes(k as keyof Settings),
+      ),
+    ) as Partial<Settings>;
+    if (Object.keys(keep).length === 0) return;
+    saveChain.current = saveChain.current
+      .then(async () => {
+        let disk: Settings;
+        try {
+          disk = sanitizeSettings(await platform.loadSettings());
+        } catch {
+          disk = settingsRef.current;
+        }
+        await platform.saveSettings({ ...disk, ...keep });
+      })
+      .catch(() => undefined);
   }, []);
 
   const toast = useCallback((text: string, tone: Toast["tone"] = "info") => {
@@ -276,6 +308,30 @@ export function WorkbenchProvider({
     setToasts((t) => [...t, { id, text, tone }]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
   }, []);
+
+  /** Shows a store document in a new tab. `bytes` is the viewer's own copy. */
+  const addTab = useCallback(
+    (storeId: string, source: FileSource, name: string, bytes: ArrayBuffer, activate: boolean) => {
+      if (!docs) return;
+      const head = new Uint8Array(bytes, 0, Math.min(1024, bytes.byteLength));
+      const documentId = crypto.randomUUID();
+      const m: DocMeta = {
+        storeId,
+        source,
+        name,
+        fileSize: bytes.byteLength,
+        pdfVersion: pdfHeaderVersion(head),
+        linearized: isLinearized(head),
+        openStartedAt: performance.now(),
+        activeTool: null,
+      };
+      metaRef.current = { ...metaRef.current, [documentId]: m };
+      setMeta(metaRef.current);
+      docs.openDocumentBuffer({ buffer: bytes, name, documentId, autoActivate: activate });
+      return documentId;
+    },
+    [docs],
+  );
 
   const openFiles = useCallback(
     (files: OpenedFile[], { activate = true }: { activate?: boolean } = {}) => {
@@ -291,21 +347,7 @@ export function WorkbenchProvider({
             continue;
           }
         }
-        const head = new Uint8Array(f.bytes, 0, Math.min(1024, f.bytes.byteLength));
-        const documentId = crypto.randomUUID();
         const storeId = crypto.randomUUID();
-        const m: DocMeta = {
-          storeId,
-          source: f.source,
-          name: f.name,
-          fileSize: f.bytes.byteLength,
-          pdfVersion: pdfHeaderVersion(head),
-          linearized: isLinearized(head),
-          openStartedAt: performance.now(),
-          activeTool: null,
-        };
-        metaRef.current = { ...metaRef.current, [documentId]: m };
-        setMeta(metaRef.current);
         // A copy: the viewer's worker may take ownership of f.bytes.
         const copy = new Uint8Array(f.bytes.slice(0));
         current.current.set(storeId, copy);
@@ -313,17 +355,21 @@ export function WorkbenchProvider({
         void queued(storeId, () =>
           platform.docs.create(storeId, copy, { name: f.name, path, saved: true }).then(setInfo),
         );
-        if (f.source.kind === "path") pendingBackups.current.set(documentId, f.source.path);
-        docs.openDocumentBuffer({
-          buffer: f.bytes,
-          name: f.name,
-          documentId,
-          autoActivate: activate,
-        });
+        const documentId = addTab(storeId, f.source, f.name, f.bytes, activate);
+        if (documentId && f.source.kind === "path")
+          pendingBackups.current.set(documentId, f.source.path);
       }
     },
-    [docs, queued, setInfo],
+    [addTab, docs, queued, setInfo],
   );
+
+  /** Same file already open in another window: switch to that window (owner decision). */
+  const openElsewhere = useCallback(async (path: string) => {
+    if (!platform.windows) return false;
+    const hit = await platform.docs.findPath(path).catch(() => null);
+    if (!hit || hit.window === WINDOW_LABEL) return false;
+    return platform.windows.focusDoc(hit.id);
+  }, []);
 
   // Reads are async (network shares can be slow). Only the newest open request may switch
   // tabs, so opening A then B always ends on B even if A's read finishes last.
@@ -333,6 +379,7 @@ export function WorkbenchProvider({
       const seq = ++openSeq.current;
       for (const path of paths) {
         try {
+          if (await openElsewhere(path)) continue;
           const file = await platform.readPath(path);
           openFiles([file], { activate: seq === openSeq.current });
           updateSettings({ recent: addRecent(settingsRef.current.recent, path) });
@@ -343,13 +390,16 @@ export function WorkbenchProvider({
         }
       }
     },
-    [openFiles, toast, updateSettings],
+    [openElsewhere, openFiles, toast, updateSettings],
   );
 
   const pickAndOpen = useCallback(async () => {
     try {
-      const files = await platform.pickFiles();
+      const picked = await platform.pickFiles();
       openSeq.current++; // this choice wins over slower reads still in flight
+      const files: OpenedFile[] = [];
+      for (const f of picked)
+        if (!(f.source.kind === "path" && (await openElsewhere(f.source.path)))) files.push(f);
       openFiles(files);
       let recent = settingsRef.current.recent;
       for (const f of files)
@@ -359,7 +409,7 @@ export function WorkbenchProvider({
       const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
       setDialog({ kind: "openError", path: "", error: err });
     }
-  }, [openFiles, updateSettings]);
+  }, [openElsewhere, openFiles, updateSettings]);
 
   const activatePath = useCallback(
     (path: string) => {
@@ -398,6 +448,85 @@ export function WorkbenchProvider({
     },
     [docs, forget, queued],
   );
+
+  /** Tabs moved to another window: close them here; the store keeps their documents. */
+  const detach = useCallback(
+    (ids: string[]) => {
+      for (const id of ids) {
+        docs?.closeDocument(id);
+        const sid = metaRef.current[id]?.storeId;
+        if (sid) current.current.delete(sid);
+      }
+      forget(ids);
+      // An extra window closes once its last tab has left (like a browser).
+      if (WINDOW_LABEL !== "main" && Object.keys(metaRef.current).length === 0)
+        void platform.windows?.closeWindow();
+    },
+    [docs, forget],
+  );
+
+  /** Documents handed to this window by another one (or queued for a new window). */
+  const adopt = useCallback(async () => {
+    const wins = platform.windows;
+    if (!wins) return;
+    for (const sid of await wins.takeDocs()) {
+      try {
+        const [info, bytes] = await Promise.all([
+          platform.docs.info(sid),
+          platform.docs.current(sid),
+        ]);
+        current.current.set(sid, bytes);
+        setInfo(info);
+        const source: FileSource = info.path
+          ? { kind: "path", path: info.path }
+          : { kind: "memory", name: info.name };
+        addTab(sid, source, info.name, bytes.slice().buffer, true);
+      } catch (e) {
+        toast(
+          `Could not move a document here: ${e instanceof Error ? e.message : String(e)}`,
+          "error",
+        );
+      }
+    }
+  }, [addTab, setInfo, toast]);
+
+  const moveOut = useCallback(
+    async (id: string, how: "drop" | "new") => {
+      const wins = platform.windows;
+      if (!wins) return;
+      await settled();
+      const now = resolveId(id);
+      const sid = metaRef.current[now]?.storeId;
+      if (!sid) return;
+      try {
+        await queued(sid, async () => undefined);
+        if (how === "new") await wins.moveToNewWindow([sid]);
+        else if (!(await wins.tabDrop([sid]))) return;
+        detach([now]);
+      } catch (e) {
+        toast(`Could not move the tab: ${e instanceof Error ? e.message : String(e)}`, "error");
+      }
+    },
+    [detach, queued, resolveId, settled, toast],
+  );
+  const dropTabOutside = useCallback((id: string) => moveOut(id, "drop"), [moveOut]);
+  const moveToNewWindow = useCallback((id: string) => moveOut(id, "new"), [moveOut]);
+
+  // Another window moved tabs here, or asked this one to show a document again.
+  useEffect(() => {
+    const wins = platform.windows;
+    if (!wins || !docs) return;
+    // Documents queued before this window started (a new window, or a missed event).
+    void Promise.resolve().then(adopt);
+    const offs = [
+      wins.onAdopt(() => void adopt()),
+      wins.onFocusDoc((sid) => {
+        const hit = Object.entries(metaRef.current).find(([, m]) => m.storeId === sid);
+        if (hit) docs.setActiveDocument(hit[0]);
+      }),
+    ];
+    return () => offs.forEach((p) => void p.then((off) => off()));
+  }, [adopt, docs]);
 
   /** Store state of a tab's document (after its pending store calls). */
   const infoOf = useCallback(
@@ -826,6 +955,63 @@ export function WorkbenchProvider({
     platform.setTitle(name ? `${name} - PDF Workbench` : "PDF Workbench");
   }, [active, meta]);
 
+  // Ctrl+Q: one prompt listing unsaved documents in every window.
+  const quit = useCallback(async () => {
+    const wins = platform.windows;
+    if (!wins) return;
+    await settled();
+    const dirty = await platform.docs.dirty();
+    if (dirty.length) setDialog({ kind: "quit", docs: dirty });
+    else await wins.quit();
+  }, [settled]);
+
+  const finishQuit = useCallback(
+    async (list: DocInfo[], saveFirst: boolean) => {
+      const wins = platform.windows;
+      if (!wins) return;
+      if (saveFirst) {
+        for (const d of list) {
+          const tab = Object.entries(metaRef.current).find(([, m]) => m.storeId === d.id)?.[0];
+          if (tab) {
+            // Shown here: the normal Save (Save As for a file never saved).
+            if (!(await save(tab))) return;
+          } else if (d.path) {
+            try {
+              await wins.saveDoc(d.id);
+            } catch (e) {
+              toast(
+                `Could not save ${d.name}: ${e instanceof Error ? e.message : String(e)}`,
+                "error",
+              );
+              return;
+            }
+          } else {
+            toast(`“${d.name}” has never been saved. Save it from its window first.`, "error");
+            void wins.focusDoc(d.id);
+            return;
+          }
+        }
+      }
+      await wins.quit();
+    },
+    [save, toast],
+  );
+
+  // Window close button: ask about this window's unsaved documents first.
+  useEffect(() => {
+    const wins = platform.windows;
+    if (!wins) return;
+    const off = wins.onCloseRequested(async () => {
+      await settled();
+      const dirty: string[] = [];
+      for (const id of Object.keys(metaRef.current)) if ((await infoOf(id))?.dirty) dirty.push(id);
+      if (dirty.length === 0) return true;
+      setDialog({ kind: "unsaved", documentIds: dirty, then: "closeWindow" });
+      return false;
+    });
+    return () => void off.then((f) => f());
+  }, [infoOf, settled]);
+
   const api = useMemo<WorkbenchApi>(
     () => ({
       engine,
@@ -860,6 +1046,10 @@ export function WorkbenchProvider({
       setPageSelection,
       setSelectedBookmark,
       forceClose,
+      dropTabOutside,
+      moveToNewWindow,
+      quit,
+      finishQuit,
       busy,
       confirm,
       confirmRequest,
@@ -897,6 +1087,10 @@ export function WorkbenchProvider({
       setPageSelection,
       setSelectedBookmark,
       forceClose,
+      dropTabOutside,
+      moveToNewWindow,
+      quit,
+      finishQuit,
       busy,
       confirm,
       confirmRequest,

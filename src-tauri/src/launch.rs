@@ -41,15 +41,20 @@ fn is_unc(s: &str) -> bool {
     s.starts_with(r"\\") || s.starts_with("//")
 }
 
-/// single-instance callback: forward the second launch's files and focus the window.
+/// single-instance callback: forward the second launch's files to the window used last
+/// (any window if that one is gone) and focus it.
 pub fn on_second_instance(app: &AppHandle, args: Vec<String>, cwd: String) {
     let paths = paths_from_args(args, Path::new(&cwd));
-    if let Some(w) = app.get_webview_window("main") {
-        let _ = w.unminimize();
-        let _ = w.set_focus();
-    }
+    let last = app.state::<crate::app_windows::Windows>().last_focused();
+    let w = last
+        .and_then(|l| app.get_webview_window(&l))
+        .or_else(|| app.get_webview_window("main"))
+        .or_else(|| app.webview_windows().into_values().next());
+    let Some(w) = w else { return };
+    let _ = w.unminimize();
+    let _ = w.set_focus();
     if !paths.is_empty() {
-        let _ = app.emit(OPEN_PATHS_EVENT, paths);
+        let _ = app.emit_to(w.label(), OPEN_PATHS_EVENT, paths);
     }
 }
 

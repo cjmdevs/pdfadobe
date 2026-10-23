@@ -41,6 +41,19 @@ export interface Settings {
 
 export const MAX_RECENT = 15;
 
+/** Settings that belong to one window (backlog B1): extra windows never save them, so
+ * they cannot overwrite the main window's view or its list of tabs to reopen. */
+export const WINDOW_LOCAL_SETTINGS: readonly (keyof Settings)[] = [
+  "zoom",
+  "viewMode",
+  "coverPage",
+  "sidebarOpen",
+  "sidebarTab",
+  "toolsPaneOpen",
+  "openTabs",
+  "activeTab",
+];
+
 export const DEFAULT_SETTINGS: Settings = {
   version: 1,
   theme: "system",

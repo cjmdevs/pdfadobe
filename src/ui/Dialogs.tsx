@@ -8,7 +8,13 @@ import { SHORTCUTS, displayKey } from "../app/shortcuts";
 import { useNav } from "../app/useNav";
 import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workbench";
 import { CustomizeDialog } from "./CustomizeDialog";
-import { CombineDialog, ConfirmDialog, PageOpDialogView, UnsavedDialog } from "./PageOpsDialogs";
+import {
+  CombineDialog,
+  ConfirmDialog,
+  PageOpDialogView,
+  QuitDialog,
+  UnsavedDialog,
+} from "./PageOpsDialogs";
 import {
   decodePermissions,
   formatFileSize,
@@ -85,6 +91,8 @@ function MainDialog() {
       return <CustomizeDialog onClose={close} />;
     case "unsaved":
       return <UnsavedDialog documentIds={dialog.documentIds} then={dialog.then} onClose={close} />;
+    case "quit":
+      return <QuitDialog docs={dialog.docs} onClose={close} />;
     case "pageOp":
       return (
         <PageOpDialogView

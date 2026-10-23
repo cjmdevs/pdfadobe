@@ -12,6 +12,7 @@ import {
   baseName,
   type FileErrorKind,
   type OpenedFile,
+  type AppWindows,
   type Platform,
 } from "./types";
 
@@ -61,6 +62,79 @@ function download(name: string, bytes: ArrayBuffer) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
+const docs = new MemoryDocStore();
+
+/**
+ * E2E stand-in for other windows (the browser has one). Enabled when a test sets
+ * `window.__PDFWB_FAKE_WINDOWS__ = {}` before load: tabs "moved" out go to a pretend
+ * window "w-2", and the test hands them back through `queue` + `adopt()`.
+ */
+export interface FakeWindows {
+  queue: string[];
+  moved: string[];
+  focused: string[];
+  closed: number;
+  quits: number;
+  adopt?: () => void;
+  focusDoc?: (id: string) => void;
+  requestClose?: () => Promise<boolean>;
+}
+
+function fakeWindows(): AppWindows | null {
+  const w = window as unknown as { __PDFWB_FAKE_WINDOWS__?: Partial<FakeWindows> };
+  const init = w.__PDFWB_FAKE_WINDOWS__;
+  if (!init) return null;
+  const f: FakeWindows = { queue: [], moved: [], focused: [], closed: 0, quits: 0, ...init };
+  w.__PDFWB_FAKE_WINDOWS__ = f;
+  const away = (ids: string[]) => {
+    for (const id of ids) docs.setWindow(id, "w-2");
+    f.moved.push(...ids);
+  };
+  return {
+    label: "main",
+    async tabDrop(ids) {
+      away(ids);
+      return true;
+    },
+    async moveToNewWindow(ids) {
+      away(ids);
+    },
+    async takeDocs() {
+      const ids = f.queue.splice(0);
+      for (const id of ids) docs.setWindow(id, "main");
+      return ids;
+    },
+    async onAdopt(cb) {
+      f.adopt = cb;
+      return () => undefined;
+    },
+    async focusDoc(id) {
+      f.focused.push(id);
+      return true;
+    },
+    async onFocusDoc(cb) {
+      f.focusDoc = cb;
+      return () => undefined;
+    },
+    async onCloseRequested(cb) {
+      f.requestClose = cb;
+      return () => undefined;
+    },
+    async closeWindow() {
+      f.closed++;
+    },
+    async saveDoc(id) {
+      const info = await docs.info(id);
+      if (!info.path) throw new Error("never saved");
+      await browserPlatform.save(info.path, await docs.current(id));
+      return docs.markSaved(id);
+    },
+    async quit() {
+      f.quits++;
+    },
+  };
+}
+
 export const browserPlatform: Platform = {
   kind: "browser",
 
@@ -101,7 +175,10 @@ export const browserPlatform: Platform = {
     return res.text();
   },
 
-  docs: new MemoryDocStore(),
+  docs,
+  get windows() {
+    return fakeWindowsOnce();
+  },
   qpdf: {
     // Playwright runs qpdf for /__qpdf (tests/e2e/fixtures.ts). Plain `npm run dev` has no
     // qpdf: page operations need the Windows app.
@@ -187,3 +264,9 @@ export const browserPlatform: Platform = {
     document.title = title;
   },
 };
+
+let fake: AppWindows | null | undefined;
+function fakeWindowsOnce() {
+  if (fake === undefined) fake = fakeWindows();
+  return fake;
+}

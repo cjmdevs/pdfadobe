@@ -1,15 +1,17 @@
-// Windows app: Rust commands in src-tauri/src (fileio, launch, settings, repair, print).
+// Windows app: Rust commands in src-tauri/src (fileio, launch, settings, repair, print,
+// docstore, windows).
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
 import { QpdfError, type Qpdf } from "../engine/pages/qpdf";
-import { MemoryDocStore } from "../app/docstore";
+import type { DocInfo, DocStore } from "../app/docstore";
 import {
   PlatformError,
   baseName,
+  type AppWindows,
   type FileErrorKind,
   type OpenedFile,
   type Platform,
@@ -58,6 +60,59 @@ const qpdf: Qpdf = {
         err.kind === "qpdfMissing" ? "qpdf is missing from this installation." : err.message,
       );
     }
+  },
+};
+
+// Document store in Rust (src-tauri/src/docstore.rs), shared by all windows. Bytes go
+// raw; the rest in a percent-encoded JSON header.
+const docHeader = (v: object) => ({ headers: { "x-doc": encodeURIComponent(JSON.stringify(v)) } });
+
+const docs: DocStore = {
+  create: (id, bytes, init) => call<DocInfo>("doc_create", bytes, docHeader({ id, ...init })),
+  info: (id) => call<DocInfo>("doc_info", { id }),
+  current: async (id) => new Uint8Array(await call<ArrayBuffer>("doc_current", { id })),
+  push: (id, bytes, label) => call<DocInfo>("doc_push", bytes, docHeader({ id, label })),
+  undo: (id) => step(id, false),
+  redo: (id) => step(id, true),
+  markSaved: (id, saved) => call<DocInfo>("doc_mark_saved", { id, saved: saved ?? null }),
+  acceptSignature: (id) => call<DocInfo>("doc_accept_signature", { id }),
+  clearTrimmed: (id) => call<DocInfo>("doc_clear_trimmed", { id }),
+  async release(id) {
+    await call("doc_release", { id });
+  },
+  dirty: () => call<DocInfo[]>("doc_dirty"),
+  findPath: (path) => call<DocInfo | null>("doc_find_path", { path }),
+};
+
+async function step(id: string, redo: boolean) {
+  const info = await call<DocInfo | null>("doc_step", { id, redo });
+  return info ? { info, bytes: await docs.current(id) } : null;
+}
+
+// Events are listened to on this window only: a plain listen() would also receive
+// events sent to other windows. Lazy: this module also loads in the browser build.
+const thisWindow = () => getCurrentWebviewWindow();
+
+const windows: AppWindows = {
+  get label() {
+    return thisWindow().label;
+  },
+  tabDrop: async (ids) => (await call<string | null>("tab_drop", { ids })) !== null,
+  async moveToNewWindow(ids) {
+    await call<string>("move_to_new_window", { ids });
+  },
+  takeDocs: () => call<string[]>("take_window_docs"),
+  onAdopt: (cb) => thisWindow().listen("adopt-docs", () => cb()),
+  focusDoc: (id) => call<boolean>("focus_doc", { id }),
+  onFocusDoc: (cb) => thisWindow().listen<string>("focus-doc", (e) => cb(e.payload)),
+  onCloseRequested: (cb) =>
+    thisWindow().onCloseRequested(async (e) => {
+      if (!(await cb())) e.preventDefault();
+    }),
+  closeWindow: () => thisWindow().destroy(),
+  saveDoc: (id) => call<DocInfo>("doc_save", { id }),
+  async quit() {
+    await call("quit_app");
   },
 };
 
@@ -115,13 +170,13 @@ export const tauriPlatform: Platform = {
     call<string>("write_new_file", bytes, headers({ "x-folder": folder, "x-name": name })),
 
   qpdf,
-  // Moves to Rust (shared by windows) in the next B1 step.
-  docs: new MemoryDocStore(),
+  docs,
+  windows,
 
   takeLaunchPaths: () => call<string[]>("take_launch_paths"),
 
   async onOpenPaths(cb) {
-    return listen<string[]>("open-paths", (e) => cb(e.payload));
+    return thisWindow().listen<string[]>("open-paths", (e) => cb(e.payload));
   },
 
   async onFileDrop(cb) {

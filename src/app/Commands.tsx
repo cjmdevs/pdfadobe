@@ -16,6 +16,7 @@ import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { Guard } from "../ui/Guard";
 import { matchShortcut, type Command } from "./shortcuts";
 import { useNav } from "./useNav";
+import { platform } from "../platform";
 import { useWorkbench } from "./workbench";
 import { ACTUAL_SIZE_SCALE } from "./zoom";
 
@@ -81,6 +82,11 @@ export function Commands() {
         return true;
       case "closeAll":
         wb.closeAll();
+        return true;
+      case "quit":
+        // Browser build: one window, nothing to exit.
+        if (!platform.windows) return false;
+        void wb.quit();
         return true;
       case "nextTab":
       case "prevTab": {

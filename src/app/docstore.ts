@@ -60,6 +60,7 @@ interface Entry {
   name: string;
   path: string | null;
   signatureAccepted: boolean;
+  window: string;
 }
 
 /** In-memory store for the browser platform and unit tests (single window). */
@@ -84,7 +85,7 @@ export class MemoryDocStore implements DocStore {
       dirty: h.dirty,
       trimmed: h.trimmed,
       signatureAccepted: e.signatureAccepted,
-      window: "main",
+      window: e.window,
     };
   }
 
@@ -94,6 +95,7 @@ export class MemoryDocStore implements DocStore {
       name: init.name,
       path: init.path,
       signatureAccepted: false,
+      window: "main",
     };
     this.docs.set(id, e);
     return this.infoOf(id, e);
@@ -145,6 +147,11 @@ export class MemoryDocStore implements DocStore {
     const e = this.get(id);
     e.history.trimmed = false;
     return this.infoOf(id, e);
+  }
+
+  /** The browser's stand-in for other windows (e2e) moves documents with this. */
+  setWindow(id: string, window: string) {
+    this.get(id).window = window;
   }
 
   async release(id: string) {

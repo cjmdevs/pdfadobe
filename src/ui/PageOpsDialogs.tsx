@@ -11,6 +11,7 @@ import {
   titleFromFileName,
   type SplitResult,
 } from "../engine/pages";
+import type { DocInfo } from "../app/docstore";
 import { pageOp } from "../app/pages";
 import { usePageActions } from "../app/pageActions";
 import { useWorkbench, type ConfirmRequest, type PageOpDialog } from "../app/workbench";
@@ -965,15 +966,16 @@ export function UnsavedDialog({
   onClose,
 }: {
   documentIds: string[];
-  then: "close" | "closeAll";
+  then: "close" | "closeAll" | "closeWindow";
   onClose: () => void;
 }) {
   const wb = useWorkbench();
   const names = documentIds.map((id) => wb.meta[id]?.name ?? "Untitled");
   const finish = () => {
     onClose();
-    if (then === "closeAll") wb.forceClose(Object.keys(wb.meta));
-    else wb.forceClose(documentIds);
+    if (then === "close") wb.forceClose(documentIds);
+    else wb.forceClose(Object.keys(wb.meta));
+    if (then === "closeWindow") void platform.windows?.closeWindow();
   };
   return (
     <FormModal
@@ -999,6 +1001,38 @@ export function UnsavedDialog({
       <div className="button-row inline">
         <button type="button" className="danger" onClick={finish}>
           Don’t save
+        </button>
+      </div>
+    </FormModal>
+  );
+}
+
+/** Ctrl+Q with unsaved documents: one prompt for every window (backlog B1). */
+export function QuitDialog({ docs, onClose }: { docs: DocInfo[]; onClose: () => void }) {
+  const wb = useWorkbench();
+  return (
+    <FormModal
+      title="Unsaved changes"
+      submit={docs.length === 1 ? "Save and quit" : "Save all and quit"}
+      onClose={onClose}
+      onSubmit={async () => {
+        await wb.finishQuit(docs, true);
+        onClose();
+      }}
+    >
+      <p>
+        {docs.length === 1
+          ? "This document has unsaved changes:"
+          : `${docs.length} documents have unsaved changes:`}
+      </p>
+      <ul className="file-list" data-testid="quit-list">
+        {docs.map((d) => (
+          <li key={d.id}>{d.path ?? d.name}</li>
+        ))}
+      </ul>
+      <div className="button-row inline">
+        <button type="button" className="danger" onClick={() => void wb.finishQuit(docs, false)}>
+          Quit without saving
         </button>
       </div>
     </FormModal>
