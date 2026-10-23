@@ -4,6 +4,7 @@
 // it 404s ("not found"); Playwright intercepts it with page.route() to stand in for the
 // Windows file system, including locked files and network shares (see tests/e2e/fixtures.ts).
 // The response's `x-mockfs-error` header carries a FileErrorKind for simulated failures.
+import { MemoryDocStore } from "../app/docstore";
 import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
 import { QpdfError } from "../engine/pages/qpdf";
 import {
@@ -100,6 +101,7 @@ export const browserPlatform: Platform = {
     return res.text();
   },
 
+  docs: new MemoryDocStore(),
   qpdf: {
     // Playwright runs qpdf for /__qpdf (tests/e2e/fixtures.ts). Plain `npm run dev` has no
     // qpdf: page operations need the Windows app.

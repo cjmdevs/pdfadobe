@@ -4,6 +4,7 @@
 //   test-only mock file system served at /__mockfs/ that Playwright intercepts).
 
 import type { Qpdf } from "../engine/pages/qpdf";
+import type { DocStore } from "../app/docstore";
 
 /** Where an open document came from. Only `path` sources go in Recent Files. */
 export type FileSource = { kind: "path"; path: string } | { kind: "memory"; name: string };
@@ -79,6 +80,8 @@ export interface Platform {
   writeNewFile(folder: string, name: string, bytes: Uint8Array): Promise<string>;
   /** qpdf for page operations (src/engine/pages). */
   qpdf: Qpdf;
+  /** Per-document state shared by all windows (backlog B1). */
+  docs: DocStore;
   /** qpdf-repair `source` into `target` (never the same file). */
   repair(source: string, target: string): Promise<{ hadWarnings: boolean }>;
   /** Native print. Throws PlatformError("unsupported") when only WebView print exists. */

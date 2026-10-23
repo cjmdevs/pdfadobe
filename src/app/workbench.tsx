@@ -1,7 +1,8 @@
 // App state that sits above the EmbedPDF plugins: which file each tab came from,
 // settings persistence, dialogs, toasts, and the open / close / repair / print flows.
-// Page operations (Phase 2): every edit produces new PDF bytes, recorded in the tab's
-// EditHistory (undo/redo) and shown by reopening the tab's document from those bytes.
+// Page operations (Phase 2): every edit produces new PDF bytes, recorded in the document
+// store (platform.docs: undo/redo, unsaved flag, path; shared by all windows, backlog B1)
+// and shown by reopening the tab's document from those bytes.
 
 import {
   createContext,
@@ -27,10 +28,12 @@ import {
   type FileSource,
   type OpenedFile,
 } from "../platform";
-import { EditHistory } from "./history";
+import type { DocInfo } from "./docstore";
 import { addRecent, removeRecent, samePath, type Settings } from "./settings";
 
 export interface DocMeta {
+  /** Id in the document store (platform.docs); the same across edits and windows. */
+  storeId: string;
   source: FileSource;
   name: string;
   fileSize: number;
@@ -219,13 +222,31 @@ export function WorkbenchProvider({
       ),
     [],
   );
-  // Edit history per tab, keyed by the EmbedPDF document id (moved when a tab reloads).
-  const histories = useRef(new Map<string, EditHistory>());
+  // Per document (store id): the bytes this window shows, and a mirror of the store's
+  // state for rendering (undo labels, unsaved flag). The store has the full history.
+  const current = useRef(new Map<string, Uint8Array>());
+  const [infos, setInfos] = useState<Record<string, DocInfo>>({});
+  const infosRef = useRef(infos);
+  const setInfo = useCallback((info: DocInfo) => {
+    infosRef.current = { ...infosRef.current, [info.id]: info };
+    setInfos(infosRef.current);
+  }, []);
+  // Store calls for one document run in order (creating it may still be in flight).
+  const storeQueue = useRef(new Map<string, Promise<unknown>>());
+  const queued = useCallback(<T,>(sid: string, fn: () => Promise<T>): Promise<T> => {
+    const prev = storeQueue.current.get(sid) ?? Promise.resolve();
+    const next = prev.then(fn, fn);
+    storeQueue.current.set(
+      sid,
+      next.catch(() => undefined),
+    );
+    return next;
+  }, []);
+  // Documents already checked for digital signatures (none found) in this window.
+  const unsigned = useRef(new Set<string>());
   const restorePages = useRef(new Map<string, number>());
   // Paths opened from disk whose .bak may be discarded once they load.
   const pendingBackups = useRef(new Map<string, string>());
-  const [, setHistoryTick] = useState(0);
-  const historyChanged = useCallback(() => setHistoryTick((t) => t + 1), []);
   const { provides: docs } = useDocumentManagerCapability();
   const { provides: printer } = usePrintCapability();
   const core = useCoreState();
@@ -272,7 +293,9 @@ export function WorkbenchProvider({
         }
         const head = new Uint8Array(f.bytes, 0, Math.min(1024, f.bytes.byteLength));
         const documentId = crypto.randomUUID();
+        const storeId = crypto.randomUUID();
         const m: DocMeta = {
+          storeId,
           source: f.source,
           name: f.name,
           fileSize: f.bytes.byteLength,
@@ -284,7 +307,12 @@ export function WorkbenchProvider({
         metaRef.current = { ...metaRef.current, [documentId]: m };
         setMeta(metaRef.current);
         // A copy: the viewer's worker may take ownership of f.bytes.
-        histories.current.set(documentId, new EditHistory(new Uint8Array(f.bytes.slice(0))));
+        const copy = new Uint8Array(f.bytes.slice(0));
+        current.current.set(storeId, copy);
+        const path = f.source.kind === "path" ? f.source.path : null;
+        void queued(storeId, () =>
+          platform.docs.create(storeId, copy, { name: f.name, path, saved: true }).then(setInfo),
+        );
         if (f.source.kind === "path") pendingBackups.current.set(documentId, f.source.path);
         docs.openDocumentBuffer({
           buffer: f.bytes,
@@ -294,7 +322,7 @@ export function WorkbenchProvider({
         });
       }
     },
-    [docs],
+    [docs, queued, setInfo],
   );
 
   // Reads are async (network shares can be slow). Only the newest open request may switch
@@ -345,7 +373,6 @@ export function WorkbenchProvider({
 
   const forget = useCallback((ids: string[]) => {
     for (const id of ids) {
-      histories.current.delete(id);
       pendingBackups.current.delete(id);
       restorePages.current.delete(id);
     }
@@ -356,38 +383,60 @@ export function WorkbenchProvider({
     setMeta(rest);
   }, []);
 
+  /** Closes tabs for good: the store forgets their documents. */
   const forceClose = useCallback(
     (ids: string[]) => {
-      for (const id of ids) docs?.closeDocument(id);
+      for (const id of ids) {
+        docs?.closeDocument(id);
+        const sid = metaRef.current[id]?.storeId;
+        if (!sid) continue;
+        current.current.delete(sid);
+        unsigned.current.delete(sid);
+        void queued(sid, () => platform.docs.release(sid)).catch(() => undefined);
+      }
       forget(ids);
     },
-    [docs, forget],
+    [docs, forget, queued],
+  );
+
+  /** Store state of a tab's document (after its pending store calls). */
+  const infoOf = useCallback(
+    async (id: string): Promise<DocInfo | null> => {
+      const sid = metaRef.current[id]?.storeId;
+      if (!sid) return null;
+      await queued(sid, async () => undefined);
+      return infosRef.current[sid] ?? null;
+    },
+    [queued],
   );
 
   const closeDocument = useCallback(
     (id: string) => {
       // After any running page operation: it may make the document dirty (or replace it).
-      void settled().then(() => {
-        const current = resolveId(id);
-        if (histories.current.get(current)?.dirty) {
-          setDialog({ kind: "unsaved", documentIds: [current], then: "close" });
+      void settled().then(async () => {
+        const now = resolveId(id);
+        if ((await infoOf(now))?.dirty) {
+          setDialog({ kind: "unsaved", documentIds: [now], then: "close" });
           return;
         }
-        forceClose([current]);
+        forceClose([now]);
       });
     },
-    [forceClose, resolveId, settled],
+    [forceClose, infoOf, resolveId, settled],
   );
 
   const closeAll = useCallback(() => {
-    const dirty = Object.keys(metaRef.current).filter((id) => histories.current.get(id)?.dirty);
-    if (dirty.length) {
-      setDialog({ kind: "unsaved", documentIds: dirty, then: "closeAll" });
-      return;
-    }
-    docs?.closeAllDocuments();
-    forget(Object.keys(metaRef.current));
-  }, [docs, forget]);
+    void settled().then(async () => {
+      const ids = Object.keys(metaRef.current);
+      const dirty: string[] = [];
+      for (const id of ids) if ((await infoOf(id))?.dirty) dirty.push(id);
+      if (dirty.length) {
+        setDialog({ kind: "unsaved", documentIds: dirty, then: "closeAll" });
+        return;
+      }
+      forceClose(ids);
+    });
+  }, [forceClose, infoOf, settled]);
 
   const repairCopy = useCallback(
     async (id: string) => {
@@ -466,13 +515,10 @@ export function WorkbenchProvider({
       select: number[] | null = null,
     ): string | null => {
       const m = metaRef.current[id];
-      const h = histories.current.get(id);
-      if (!docs || !m || !h) return null;
+      if (!docs || !m) return null;
       const index = docs.getDocumentIndex(id);
       const newId = crypto.randomUUID();
       replacedBy.current.set(id, newId);
-      histories.current.set(newId, h);
-      histories.current.delete(id);
       if (page !== null) restorePages.current.set(newId, page);
       metaRef.current = {
         ...metaRef.current,
@@ -505,23 +551,25 @@ export function WorkbenchProvider({
     (id: string) => {
       const doc = core?.documents[id]?.document;
       if (doc?.isEncrypted) return null;
-      return histories.current.get(id)?.current ?? null;
+      const sid = metaRef.current[id]?.storeId;
+      return (sid && current.current.get(sid)) || null;
     },
     [core],
   );
 
-  const editState = useCallback((id: string): EditState => {
-    const h = histories.current.get(id);
-    return {
-      undoLabel: h?.undoLabel ?? null,
-      redoLabel: h?.redoLabel ?? null,
-      dirty: h?.dirty ?? false,
-    };
-  }, []);
+  const editState = useCallback(
+    (id: string): EditState => {
+      const info = infos[meta[id]?.storeId ?? ""];
+      return {
+        undoLabel: info?.undoLabel ?? null,
+        redoLabel: info?.redoLabel ?? null,
+        dirty: info?.dirty ?? false,
+      };
+    },
+    [infos, meta],
+  );
 
   // One page operation at a time: they all read the latest bytes.
-  // Tabs whose digital signatures the user agreed to invalidate (asked once per tab).
-  const signedOk = useRef(new WeakSet<EditHistory>());
   const edit = useCallback(
     (
       id: string,
@@ -534,9 +582,10 @@ export function WorkbenchProvider({
       pendingEdits.current++;
       setBusy(label);
       const run = async () => {
-        const h = histories.current.get(id);
+        const sid = metaRef.current[id]?.storeId;
+        const bytes = sid ? current.current.get(sid) : undefined;
         const doc = core?.documents[id]?.document;
-        if (!h) return false;
+        if (!sid || !bytes) return false;
         if (doc?.isEncrypted) {
           toast(
             "This document is password-protected. Page changes need an unprotected copy.",
@@ -544,7 +593,8 @@ export function WorkbenchProvider({
           );
           return false;
         }
-        if (doc && !signedOk.current.has(h)) {
+        const accepted = (await infoOf(id))?.signatureAccepted ?? false;
+        if (doc && !accepted && !unsigned.current.has(sid)) {
           const sigs = await engine
             .getSignatures(doc)
             .toPromise()
@@ -563,17 +613,19 @@ export function WorkbenchProvider({
           ) {
             return false;
           }
-          signedOk.current.add(h);
+          if (sigs.length) setInfo(await queued(sid, () => platform.docs.acceptSignature(sid)));
+          else unsigned.current.add(sid);
         }
         try {
-          const next = await fn(h.current);
-          h.push(next, label);
-          if (h.trimmed) {
+          const next = await fn(bytes);
+          let info = await queued(sid, () => platform.docs.push(sid, next, label));
+          current.current.set(sid, next);
+          if (info.trimmed) {
             toast("Undo history is full; the oldest steps for this document were dropped.");
-            h.trimmed = false;
+            info = await queued(sid, () => platform.docs.clearTrimmed(sid));
           }
+          setInfo(info);
           showRevision(id, next, opts.page ?? null, opts.select ?? null);
-          historyChanged();
           return true;
         } catch (e) {
           toast(`${label} failed: ${e instanceof Error ? e.message : String(e)}`, "error");
@@ -587,42 +639,42 @@ export function WorkbenchProvider({
       editChain.current = editChain.current.then(run, run).then(done, () => done(false));
       return editChain.current;
     },
-    [confirm, core, engine, historyChanged, showRevision, toast],
+    [confirm, core, engine, infoOf, queued, setInfo, showRevision, toast],
   );
 
-  const undo = useCallback(
-    (id: string) => {
-      const h = histories.current.get(id);
-      const label = h?.undoLabel;
-      const bytes = h?.undo();
-      if (!bytes) return;
-      showRevision(id, bytes, null);
-      historyChanged();
-      toast(`Undid: ${label}`);
+  /** Undo / redo: run after any page operation still in progress. */
+  const step = useCallback(
+    (id: string, which: "undo" | "redo") => {
+      const run = async () => {
+        const now = resolveId(id);
+        const sid = metaRef.current[now]?.storeId;
+        if (!sid) return true;
+        const before = infosRef.current[sid];
+        const label = which === "undo" ? before?.undoLabel : before?.redoLabel;
+        const r = await queued(sid, () =>
+          which === "undo" ? platform.docs.undo(sid) : platform.docs.redo(sid),
+        );
+        if (!r) return true;
+        current.current.set(sid, r.bytes);
+        setInfo(r.info);
+        showRevision(now, r.bytes, null);
+        toast(`${which === "undo" ? "Undid" : "Redid"}: ${label}`);
+        return true;
+      };
+      editChain.current = editChain.current.then(run, run).catch(() => true);
     },
-    [historyChanged, showRevision, toast],
+    [queued, resolveId, setInfo, showRevision, toast],
   );
-
-  const redo = useCallback(
-    (id: string) => {
-      const h = histories.current.get(id);
-      const label = h?.redoLabel;
-      const bytes = h?.redo();
-      if (!bytes) return;
-      showRevision(id, bytes, null);
-      historyChanged();
-      toast(`Redid: ${label}`);
-    },
-    [historyChanged, showRevision, toast],
-  );
+  const undo = useCallback((id: string) => step(id, "undo"), [step]);
+  const redo = useCallback((id: string) => step(id, "redo"), [step]);
 
   const saveAs = useCallback(
     async (requested: string): Promise<boolean> => {
       await settled();
       const id = resolveId(requested);
       const m = metaRef.current[id];
-      const h = histories.current.get(id);
-      if (!m || !h) return false;
+      const bytes = m && current.current.get(m.storeId);
+      if (!m || !bytes) return false;
       const source = m.source.kind === "path" ? m.source.path : null;
       const target = await platform.pickSavePath(source ?? m.name);
       if (!target) return false;
@@ -631,25 +683,26 @@ export function WorkbenchProvider({
         return false;
       }
       try {
-        await platform.saveAs(target, source, h.current);
+        await platform.saveAs(target, source, bytes);
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
         toast(`Could not save: ${describeOpenError(err)}`, "error");
         return false;
       }
-      h.markSaved();
       const name = baseName(target);
+      setInfo(
+        await queued(m.storeId, () => platform.docs.markSaved(m.storeId, { path: target, name })),
+      );
       metaRef.current = {
         ...metaRef.current,
         [id]: { ...m, source: { kind: "path", path: target }, name },
       };
       setMeta(metaRef.current);
       updateSettings({ recent: addRecent(settingsRef.current.recent, target) });
-      historyChanged();
       toast(`Saved as ${name}.`);
       return true;
     },
-    [historyChanged, resolveId, settled, toast, updateSettings],
+    [queued, resolveId, setInfo, settled, toast, updateSettings],
   );
 
   const save = useCallback(
@@ -657,31 +710,32 @@ export function WorkbenchProvider({
       await settled();
       const id = resolveId(requested);
       const m = metaRef.current[id];
-      const h = histories.current.get(id);
-      if (!m || !h) return false;
+      const bytes = m && current.current.get(m.storeId);
+      if (!m || !bytes) return false;
       if (m.source.kind !== "path") return saveAs(id);
       try {
-        await platform.save(m.source.path, h.current);
+        await platform.save(m.source.path, bytes);
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
         toast(`Could not save: ${describeOpenError(err)} Try Save As.`, "error");
         return false;
       }
-      h.markSaved();
-      historyChanged();
+      setInfo(await queued(m.storeId, () => platform.docs.markSaved(m.storeId)));
       toast(`Saved ${m.name}. The previous version is kept as ${m.name}.bak until it next opens.`);
       return true;
     },
-    [historyChanged, resolveId, saveAs, settled, toast],
+    [queued, resolveId, saveAs, setInfo, settled, toast],
   );
 
   const openNew = useCallback(
     (name: string, bytes: Uint8Array) => {
       if (!docs) return;
       const documentId = crypto.randomUUID();
+      const storeId = crypto.randomUUID();
       metaRef.current = {
         ...metaRef.current,
         [documentId]: {
+          storeId,
           source: { kind: "memory", name },
           name,
           fileSize: bytes.byteLength,
@@ -692,16 +746,18 @@ export function WorkbenchProvider({
         },
       };
       setMeta(metaRef.current);
-      histories.current.set(documentId, new EditHistory(bytes, undefined, false));
+      current.current.set(storeId, bytes);
+      void queued(storeId, () =>
+        platform.docs.create(storeId, bytes, { name, path: null, saved: false }).then(setInfo),
+      );
       docs.openDocumentBuffer({
         buffer: bytes.slice().buffer,
         name,
         documentId,
         autoActivate: true,
       });
-      historyChanged();
     },
-    [docs, historyChanged],
+    [docs, queued, setInfo],
   );
 
   const setSelectedBookmark = useCallback((id: string, path: number[] | null) => {

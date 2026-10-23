@@ -6,6 +6,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
 import { QpdfError, type Qpdf } from "../engine/pages/qpdf";
+import { MemoryDocStore } from "../app/docstore";
 import {
   PlatformError,
   baseName,
@@ -114,6 +115,8 @@ export const tauriPlatform: Platform = {
     call<string>("write_new_file", bytes, headers({ "x-folder": folder, "x-name": name })),
 
   qpdf,
+  // Moves to Rust (shared by windows) in the next B1 step.
+  docs: new MemoryDocStore(),
 
   takeLaunchPaths: () => call<string[]>("take_launch_paths"),
 
