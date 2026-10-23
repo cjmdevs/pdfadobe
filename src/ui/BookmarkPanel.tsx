@@ -129,13 +129,20 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
     } else nav.goTo(page);
   };
 
-  const add = async () => {
+  /** New bookmark at the current view: "Untitled", or named after the selected text. */
+  const add = async (fromSelection: boolean) => {
     let title = "Untitled";
-    try {
-      const text = (await selection?.getSelectedText().toPromise())?.join(" ").trim();
-      if (text) title = text.replace(/\s+/g, " ").slice(0, 200);
-    } catch {
-      // no selection
+    if (fromSelection) {
+      const text = await selection
+        ?.getSelectedText()
+        .toPromise()
+        .then((t) => t.join(" ").replace(/\s+/g, " ").trim().slice(0, 200))
+        .catch(() => "");
+      if (!text) {
+        wb.toast("Select text on the page first, then choose New bookmark from selection.");
+        return;
+      }
+      title = text;
     }
     const node: PdfBookmarkObject = { title, target: currentView(), children: [] };
     // After the selected bookmark (same level), else at the end.
@@ -337,67 +344,55 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
 
   return (
     <div className="bookmarks">
+      {/* Like docs/reference/acrobat-workspace.png: options menu, delete, new bookmark,
+          new bookmark from selection. Less common actions live in the options menu. */}
       <div className="bm-tools" role="toolbar" aria-label="Bookmarks">
-        {tool(
-          "bookmarkAdd",
-          "New bookmark from current view (named after selected text)",
-          () => void add(),
-          false,
-        )}
-        {tool("rename", "Rename (F2)", () => sel && setRenaming(sel))}
-        {tool(
-          "target",
-          "Set destination to current view",
-          () =>
-            sel &&
-            save(
-              "Set bookmark destination",
-              updateAt(outline, sel, (n) => ({ ...n, target: currentView() })),
-            ),
-        )}
+        <BookmarkMenu
+          disabled={busy}
+          hasSelection={sel !== null}
+          movePages={movePages}
+          items={{
+            expand: () => setOpen(new Set(flatten(outline).map((f) => key(f.path)))),
+            collapse: () => setOpen(new Set()),
+            rename: () => sel && setRenaming(sel),
+            setDestination: () =>
+              sel &&
+              save(
+                "Set bookmark destination",
+                updateAt(outline, sel, (n) => ({ ...n, target: currentView() })),
+              ),
+            deletePages: () => sel && void withPages("delete", sel),
+            extract: () => sel && void withPages("extract", sel),
+            perPage: () => {
+              const go = () => save("Bookmark every page", perPageOutline(doc.pageCount));
+              if (!outline.length) return go();
+              void wb
+                .confirm({
+                  title: "Bookmark every page",
+                  message: "Replace all bookmarks with one bookmark per page? You can undo this.",
+                  ok: "Replace",
+                })
+                .then((yes) => yes && go());
+            },
+            toggleMovePages: () => wb.updateSettings({ bookmarkDragMovesPages: !movePages }),
+          }}
+        />
+        <span className="sep" />
         {tool("trash", "Delete bookmark (Del)", () => {
           if (!sel) return;
           setSelected(null);
           save("Delete bookmark", removeAt(outline, sel));
         })}
+        {tool("bookmarkAdd", "New bookmark (current view)", () => void add(false), false)}
         {tool(
-          "deletePages",
-          "Delete bookmark and its pages…",
-          () => sel && void withPages("delete", sel),
+          "bookmarkFromSelection",
+          "New bookmark from selected text",
+          () => void add(true),
+          false,
         )}
-        {tool(
-          "extract",
-          "Extract bookmark's pages to new file",
-          () => sel && void withPages("extract", sel),
-        )}
-        <span className="grow" />
-        <BookmarkMenu
-          disabled={busy}
-          onExpand={() => setOpen(new Set(flatten(outline).map((f) => key(f.path))))}
-          onCollapse={() => setOpen(new Set())}
-          onPerPage={() => {
-            const go = () => save("Bookmark every page", perPageOutline(doc.pageCount));
-            if (!outline.length) return go();
-            void wb
-              .confirm({
-                title: "Bookmark every page",
-                message: "Replace all bookmarks with one bookmark per page? You can undo this.",
-                ok: "Replace",
-              })
-              .then((yes) => yes && go());
-          }}
-        />
       </div>
-      <label className="bm-option small">
-        <input
-          type="checkbox"
-          checked={movePages}
-          onChange={(e) => wb.updateSettings({ bookmarkDragMovesPages: e.target.checked })}
-        />{" "}
-        Dragging a bookmark moves its pages
-      </label>
       {outline.length === 0 ? (
-        <p className="muted pad">This document has no bookmarks. Use + to add one.</p>
+        <p className="muted pad">This document has no bookmarks. Use New bookmark to add one.</p>
       ) : (
         <ul className="tree" role="tree" aria-label="Bookmarks">
           {render(outline, [], 1)}
@@ -411,22 +406,34 @@ function isUnder(path: OutlinePath, ancestor: OutlinePath): boolean {
   return path.length > ancestor.length && ancestor.every((v, i) => path[i] === v);
 }
 
+interface MenuItems {
+  expand(): void;
+  collapse(): void;
+  rename(): void;
+  setDestination(): void;
+  deletePages(): void;
+  extract(): void;
+  perPage(): void;
+  toggleMovePages(): void;
+}
+
 function BookmarkMenu({
   disabled,
-  onExpand,
-  onCollapse,
-  onPerPage,
+  hasSelection,
+  movePages,
+  items,
 }: {
   disabled: boolean;
-  onExpand: () => void;
-  onCollapse: () => void;
-  onPerPage: () => void;
+  hasSelection: boolean;
+  movePages: boolean;
+  items: MenuItems;
 }) {
   const [open, setOpen] = useState(false);
-  const item = (label: string, fn: () => void) => (
+  const item = (label: string, fn: () => void, needsSelection = false) => (
     <button
       type="button"
       role="menuitem"
+      disabled={needsSelection && !hasSelection}
       onClick={() => {
         setOpen(false);
         fn();
@@ -439,20 +446,39 @@ function BookmarkMenu({
     <div className="menu-wrap">
       <button
         type="button"
-        className="tool small"
-        aria-label="More bookmark options"
+        className="tool small menu-button"
+        aria-label="Bookmark options"
+        title="Bookmark options"
         aria-haspopup="menu"
         aria-expanded={open}
         disabled={disabled}
         onClick={() => setOpen(!open)}
       >
-        ⋯
+        <Icon name="options" size={16} />
+        <Icon name="chevronDown" size={12} />
       </button>
       {open && (
-        <div className="menu" role="menu">
-          {item("Expand all", onExpand)}
-          {item("Collapse all", onCollapse)}
-          {item("Bookmark every page", onPerPage)}
+        <div className="menu left" role="menu">
+          {item("Rename (F2)", items.rename, true)}
+          {item("Set destination to current view", items.setDestination, true)}
+          {item("Delete bookmark and its pages…", items.deletePages, true)}
+          {item("Extract bookmark's pages to new file", items.extract, true)}
+          <hr />
+          {item("Expand all", items.expand)}
+          {item("Collapse all", items.collapse)}
+          {item("Bookmark every page", items.perPage)}
+          <hr />
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={movePages}
+            onClick={() => {
+              setOpen(false);
+              items.toggleMovePages();
+            }}
+          >
+            {movePages ? "✓ " : ""}Dragging a bookmark moves its pages
+          </button>
         </div>
       )}
     </div>

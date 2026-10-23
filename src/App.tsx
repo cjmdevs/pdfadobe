@@ -33,7 +33,9 @@ import { Sidebar } from "./ui/Sidebar";
 import { StartPage, Toasts } from "./ui/StartPage";
 import { Guard } from "./ui/Guard";
 import { TabBar } from "./ui/TabBar";
-import { Toolbar } from "./ui/Toolbar";
+import { parseFirmLayout } from "./tools/registry";
+import { ToolToolbar, Toolbar } from "./ui/Toolbar";
+import { ToolsPane } from "./ui/ToolsPane";
 
 function plugins(settings: Settings) {
   const zoom =
@@ -124,6 +126,23 @@ function Shell({ ready }: { ready: boolean }) {
       // Files from "Open with" come last so they end up active.
       await wb.openPaths(launch);
       document.documentElement.dataset.appReady = "true";
+      // Firm default quick toolbar from the network share; the last copy is kept in
+      // settings for when the share is unreachable (laptop off the network).
+      const layoutPath = wb.settings.firmLayoutPath;
+      if (layoutPath) {
+        try {
+          const file = await platform.readPath(layoutPath);
+          wb.updateSettings({
+            firmLayoutCache: parseFirmLayout(new TextDecoder().decode(file.bytes)),
+          });
+        } catch {
+          wb.toast(
+            wb.settings.firmLayoutCache
+              ? "The firm toolbar layout could not be read; using the last copy."
+              : "The firm toolbar layout could not be read; using the built-in toolbar.",
+          );
+        }
+      }
     })();
   }, [ready, wb]);
 
@@ -165,8 +184,13 @@ function Shell({ ready }: { ready: boolean }) {
       <Guard resetKey={loadedId} fallback={<Toolbar documentId={null} />}>
         <Toolbar documentId={loadedId} />
       </Guard>
+      {loadedId && (
+        <Guard resetKey={loadedId}>
+          <ToolToolbar key={loadedId} documentId={loadedId} />
+        </Guard>
+      )}
       <main className="workspace">
-        {loadedId && wb.settings.sidebarOpen && (
+        {loadedId && (
           <Guard resetKey={loadedId}>
             <Sidebar key={loadedId} documentId={loadedId} />
           </Guard>
@@ -187,6 +211,11 @@ function Shell({ ready }: { ready: boolean }) {
         {loadedId && wb.searchOpen && (
           <Guard resetKey={loadedId}>
             <SearchPanel key={loadedId} documentId={loadedId} />
+          </Guard>
+        )}
+        {ready && wb.settings.toolsPaneOpen && (
+          <Guard resetKey={loadedId} fallback={<ToolsPane documentId={null} />}>
+            <ToolsPane key={loadedId ?? "none"} documentId={loadedId} />
           </Guard>
         )}
       </main>

@@ -27,6 +27,16 @@ export interface Settings {
   printAutoRotate: boolean;
   /** Bookmark panel: dragging a bookmark also moves its pages (and child bookmarks). */
   bookmarkDragMovesPages: boolean;
+  /** Right-hand Tools pane shown. */
+  toolsPaneOpen: boolean;
+  /** Show tools that are not built yet, greyed out ("Coming in Phase N"). */
+  showComingTools: boolean;
+  /** The user's own quick toolbar ("tool.action" refs); null = the firm default. */
+  quickToolbar: string[] | null;
+  /** Firm default layout file on the network share (JSON), or null. */
+  firmLayoutPath: string | null;
+  /** Last firm layout read from that file, used when the share is unreachable. */
+  firmLayoutCache: string[] | null;
 }
 
 export const MAX_RECENT = 15;
@@ -45,6 +55,11 @@ export const DEFAULT_SETTINGS: Settings = {
   printScaling: "shrinkOversized",
   printAutoRotate: true,
   bookmarkDragMovesPages: true,
+  toolsPaneOpen: true,
+  showComingTools: false,
+  quickToolbar: null,
+  firmLayoutPath: null,
+  firmLayoutCache: null,
 };
 
 const oneOf =
@@ -93,7 +108,19 @@ export function sanitizeSettings(raw: unknown): Settings {
       typeof r.bookmarkDragMovesPages === "boolean"
         ? r.bookmarkDragMovesPages
         : d.bookmarkDragMovesPages,
+    toolsPaneOpen: typeof r.toolsPaneOpen === "boolean" ? r.toolsPaneOpen : d.toolsPaneOpen,
+    showComingTools: typeof r.showComingTools === "boolean" ? r.showComingTools : d.showComingTools,
+    quickToolbar: stringList(r.quickToolbar),
+    firmLayoutPath:
+      typeof r.firmLayoutPath === "string" && r.firmLayoutPath.trim() ? r.firmLayoutPath : null,
+    firmLayoutCache: stringList(r.firmLayoutCache),
   };
+}
+
+/** A list of strings (tool action refs), or null. Unknown refs are dropped later. */
+function stringList(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  return v.filter((x): x is string => typeof x === "string").slice(0, 100);
 }
 
 /** Windows paths are case-insensitive and accept either slash. */

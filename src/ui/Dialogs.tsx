@@ -7,6 +7,7 @@ import type { PdfMetadataObject } from "@embedpdf/models";
 import { SHORTCUTS, displayKey } from "../app/shortcuts";
 import { useNav } from "../app/useNav";
 import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workbench";
+import { CustomizeDialog } from "./CustomizeDialog";
 import { CombineDialog, ConfirmDialog, PageOpDialogView, UnsavedDialog } from "./PageOpsDialogs";
 import {
   decodePermissions,
@@ -80,6 +81,8 @@ function MainDialog() {
       return <PropertiesDialog documentId={dialog.documentId} onClose={close} />;
     case "shortcuts":
       return <ShortcutsDialog onClose={close} />;
+    case "customize":
+      return <CustomizeDialog onClose={close} />;
     case "unsaved":
       return <UnsavedDialog documentIds={dialog.documentIds} then={dialog.then} onClose={close} />;
     case "pageOp":

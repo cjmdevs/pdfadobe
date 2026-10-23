@@ -38,8 +38,8 @@ export interface DocMeta {
   linearized: boolean;
   /** performance.now() when the open started; used by the perf test. */
   openStartedAt: number;
-  /** Organize view (page grid) instead of the reader. */
-  organize: boolean;
+  /** Tool whose toolbar is open for this tab (src/tools/registry.ts), e.g. "organize". */
+  activeTool: string | null;
   /** Pages selected in the Organize grid after the last edit (0-based). */
   pageSelection?: number[] | null;
   /** Selected bookmark in the editor; survives the reload after each edit. */
@@ -72,6 +72,7 @@ export type Dialog =
   | { kind: "openError"; path: string; error: PlatformError }
   | { kind: "properties"; documentId: string }
   | { kind: "shortcuts" }
+  | { kind: "customize" }
   | { kind: "unsaved"; documentIds: string[]; then: "close" | "closeAll" }
   | { kind: "pageOp"; op: PageOpDialog; documentId: string; pages: number[] }
   /** `documentId`: the open document to start the list with (owner request). */
@@ -87,7 +88,7 @@ export interface Toast {
   tone: "info" | "error";
 }
 
-interface WorkbenchApi {
+export interface WorkbenchApi {
   engine: PdfEngine;
   settings: Settings;
   updateSettings(patch: Partial<Settings>): void;
@@ -122,8 +123,10 @@ interface WorkbenchApi {
   /** Opens new, unsaved bytes in a tab (Combine result, extracted pages). */
   openNew(name: string, bytes: Uint8Array): void;
   setSelectedBookmark(id: string, path: number[] | null): void;
-  /** Switch between reader and Organize grid; `page` is shown in the new view. */
-  setOrganize(id: string, on: boolean, page?: number): void;
+  /** Open a tool's toolbar (and view) for a tab, or close it (null); `page` is shown next. */
+  setActiveTool(id: string, tool: string | null, page?: number): void;
+  /** Pages selected in the Organize grid (tool actions act on them). */
+  setPageSelection(id: string, pages: number[]): void;
   /** Close without asking about unsaved changes (after the user chose). */
   forceClose(ids: string[]): void;
   /** In-app yes/no question (rendered by Dialogs). */
@@ -276,7 +279,7 @@ export function WorkbenchProvider({
           pdfVersion: pdfHeaderVersion(head),
           linearized: isLinearized(head),
           openStartedAt: performance.now(),
-          organize: false,
+          activeTool: null,
         };
         metaRef.current = { ...metaRef.current, [documentId]: m };
         setMeta(metaRef.current);
@@ -685,7 +688,7 @@ export function WorkbenchProvider({
           pdfVersion: pdfHeaderVersion(bytes.subarray(0, 1024)),
           linearized: false,
           openStartedAt: performance.now(),
-          organize: false,
+          activeTool: null,
         },
       };
       setMeta(metaRef.current);
@@ -708,11 +711,18 @@ export function WorkbenchProvider({
     setMeta(metaRef.current);
   }, []);
 
-  const setOrganize = useCallback((id: string, on: boolean, page?: number) => {
+  const setActiveTool = useCallback((id: string, tool: string | null, page?: number) => {
     const m = metaRef.current[id];
     if (!m) return;
     if (page !== undefined) restorePages.current.set(id, page);
-    metaRef.current = { ...metaRef.current, [id]: { ...m, organize: on } };
+    metaRef.current = { ...metaRef.current, [id]: { ...m, activeTool: tool } };
+    setMeta(metaRef.current);
+  }, []);
+
+  const setPageSelection = useCallback((id: string, pages: number[]) => {
+    const m = metaRef.current[id];
+    if (!m) return;
+    metaRef.current = { ...metaRef.current, [id]: { ...m, pageSelection: pages } };
     setMeta(metaRef.current);
   }, []);
 
@@ -790,7 +800,8 @@ export function WorkbenchProvider({
       save,
       saveAs,
       openNew,
-      setOrganize,
+      setActiveTool,
+      setPageSelection,
       setSelectedBookmark,
       forceClose,
       busy,
@@ -826,7 +837,8 @@ export function WorkbenchProvider({
       save,
       saveAs,
       openNew,
-      setOrganize,
+      setActiveTool,
+      setPageSelection,
       setSelectedBookmark,
       forceClose,
       busy,

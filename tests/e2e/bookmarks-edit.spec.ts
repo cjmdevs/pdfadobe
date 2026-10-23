@@ -67,7 +67,10 @@ test.describe("bookmark editor", () => {
   });
 
   test("with page moving off, dragging only nests the bookmark", async ({ page, mockfs }) => {
-    await page.getByLabel("Dragging a bookmark moves its pages").uncheck();
+    await page.getByRole("button", { name: "Bookmark options" }).click();
+    await page
+      .getByRole("menuitemcheckbox", { name: /Dragging a bookmark moves its pages/ })
+      .click();
     // Drop "Cover" in the middle of "Part II" = as its child.
     await row(page, "Cover").dragTo(row(page, "Part II - Schedules"), {
       targetPosition: { x: 40, y: 10 },
@@ -87,7 +90,8 @@ test.describe("bookmark editor", () => {
 
   test("delete a bookmark together with its pages; undo restores", async ({ page, mockfs }) => {
     await row(page, "Part I - Sizes").getByRole("button").last().click();
-    await page.getByRole("button", { name: "Delete bookmark and its pages…" }).click();
+    await page.getByRole("button", { name: "Bookmark options" }).click();
+    await page.getByRole("menuitem", { name: "Delete bookmark and its pages…" }).click();
     const confirm = page.getByRole("dialog", { name: "Delete bookmark and pages" });
     await expect(confirm).toContainText("5 page(s) (pages 2-6)");
     await confirm.getByRole("button", { name: "Delete" }).click();
@@ -107,7 +111,8 @@ test.describe("bookmark editor", () => {
 
   test("extract a bookmark's pages to a new tab", async ({ page }) => {
     await row(page, "Part II - Schedules").getByRole("button").last().click();
-    await page.getByRole("button", { name: "Extract bookmark's pages to new file" }).click();
+    await page.getByRole("button", { name: "Bookmark options" }).click();
+    await page.getByRole("menuitem", { name: "Extract bookmark's pages to new file" }).click();
     await expect(
       page.getByRole("tab", { name: /navigation - Part II - Schedules\.pdf/ }),
     ).toBeVisible();
@@ -131,7 +136,7 @@ test.describe("bookmark editor", () => {
     await page.getByLabel("Page number").fill("5");
     await page.getByLabel("Page number").press("Enter");
     await waitForPainted(page, 4);
-    await page.getByRole("button", { name: /^New bookmark/ }).click();
+    await page.getByRole("button", { name: "New bookmark (current view)" }).click();
     await idle(page);
     await expect(row(page, "Untitled")).toHaveAttribute("data-path", "1");
 
@@ -140,13 +145,14 @@ test.describe("bookmark editor", () => {
     await page.getByLabel("Page number").fill("3");
     await page.getByLabel("Page number").press("Enter");
     await waitForPainted(page, 2);
-    await page.getByRole("button", { name: "Set destination to current view" }).click();
+    await page.getByRole("button", { name: "Bookmark options" }).click();
+    await page.getByRole("menuitem", { name: "Set destination to current view" }).click();
     await idle(page);
 
     const saved = await saveAndInspect(page, mockfs);
     expect(outlineLines(saved.outline).slice(0, 2)).toEqual(["Engagement letter@3", "Untitled@5"]);
 
-    await page.getByRole("button", { name: "More bookmark options" }).click();
+    await page.getByRole("button", { name: "Bookmark options" }).click();
     await page.getByRole("menuitem", { name: "Bookmark every page" }).click();
     await page
       .getByRole("dialog", { name: "Bookmark every page" })

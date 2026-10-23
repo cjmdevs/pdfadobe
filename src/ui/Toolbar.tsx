@@ -2,16 +2,20 @@ import { useEffect, useState } from "react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import type { Theme, ViewMode } from "../app/settings";
-import { usePageActions } from "../app/pageActions";
 import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
+import { ZOOM_PRESETS, parsePercent, percentToScale, scaleToPercent } from "../app/zoom";
 import {
-  ZOOM_PRESETS,
-  parsePercent,
-  percentToScale,
-  scaleToPercent,
-  ACTUAL_SIZE_SCALE,
-} from "../app/zoom";
+  DEFAULT_QUICK_TOOLBAR,
+  actionEnabled,
+  cleanQuickToolbar,
+  resolveAction,
+  tool,
+  type ToolAction,
+  type ToolContext,
+  type ToolDef,
+} from "../tools/registry";
+import { useDocToolContext, useNoDocToolContext } from "../tools/useToolContext";
 import { Icon, type IconName } from "./Icon";
 
 function ToolButton({
@@ -44,6 +48,11 @@ function ToolButton({
 
 const NEXT_THEME: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
 
+/**
+ * Top bar (backlog B4, docs/reference/acrobat-workspace.png): file actions, then the quick
+ * toolbar (page navigation, zoom, pinned tools), then view settings and the Tools pane
+ * toggle. One row, like the reference.
+ */
 export function Toolbar({ documentId }: { documentId: string | null }) {
   const wb = useWorkbench();
   const { settings, updateSettings } = wb;
@@ -57,11 +66,6 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
         onClick={() => documentId && void wb.save(documentId)}
       />
       <ToolButton
-        icon="combine"
-        label="Combine Files…"
-        onClick={() => wb.setDialog({ kind: "combine", documentId })}
-      />
-      <ToolButton
         icon="print"
         label="Print (Ctrl+P)"
         disabled={!documentId}
@@ -70,14 +74,6 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
           document.dispatchEvent(new CustomEvent("pdfwb:command", { detail: "print" }))
         }
       />
-      <span className="sep" />
-      <ToolButton
-        icon="sidebar"
-        label="Navigation pane (F4)"
-        pressed={settings.sidebarOpen}
-        onClick={() => updateSettings({ sidebarOpen: !settings.sidebarOpen })}
-      />
-      {documentId ? <DocTools documentId={documentId} /> : <span className="grow" />}
       <ToolButton
         icon="search"
         label="Find (Ctrl+F)"
@@ -85,6 +81,9 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
         disabled={!documentId}
         onClick={() => wb.setSearchOpen(!wb.searchOpen)}
       />
+      {documentId ? <DocTools documentId={documentId} /> : <NoDocQuickTools />}
+      <span className="grow" />
+      {documentId && <ViewSettings />}
       <ToolButton
         icon="info"
         label="Document properties (Ctrl+D)"
@@ -106,47 +105,69 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
         <Icon name="theme" />
         <span className="theme-label">{settings.theme}</span>
       </button>
+      <ToolButton
+        icon="customize"
+        label="Customize quick toolbar…"
+        onClick={() => wb.setDialog({ kind: "customize" })}
+      />
+      <ToolButton
+        icon="tools"
+        label="Tools pane"
+        pressed={settings.toolsPaneOpen}
+        onClick={() => updateSettings({ toolsPaneOpen: !settings.toolsPaneOpen })}
+      />
     </div>
   );
 }
 
-function EditTools({ documentId }: { documentId: string }) {
-  const wb = useWorkbench();
-  const nav = useNav(documentId);
-  const st = wb.editState(documentId);
-  const organize = wb.meta[documentId]?.organize ?? false;
-  const busy = wb.busy !== null;
+function ViewSettings() {
+  const { settings, updateSettings } = useWorkbench();
+  return (
+    <>
+      <label className="view-mode">
+        <span className="visually-hidden">Page display</span>
+        <select
+          aria-label="Page display"
+          value={settings.viewMode}
+          onChange={(e) => updateSettings({ viewMode: e.target.value as ViewMode })}
+        >
+          <option value="single">Single page</option>
+          <option value="continuous">Single page continuous</option>
+          <option value="twoUp">Two-up continuous</option>
+        </select>
+      </label>
+      {settings.viewMode === "twoUp" && (
+        <label className="check" title="Show cover page in two-up view">
+          <input
+            type="checkbox"
+            checked={settings.coverPage}
+            onChange={(e) => updateSettings({ coverPage: e.target.checked })}
+          />
+          Cover page
+        </label>
+      )}
+    </>
+  );
+}
+
+function NoDocQuickTools() {
+  const ctx = useNoDocToolContext();
   return (
     <>
       <span className="sep" />
-      <ToolButton
-        icon="undo"
-        label={st.undoLabel ? `Undo ${st.undoLabel} (Ctrl+Z)` : "Undo (Ctrl+Z)"}
-        disabled={!st.undoLabel || busy}
-        onClick={() => wb.undo(documentId)}
-      />
-      <ToolButton
-        icon="redo"
-        label={st.redoLabel ? `Redo ${st.redoLabel} (Ctrl+Y)` : "Redo (Ctrl+Y)"}
-        disabled={!st.redoLabel || busy}
-        onClick={() => wb.redo(documentId)}
-      />
-      <ToolButton
-        icon="organize"
-        label="Organize pages"
-        pressed={organize}
-        onClick={() => wb.setOrganize(documentId, !organize, nav.page)}
-      />
+      <QuickTools ctx={ctx} />
     </>
   );
 }
 
 function DocTools({ documentId }: { documentId: string }) {
-  const { settings, updateSettings, meta } = useWorkbench();
+  const { settings, updateSettings } = useWorkbench();
+  const wb = useWorkbench();
   const nav = useNav(documentId);
   const { state: zoom, provides: zoomer } = useZoom(documentId);
-  const actions = usePageActions(documentId);
-  const busy = useWorkbench().busy !== null;
+  const ctx = useDocToolContext(documentId);
+  const st = wb.editState(documentId);
+  const busy = wb.busy !== null;
 
   // Remember the last zoom (a fit mode or a number) for the next document / session.
   useEffect(() => {
@@ -162,10 +183,20 @@ function DocTools({ documentId }: { documentId: string }) {
     if (value !== null && value !== settings.zoom) updateSettings({ zoom: value });
   }, [zoom.zoomLevel, settings.zoom, updateSettings]);
 
-  if (meta[documentId]?.organize) return <EditTools documentId={documentId} />;
   return (
     <>
-      <EditTools documentId={documentId} />
+      <ToolButton
+        icon="undo"
+        label={st.undoLabel ? `Undo ${st.undoLabel} (Ctrl+Z)` : "Undo (Ctrl+Z)"}
+        disabled={!st.undoLabel || busy}
+        onClick={() => wb.undo(documentId)}
+      />
+      <ToolButton
+        icon="redo"
+        label={st.redoLabel ? `Redo ${st.redoLabel} (Ctrl+Y)` : "Redo (Ctrl+Y)"}
+        disabled={!st.redoLabel || busy}
+        onClick={() => wb.redo(documentId)}
+      />
       <span className="sep" />
       <ToolButton
         icon="first"
@@ -196,63 +227,98 @@ function DocTools({ documentId }: { documentId: string }) {
       <ToolButton icon="zoomOut" label="Zoom out (Ctrl+-)" onClick={() => zoomer?.zoomOut()} />
       <ZoomBox scale={zoom.currentZoomLevel} onZoom={(s) => zoomer?.requestZoom(s)} />
       <ToolButton icon="zoomIn" label="Zoom in (Ctrl+=)" onClick={() => zoomer?.zoomIn()} />
-      <ToolButton
-        icon="fitPage"
-        label="Fit page (Ctrl+0)"
-        pressed={zoom.zoomLevel === ZoomMode.FitPage}
-        onClick={() => zoomer?.requestZoom(ZoomMode.FitPage)}
-      />
-      <ToolButton
-        icon="fitWidth"
-        label="Fit width (Ctrl+2)"
-        pressed={zoom.zoomLevel === ZoomMode.FitWidth}
-        onClick={() => zoomer?.requestZoom(ZoomMode.FitWidth)}
-      />
-      <ToolButton
-        icon="actual"
-        label="Actual size (Ctrl+1)"
-        onClick={() => zoomer?.requestZoom(ACTUAL_SIZE_SCALE)}
-      />
       <span className="sep" />
-      {/* Rotates the page and saves with the file (undoable). Turning only the display
-          is Acrobat's View > Rotate View: Ctrl+Shift+Plus / Minus. */}
-      <ToolButton
-        icon="rotateCcw"
-        label={`Rotate page ${nav.page + 1} left`}
-        disabled={busy}
-        onClick={() => void actions.rotate([nav.page], 3)}
-      />
-      <ToolButton
-        icon="rotateCw"
-        label={`Rotate page ${nav.page + 1} right`}
-        disabled={busy}
-        onClick={() => void actions.rotate([nav.page], 1)}
-      />
-      <span className="sep" />
-      <label className="view-mode">
-        <span className="visually-hidden">Page display</span>
-        <select
-          aria-label="Page display"
-          value={settings.viewMode}
-          onChange={(e) => updateSettings({ viewMode: e.target.value as ViewMode })}
-        >
-          <option value="single">Single page</option>
-          <option value="continuous">Single page continuous</option>
-          <option value="twoUp">Two-up continuous</option>
-        </select>
-      </label>
-      {settings.viewMode === "twoUp" && (
-        <label className="check" title="Show cover page in two-up view">
-          <input
-            type="checkbox"
-            checked={settings.coverPage}
-            onChange={(e) => updateSettings({ coverPage: e.target.checked })}
-          />
-          Cover page
-        </label>
-      )}
-      <span className="grow" />
+      <QuickTools ctx={ctx} />
     </>
+  );
+}
+
+/** The pinned tools: the user's list, else the firm default, else the built-in one. */
+export function quickToolbarRefs(settings: {
+  quickToolbar: string[] | null;
+  firmLayoutCache: string[] | null;
+}): string[] {
+  return (
+    cleanQuickToolbar(settings.quickToolbar) ??
+    cleanQuickToolbar(settings.firmLayoutCache) ??
+    DEFAULT_QUICK_TOOLBAR
+  );
+}
+
+function QuickTools({ ctx }: { ctx: ToolContext }) {
+  const { settings } = useWorkbench();
+  return (
+    <span className="quick-tools" role="group" aria-label="Quick tools">
+      {quickToolbarRefs(settings).map((ref) => {
+        const hit = resolveAction(ref);
+        if (!hit) return null;
+        return <QuickAction key={ref} tool={hit.tool} action={hit.action} ctx={ctx} />;
+      })}
+    </span>
+  );
+}
+
+/** Quick-toolbar button: names what it acts on ("Rotate left: page 2"). */
+function QuickAction({
+  tool,
+  action,
+  ctx,
+}: {
+  tool: ToolDef;
+  action: ToolAction;
+  ctx: ToolContext;
+}) {
+  const target =
+    tool.id === "view" || ctx.documentId === null
+      ? ""
+      : ctx.pages.length === 1
+        ? `: page ${(ctx.pages[0] ?? 0) + 1}`
+        : `: ${ctx.pages.length} selected pages`;
+  return (
+    <ToolButton
+      icon={action.icon}
+      label={`${action.label}${target}`}
+      disabled={!actionEnabled(tool, action, ctx)}
+      onClick={() => action.run(ctx)}
+      {...(action.pressed ? { pressed: action.pressed(ctx) } : {})}
+    />
+  );
+}
+
+/** The open tool's own toolbar, above the page (e.g. Organize Pages). */
+export function ToolToolbar({ documentId }: { documentId: string }) {
+  const wb = useWorkbench();
+  const ctx = useDocToolContext(documentId);
+  const t = tool(wb.meta[documentId]?.activeTool ?? "");
+  if (!t || t.open !== "toolbar") return null;
+  return (
+    <div className="tool-toolbar" role="toolbar" aria-label={t.name} data-testid="tool-toolbar">
+      <span className="tool-title">
+        <span className="tool-icon" style={{ color: t.color }}>
+          <Icon name={t.icon} />
+        </span>
+        {t.name}
+      </span>
+      <span className="sep" />
+      {t.toolbar.map((a) => (
+        <button
+          key={a.id}
+          type="button"
+          className="tool labeled"
+          aria-label={a.label}
+          title={a.label}
+          disabled={!actionEnabled(t, a, ctx)}
+          onClick={() => a.run(ctx)}
+        >
+          <Icon name={a.icon} />
+          <span aria-hidden="true">{a.caption ?? a.label}</span>
+        </button>
+      ))}
+      <span className="grow" />
+      <button type="button" onClick={() => wb.setActiveTool(documentId, null, ctx.pages[0])}>
+        Close {t.name}
+      </button>
+    </div>
   );
 }
 

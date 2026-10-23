@@ -1,4 +1,6 @@
-// Left navigation pane: page thumbnails, bookmarks (outline), attachments.
+// Left side (backlog B4): an icon rail (Pages, Bookmarks, Attachments) and the panel it
+// opens, with a title and a close button, like docs/reference/acrobat-workspace.png.
+// F4 shows/hides the panel; clicking the open panel's icon closes it.
 import { useEffect, useState } from "react";
 import { useAttachmentCapability } from "@embedpdf/plugin-attachment/react";
 import { ThumbImg, ThumbnailsPane } from "@embedpdf/plugin-thumbnail/react";
@@ -9,42 +11,63 @@ import { useWorkbench } from "../app/workbench";
 import { formatFileSize } from "../engine/properties";
 import { platform } from "../platform";
 import { BookmarkPanel } from "./BookmarkPanel";
+import { Icon, type IconName } from "./Icon";
 
-const TABS: { id: SidebarTab; label: string }[] = [
-  { id: "thumbnails", label: "Pages" },
-  { id: "outline", label: "Bookmarks" },
-  { id: "attachments", label: "Attachments" },
+const TABS: { id: SidebarTab; label: string; icon: IconName }[] = [
+  { id: "thumbnails", label: "Pages", icon: "pages" },
+  { id: "outline", label: "Bookmarks", icon: "bookmark" },
+  { id: "attachments", label: "Attachments", icon: "paperclip" },
 ];
 
 export function Sidebar({ documentId }: { documentId: string }) {
   const { settings, updateSettings } = useWorkbench();
   const tab = settings.sidebarTab;
+  const open = settings.sidebarOpen;
+  const current = TABS.find((t) => t.id === tab);
   return (
-    <aside className="sidebar" aria-label="Navigation pane" id="nav-pane">
-      <div className="sidebar-tabs" role="tablist">
+    <div className="left-dock" id="nav-pane">
+      <div className="rail" role="tablist" aria-orientation="vertical" aria-label="Navigation rail">
         {TABS.map((t) => (
           <button
             key={t.id}
             type="button"
             role="tab"
-            aria-selected={tab === t.id}
-            className={tab === t.id ? "active" : ""}
-            onClick={() => updateSettings({ sidebarTab: t.id })}
+            aria-label={t.label}
+            title={t.label}
+            aria-selected={open && tab === t.id}
+            className={open && tab === t.id ? "active" : ""}
+            onClick={() =>
+              open && tab === t.id
+                ? updateSettings({ sidebarOpen: false })
+                : updateSettings({ sidebarTab: t.id, sidebarOpen: true })
+            }
           >
-            {t.label}
+            <Icon name={t.icon} />
           </button>
         ))}
       </div>
-      <div
-        className="sidebar-body"
-        role="tabpanel"
-        aria-label={TABS.find((t) => t.id === tab)?.label}
-      >
-        {tab === "thumbnails" && <Thumbnails documentId={documentId} />}
-        {tab === "outline" && <BookmarkPanel documentId={documentId} />}
-        {tab === "attachments" && <Attachments documentId={documentId} />}
-      </div>
-    </aside>
+      {open && (
+        <aside className="sidebar" aria-label="Navigation pane">
+          <header className="panel-head">
+            <h2>{current?.label}</h2>
+            <button
+              type="button"
+              className="tool small"
+              aria-label="Close pane (F4)"
+              title="Close pane (F4)"
+              onClick={() => updateSettings({ sidebarOpen: false })}
+            >
+              <Icon name="close" size={16} />
+            </button>
+          </header>
+          <div className="sidebar-body" role="tabpanel" aria-label={current?.label}>
+            {tab === "thumbnails" && <Thumbnails documentId={documentId} />}
+            {tab === "outline" && <BookmarkPanel documentId={documentId} />}
+            {tab === "attachments" && <Attachments documentId={documentId} />}
+          </div>
+        </aside>
+      )}
+    </div>
   );
 }
 

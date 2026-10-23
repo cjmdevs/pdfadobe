@@ -21,6 +21,7 @@ import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { PdfErrorCode } from "@embedpdf/models";
 import { useWorkbench } from "../app/workbench";
+import { tool } from "../tools/registry";
 import { OrganizeView } from "./OrganizeView";
 
 export function DocumentView({ documentId }: { documentId: string }) {
@@ -44,7 +45,7 @@ export function DocumentView({ documentId }: { documentId: string }) {
 /** Reader or Organize Pages grid, per tab. */
 function Loaded({ documentId }: { documentId: string }) {
   const { meta } = useWorkbench();
-  return meta[documentId]?.organize ? (
+  return tool(meta[documentId]?.activeTool ?? "")?.view === "pages" ? (
     <OrganizeView documentId={documentId} />
   ) : (
     <Viewer documentId={documentId} />

@@ -93,6 +93,32 @@ Deviations from spec, and why:
 - Open: spec now asks for Organize Pages "from the Tools pane (backlog B4)"; no B4
   exists in the repo yet. Test guide: `docs/testing/phase-02-test-guide.md`.
 
+## Backlog B4: Acrobat-style workspace (2026-10-23)
+
+Layout per `docs/reference/` (owner screenshots; the client document was blanked out
+before committing): one top row (Open, Save, Print, Find, Undo/Redo, page navigation,
+zoom, pinned quick tools; view settings, Customize and Tools-pane toggle on the right),
+the open tool's toolbar above the page, a left icon rail (Pages, Bookmarks, Attachments)
+with a titled, closable panel, and a right Tools pane with search.
+
+- `src/tools/registry.ts`: every tool declares id, name, icon, colour, `comingIn` (null =
+  built, a phase number, or "later"), what opening does (toolbar or run, e.g. Combine),
+  an optional document view ("pages" = Organize grid), and its toolbar actions. The
+  shell only reads it. Unbuilt tools are hidden; "Show tools that are coming later"
+  shows them greyed ("Coming in a later phase": the owner has not given phase numbers).
+- Quick toolbar: any built action, as "tool.action" refs; Customize dialog adds,
+  removes, drags to reorder. Saved per user (`settings.quickToolbar`); `null` follows
+  the firm default, read at start from `settings.firmLayoutPath` (JSON `{version:1,
+quickToolbar}` on the share) with the last copy cached for offline use.
+- Icons: Fluent UI System Icons via `@fluentui/svg-icons` 1.1.344 (MIT, Microsoft), raw
+  SVG bundled at build time; nothing from Adobe. Tool names are generic ("Workpaper
+  Tools", not "PDFlyer", which is CCH's name).
+- Deviation: the spec says "quick toolbar under" the top bar; the reference screenshot has
+  one row, which is what was built. Organize's selection and the open tool now live in
+  the tab's state (`DocMeta.activeTool`, `pageSelection`). Delete from the quick toolbar
+  asks first; inside Organize it does not (pages picked explicitly, Ctrl+Z undoes).
+- Tests: `src/tools/registry.test.ts`, `tests/e2e/workspace.spec.ts` (7).
+
 ## Manual Windows check (owner, Phase 2)
 
 Synthetic files only (copies of `tests/corpus/generated`, `tests/corpus/fixtures`).

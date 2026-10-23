@@ -17,6 +17,10 @@ import {
   type Page,
 } from "./fixtures";
 
+/** A button in the open tool's toolbar (above the page). */
+const tb = (page: Page, name: string) =>
+  page.getByTestId("tool-toolbar").getByRole("button", { name, exact: true });
+
 const grid = (page: Page) => page.getByTestId("grid-page");
 const activeTab = (page: Page) =>
   page.getByRole("tablist", { name: "Open documents" }).getByRole("tab", { selected: true });
@@ -26,7 +30,7 @@ const ids = (texts: string[]) =>
 async function openOrganize(page: Page, path: string) {
   await openPaths(page, [path]);
   await waitForPainted(page, 0);
-  await page.getByRole("button", { name: "Organize pages" }).click();
+  await page.getByRole("button", { name: "Organize Pages", exact: true }).click();
   await expect(page.getByTestId("organize")).toBeVisible();
 }
 
@@ -42,7 +46,7 @@ test.describe("organize pages", () => {
     await openOrganize(page, P.wpA);
     await expect(grid(page)).toHaveCount(3);
     await grid(page).nth(2).click();
-    await page.getByRole("button", { name: "Rotate right" }).click();
+    await tb(page, "Rotate right").click();
     await idle(page);
     await expect(activeTab(page)).toContainText("•");
     await expect(page.getByRole("button", { name: "Undo Rotate right (Ctrl+Z)" })).toBeEnabled();
@@ -103,12 +107,12 @@ test.describe("organize pages", () => {
   test("duplicate, extract to a new tab, insert a blank page", async ({ page, mockfs }) => {
     await openOrganize(page, P.wpA);
     await grid(page).nth(1).click();
-    await page.getByRole("button", { name: "Duplicate" }).click();
+    await tb(page, "Duplicate pages").click();
     await idle(page);
     await expect(grid(page)).toHaveCount(4);
 
     await grid(page).nth(0).click();
-    await page.getByRole("button", { name: "Extract to new file" }).click();
+    await tb(page, "Extract to new file").click();
     await expect(page.getByRole("tab", { name: /workpaper-a \(pages 1\)\.pdf/ })).toBeVisible();
     await expect(activeTab(page)).toContainText("•");
     await queueChoices(page, { savePaths: ["C:\\Out\\extracted.pdf"] });
@@ -121,7 +125,7 @@ test.describe("organize pages", () => {
     // Back on the original tab, which stays in Organize view.
     await page.getByRole("tab", { name: /workpaper-a\.pdf/ }).click();
     await expect(page.getByTestId("organize")).toBeVisible();
-    await page.getByRole("button", { name: "Insert blank page…" }).click();
+    await tb(page, "Insert blank page…").click();
     const dlg = page.getByRole("dialog", { name: "Insert blank pages" });
     await dlg.getByLabel("Location").selectOption("first");
     await dlg.getByLabel("Number of pages").fill("2");
@@ -136,7 +140,7 @@ test.describe("organize pages", () => {
   }) => {
     await openOrganize(page, P.wpA);
     await grid(page).nth(0).click();
-    await page.getByRole("button", { name: "Insert from file…" }).click();
+    await tb(page, "Insert pages from a file…").click();
     const dlg = page.getByRole("dialog", { name: "Insert pages" });
     const chooser = page.waitForEvent("filechooser");
     await dlg.getByRole("button", { name: "Choose file…" }).click();
@@ -147,7 +151,7 @@ test.describe("organize pages", () => {
     await idle(page);
     await expect(grid(page)).toHaveCount(4);
 
-    await page.getByRole("button", { name: "Insert from file…" }).click();
+    await tb(page, "Insert pages from a file…").click();
     const dlg2 = page.getByRole("dialog", { name: "Insert pages" });
     const chooser2 = page.waitForEvent("filechooser");
     await dlg2.getByRole("button", { name: "Choose file…" }).click();
@@ -175,7 +179,7 @@ test.describe("organize pages", () => {
     mockfs,
   }) => {
     await openOrganize(page, P.wpA);
-    await page.getByRole("button", { name: "Crop pages…" }).click();
+    await tb(page, "Crop pages…").click();
     const crop = page.getByRole("dialog", { name: "Crop pages" });
     await crop.getByLabel("Top margin").fill("1");
     await crop.getByLabel("Left margin").fill("0.5");
@@ -184,7 +188,7 @@ test.describe("organize pages", () => {
     await idle(page);
 
     await grid(page).nth(0).click();
-    await page.getByRole("button", { name: "Page size…" }).click();
+    await tb(page, "Page size…").click();
     const size = page.getByRole("dialog", { name: "Set page size" });
     await size.getByLabel("Page size").selectOption("legal");
     await expect(size.getByRole("radio", { name: /This page \(1\)/ })).toBeChecked();
@@ -192,7 +196,7 @@ test.describe("organize pages", () => {
     await idle(page);
 
     await grid(page).nth(1).click();
-    await page.getByRole("button", { name: "Replace pages…" }).click();
+    await tb(page, "Replace pages…").click();
     const rep = page.getByRole("dialog", { name: "Replace pages" });
     await expect(rep.getByLabel("Pages to replace")).toHaveValue("2");
     const chooser = page.waitForEvent("filechooser");
@@ -220,16 +224,16 @@ test.describe("organize pages", () => {
   test("changing pages of a signed PDF asks first (signature would break)", async ({ page }) => {
     await openOrganize(page, P.signed);
     await grid(page).nth(0).click();
-    await page.getByRole("button", { name: "Rotate right" }).click();
+    await tb(page, "Rotate right").click();
     const ask = page.getByRole("dialog", { name: "Digitally signed document" });
     await expect(ask).toContainText("digitally signed (1 signature)");
     await ask.getByRole("button", { name: "Cancel" }).click();
     await expect(page.getByRole("button", { name: "Undo (Ctrl+Z)" })).toBeDisabled();
     // Agreeing once covers the rest of the session for this tab.
-    await page.getByRole("button", { name: "Rotate right" }).click();
+    await tb(page, "Rotate right").click();
     await ask.getByRole("button", { name: "Change anyway" }).click();
     await idle(page);
-    await page.getByRole("button", { name: "Rotate left" }).click();
+    await tb(page, "Rotate left").click();
     await idle(page);
     await expect(ask).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Undo Rotate left (Ctrl+Z)" })).toBeEnabled();
@@ -244,11 +248,11 @@ test.describe("organize pages", () => {
     await waitForPainted(page, 0);
     await page.getByLabel("Page number").fill("2");
     await page.getByLabel("Page number").press("Enter");
-    await page.getByRole("button", { name: "Rotate page 2 right" }).click();
+    await page.getByRole("button", { name: "Rotate right: page 2" }).click();
     await idle(page);
-    await page.getByRole("button", { name: "Organize pages" }).click();
+    await page.getByRole("button", { name: "Organize Pages", exact: true }).click();
     await grid(page).nth(0).click();
-    await page.getByRole("button", { name: "Delete (Del)" }).click();
+    await tb(page, "Delete pages").click();
     await idle(page);
     await page.keyboard.press("Control+s");
     await expect(activeTab(page)).not.toContainText("•");
@@ -260,7 +264,7 @@ test.describe("organize pages", () => {
   test("toolbar rotate on a signed PDF asks first", async ({ page }) => {
     await openPaths(page, [P.signed]);
     await waitForPainted(page, 0);
-    await page.getByRole("button", { name: "Rotate page 1 right" }).click();
+    await page.getByRole("button", { name: "Rotate right: page 1" }).click();
     await expect(page.getByRole("dialog", { name: "Digitally signed document" })).toBeVisible();
   });
 
@@ -273,11 +277,11 @@ test.describe("organize pages", () => {
     await grid(page)
       .nth(2)
       .click({ modifiers: ["Shift"] });
-    await page.getByRole("button", { name: "Rotate right", exact: true }).click();
+    await tb(page, "Rotate right").click();
     await idle(page);
     // The selection survives the edit.
     await expect(page.getByTestId("selection-count")).toHaveText("3 of 3 selected");
-    await page.getByRole("button", { name: "Rotate right", exact: true }).click();
+    await tb(page, "Rotate right").click();
     await idle(page);
     await page.keyboard.press("Control+s");
     await expect(activeTab(page)).not.toContainText("•");
@@ -288,7 +292,7 @@ test.describe("organize pages", () => {
   test("closing with unsaved changes asks first", async ({ page }) => {
     await openOrganize(page, P.wpA);
     await grid(page).nth(0).click();
-    await page.getByRole("button", { name: "Rotate left" }).click();
+    await tb(page, "Rotate left").click();
     await idle(page);
     await page.keyboard.press("Control+w");
     const dlg = page.getByRole("dialog", { name: "Unsaved changes" });

@@ -13,7 +13,12 @@ import {
   queueChoices,
   test,
   waitForPainted,
+  type Page,
 } from "./fixtures";
+
+/** A button in the open tool's toolbar (above the page). */
+const tb = (page: Page, name: string) =>
+  page.getByTestId("tool-toolbar").getByRole("button", { name, exact: true });
 
 const ids = (texts: string[]) =>
   texts.map((t) => /Workpaper (\w) - page (\d)/.exec(t)?.slice(1).join("") ?? "img");
@@ -24,7 +29,7 @@ test.describe("combine files", () => {
     mockfs,
   }) => {
     await boot(page);
-    await page.getByRole("button", { name: "Combine Files…" }).click();
+    await page.getByRole("button", { name: "Combine Files", exact: true }).click();
     const dlg = page.getByRole("dialog", { name: "Combine Files" });
     // The engagement folder has workpapers A, B, C and a 3-page TIFF scan (natural order).
     await queueChoices(page, { folders: [P.engagement] });
@@ -111,7 +116,7 @@ test.describe("combine files from an open document", () => {
     await boot(page);
     await openPaths(page, [P.wpB]);
     await waitForPainted(page, 0);
-    await page.getByRole("button", { name: "Combine Files…" }).click();
+    await page.getByRole("button", { name: "Combine Files", exact: true }).click();
     const dlg = page.getByRole("dialog", { name: "Combine Files" });
     const items = dlg.getByTestId("combine-item");
     await expect(items).toHaveCount(1);
@@ -140,8 +145,8 @@ test.describe("split", () => {
     mockfs.entries["C:\\Clients\\Engagement\\binder - A Cover.pdf"] = { file: "text-1p.pdf" };
     await openPaths(page, ["C:\\Clients\\Engagement\\binder.pdf"]);
     await waitForPainted(page, 0);
-    await page.getByRole("button", { name: "Organize pages" }).click();
-    await page.getByRole("button", { name: "Split document…" }).click();
+    await page.getByRole("button", { name: "Organize Pages", exact: true }).click();
+    await tb(page, "Split document…").click();
     const dlg = page.getByRole("dialog", { name: "Split document" });
     await expect(dlg.getByTestId("split-folder")).toHaveText(P.engagement);
     await dlg.getByLabel("Top-level bookmarks (named after each bookmark)").check();
@@ -170,8 +175,8 @@ test.describe("split", () => {
     await boot(page);
     await openPaths(page, [P.long200]);
     await waitForPainted(page, 0);
-    await page.getByRole("button", { name: "Organize pages" }).click();
-    await page.getByRole("button", { name: "Split document…" }).click();
+    await page.getByRole("button", { name: "Organize Pages", exact: true }).click();
+    await tb(page, "Split document…").click();
     const dlg = page.getByRole("dialog", { name: "Split document" });
     await dlg.getByRole("textbox", { name: "Pages per file" }).fill("80");
     await queueChoices(page, { folders: ["D:\\Split"] });

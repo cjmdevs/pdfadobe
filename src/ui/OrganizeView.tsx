@@ -1,12 +1,12 @@
 // Organize Pages: a grid of page thumbnails. Select with click / Ctrl+click / Shift+click /
-// Ctrl+A, drag to reorder, and run page operations on the selection. Every change is one
-// undoable step (Ctrl+Z / Ctrl+Y).
+// Ctrl+A, drag to reorder. The tool's toolbar (src/tools/registry.ts, shown by the shell)
+// acts on the selection, which lives in the tab's state (DocMeta.pageSelection). Every
+// change is one undoable step (Ctrl+Z / Ctrl+Y).
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useThumbnailCapability } from "@embedpdf/plugin-thumbnail/react";
 import { usePageActions } from "../app/pageActions";
-import { useWorkbench, type PageOpDialog } from "../app/workbench";
-import { Icon, type IconName } from "./Icon";
+import { useWorkbench } from "../app/workbench";
 import { usePointerDrag } from "./usePointerDrag";
 
 export function OrganizeView({ documentId }: { documentId: string }) {
@@ -17,16 +17,21 @@ export function OrganizeView({ documentId }: { documentId: string }) {
   // After a reload (new revision), start at the page the operation affected.
   const [restored] = useState(() => wb.restorePage(documentId));
   // The pages an edit worked on stay selected, so the next button acts on them too.
-  const [selected, setSelected] = useState<Set<number>>(() => {
-    const kept = wb.meta[documentId]?.pageSelection;
-    return new Set(kept?.length ? kept : restored === null ? [] : [restored]);
-  });
+  const stored = wb.meta[documentId]?.pageSelection;
+  const [initial] = useState(() => (stored?.length ? stored : restored === null ? [] : [restored]));
+  const selected = useMemo(() => new Set(stored ?? initial), [stored, initial]);
+  const setSelected = (next: Set<number>) =>
+    wb.setPageSelection(
+      documentId,
+      [...next].sort((a, b) => a - b),
+    );
   const [anchor, setAnchor] = useState(restored ?? 0);
   const [focus, setFocus] = useState(restored ?? 0);
   const [dropAt, setDropAt] = useState<number | null>(null);
   const grid = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!stored) wb.setPageSelection(documentId, initial);
     if (restored === null) return;
     wb.clearRestorePage(documentId);
     requestAnimationFrame(() =>
@@ -59,9 +64,6 @@ export function OrganizeView({ documentId }: { documentId: string }) {
     } else setSelected(new Set([i]));
   };
 
-  const openDialog = (op: PageOpDialog) =>
-    wb.setDialog({ kind: "pageOp", op, documentId, pages: has ? sel : [focus] });
-
   const onKey = (e: KeyboardEvent) => {
     const cols = Math.max(
       1,
@@ -85,7 +87,7 @@ export function OrganizeView({ documentId }: { documentId: string }) {
       setSelected(new Set(Array.from({ length: count }, (_, i) => i)));
     } else if (e.key === "Delete" && has && !busy) void actions.remove(sel);
     else if (e.key === "Escape" && has) setSelected(new Set());
-    else if (e.key === "Enter") wb.setOrganize(documentId, false, focus);
+    else if (e.key === "Enter") wb.setActiveTool(documentId, null, focus);
     else return;
     e.preventDefault();
     e.stopPropagation();
@@ -122,77 +124,13 @@ export function OrganizeView({ documentId }: { documentId: string }) {
   if (!doc) return null;
   return (
     <div className="organize" data-testid="organize">
-      <div className="organize-bar" role="toolbar" aria-label="Organize pages">
+      <div className="organize-status">
         <span className="muted small" data-testid="selection-count">
           {has ? `${sel.length} of ${count} selected` : `${count} pages`}
         </span>
-        <span className="sep" />
-        <Act
-          icon="rotateCcw"
-          label="Rotate left"
-          disabled={!has || busy}
-          onClick={() => void actions.rotate(sel, 3)}
-        />
-        <Act
-          icon="rotateCw"
-          label="Rotate right"
-          disabled={!has || busy}
-          onClick={() => void actions.rotate(sel, 1)}
-        />
-        <Act
-          icon="trash"
-          label="Delete (Del)"
-          disabled={!has || busy}
-          onClick={() => void actions.remove(sel)}
-        />
-        <Act
-          icon="extract"
-          label="Extract to new file"
-          disabled={!has || busy}
-          onClick={() => void actions.extract(sel)}
-        />
-        <Act
-          icon="duplicate"
-          label="Duplicate"
-          disabled={!has || busy}
-          onClick={() => void actions.duplicate(sel)}
-        />
-        <span className="sep" />
-        <Act
-          icon="blank"
-          label="Insert blank page…"
-          disabled={busy}
-          onClick={() => openDialog("blank")}
-        />
-        <Act
-          icon="insert"
-          label="Insert from file…"
-          disabled={busy}
-          onClick={() => openDialog("insert")}
-        />
-        <Act
-          icon="replace"
-          label="Replace pages…"
-          disabled={!has || busy}
-          onClick={() => openDialog("replace")}
-        />
-        <Act icon="crop" label="Crop pages…" disabled={busy} onClick={() => openDialog("crop")} />
-        <Act
-          icon="pageSize"
-          label="Page size…"
-          disabled={busy}
-          onClick={() => openDialog("pageSize")}
-        />
-        <Act
-          icon="split"
-          label="Split document…"
-          disabled={busy}
-          onClick={() => openDialog("split")}
-        />
-        <span className="grow" />
-        <button type="button" onClick={() => wb.setOrganize(documentId, false)}>
-          Close Organize
-        </button>
+        <span className="muted small">
+          Click, Ctrl+click or Shift+click to select; drag to move; Delete removes.
+        </span>
       </div>
       <div
         ref={grid}
@@ -214,7 +152,7 @@ export function OrganizeView({ documentId }: { documentId: string }) {
             className={`grid-page${selected.has(i) ? " selected" : ""}${drag.source?.includes(i) ? " dragging" : ""}${dropAt === i ? " drop-before" : ""}${dropAt === i + 1 && i === count - 1 ? " drop-after" : ""}`}
             onPointerDown={(e) => startDrag(e, i)}
             onClick={(e) => select(i, e)}
-            onDoubleClick={() => wb.setOrganize(documentId, false, i)}
+            onDoubleClick={() => wb.setActiveTool(documentId, null, i)}
           >
             <Thumb documentId={documentId} index={i} />
             <span className="grid-label">{i + 1}</span>
@@ -222,47 +160,6 @@ export function OrganizeView({ documentId }: { documentId: string }) {
         ))}
       </div>
     </div>
-  );
-}
-
-/** Short visible captions; the full label is the tooltip and accessible name. */
-const CAPTION: Record<string, string> = {
-  rotateCcw: "Rotate left",
-  rotateCw: "Rotate right",
-  trash: "Delete",
-  extract: "Extract",
-  duplicate: "Duplicate",
-  blank: "Blank page",
-  insert: "Insert",
-  replace: "Replace",
-  crop: "Crop",
-  pageSize: "Page size",
-  split: "Split",
-};
-
-function Act({
-  icon,
-  label,
-  onClick,
-  disabled,
-}: {
-  icon: IconName;
-  label: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className="tool labeled"
-      aria-label={label}
-      title={label}
-      onClick={onClick}
-      disabled={disabled}
-    >
-      <Icon name={icon} />
-      <span aria-hidden="true">{CAPTION[icon] ?? label}</span>
-    </button>
   );
 }
 
