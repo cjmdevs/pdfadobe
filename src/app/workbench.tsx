@@ -3,6 +3,9 @@
 // Page operations (Phase 2): every edit produces new PDF bytes, recorded in the document
 // store (platform.docs: undo/redo, unsaved flag, path; shared by all windows, backlog B1)
 // and shown by reopening the tab's document from those bytes.
+// Markup (Phase 3) is edited in the tab's live PDFium document with EmbedPDF's own undo
+// history; before anything that reads the store's bytes (page operation, save, moving
+// the tab) it is pushed as one "Markup" revision and that history is cleared.
 
 import {
   createContext,
@@ -18,6 +21,8 @@ import {
 import { useCoreState } from "@embedpdf/core/react";
 import { useDocumentManagerCapability } from "@embedpdf/plugin-document-manager/react";
 import { usePrintCapability } from "@embedpdf/plugin-print/react";
+import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
+import { useHistoryCapability } from "@embedpdf/plugin-history/react";
 import { PdfPermissionFlag, type PdfEngine } from "@embedpdf/models";
 import { isLinearized, pdfHeaderVersion } from "../engine/properties";
 import {
@@ -199,6 +204,9 @@ export function describeOpenError(e: PlatformError): string {
 
 let toastSeq = 0;
 
+/** EmbedPDF's history topic for annotation changes (plugin-annotation 2.15.1). */
+const MARKUP_TOPIC = "annotations";
+
 export function WorkbenchProvider({
   engine,
   initialSettings,
@@ -269,6 +277,10 @@ export function WorkbenchProvider({
   const pendingBackups = useRef(new Map<string, string>());
   const { provides: docs } = useDocumentManagerCapability();
   const { provides: printer } = usePrintCapability();
+  const { provides: annotations } = useAnnotationCapability();
+  const { provides: history } = useHistoryCapability();
+  // Markup undo/redo available per tab (EmbedPDF history topic "annotations").
+  const [markup, setMarkup] = useState<Record<string, { canUndo: boolean; canRedo: boolean }>>({});
   const core = useCoreState();
   // Latest values for async flows (open/repair/print run across awaits).
   const metaRef = useRef(meta);
@@ -277,6 +289,45 @@ export function WorkbenchProvider({
     metaRef.current = meta;
     settingsRef.current = settings;
   });
+
+  /**
+   * Pushes a tab's markup to the store as one "Markup" revision and clears the markup
+   * history (its steps now live in that revision). No-op when there is none.
+   */
+  const commitMarkup = useCallback(
+    async (id: string): Promise<void> => {
+      const sid = metaRef.current[id]?.storeId;
+      const doc = core?.documents[id]?.document;
+      const h = history?.forDocument(id);
+      if (!sid || !doc || !h) return;
+      const changed = h.canUndo(MARKUP_TOPIC);
+      if (!changed && !h.canRedo(MARKUP_TOPIC)) return;
+      if (changed) {
+        await annotations?.forDocument(id).commit().toPromise();
+        const bytes = new Uint8Array(await engine.saveAsCopy(doc).toPromise());
+        setInfo(await queued(sid, () => platform.docs.push(sid, bytes, "Markup")));
+      }
+      h.purgeByMetadata(() => true, MARKUP_TOPIC);
+      setMarkup((s) => ({ ...s, [id]: { canUndo: false, canRedo: false } }));
+      setInfo(await queued(sid, () => platform.docs.setMarkupPending(sid, false)));
+    },
+    [annotations, core, engine, history, queued, setInfo],
+  );
+
+  // Markup changes make the document unsaved (in the store too, for the quit prompt).
+  useEffect(() => {
+    if (!history) return;
+    return history.onHistoryChange(({ documentId, state }) => {
+      const t = state.topics[MARKUP_TOPIC] ?? { canUndo: false, canRedo: false };
+      setMarkup((s) => ({ ...s, [documentId]: { canUndo: t.canUndo, canRedo: t.canRedo } }));
+      const sid = metaRef.current[documentId]?.storeId;
+      const pending = t.canUndo;
+      if (!sid || (infosRef.current[sid]?.markupPending ?? false) === pending) return;
+      void queued(sid, () => platform.docs.setMarkupPending(sid, pending))
+        .then(setInfo)
+        .catch(() => undefined);
+    });
+  }, [history, queued, setInfo]);
 
   // Settings: persist every change, in order (tiny JSON; a debounce could lose the
   // last change when the window closes). Only the changed keys are written, on top of
@@ -495,6 +546,7 @@ export function WorkbenchProvider({
       const sid = metaRef.current[now]?.storeId;
       if (!sid) return;
       try {
+        await commitMarkup(now);
         await queued(sid, async () => undefined);
         if (how === "new") await wins.moveToNewWindow([sid]);
         else if (!(await wins.tabDrop([sid]))) return;
@@ -503,7 +555,7 @@ export function WorkbenchProvider({
         toast(`Could not move the tab: ${e instanceof Error ? e.message : String(e)}`, "error");
       }
     },
-    [detach, queued, resolveId, settled, toast],
+    [commitMarkup, detach, queued, resolveId, settled, toast],
   );
   const dropTabOutside = useCallback((id: string) => moveOut(id, "drop"), [moveOut]);
   const moveToNewWindow = useCallback((id: string) => moveOut(id, "new"), [moveOut]);
@@ -683,21 +735,24 @@ export function WorkbenchProvider({
       const doc = core?.documents[id]?.document;
       if (doc?.isEncrypted) return null;
       const sid = metaRef.current[id]?.storeId;
-      return sid ? storeBytes(sid).catch(() => null) : null;
+      if (!sid) return null;
+      await commitMarkup(id);
+      return storeBytes(sid).catch(() => null);
     },
-    [core, storeBytes],
+    [commitMarkup, core, storeBytes],
   );
 
   const editState = useCallback(
     (id: string): EditState => {
       const info = infos[meta[id]?.storeId ?? ""];
+      const m = markup[id];
       return {
-        undoLabel: info?.undoLabel ?? null,
-        redoLabel: info?.redoLabel ?? null,
-        dirty: info?.dirty ?? false,
+        undoLabel: m?.canUndo ? "Markup" : (info?.undoLabel ?? null),
+        redoLabel: m?.canRedo ? "Markup" : (info?.redoLabel ?? null),
+        dirty: (info?.dirty ?? false) || (m?.canUndo ?? false),
       };
     },
-    [infos, meta],
+    [infos, markup, meta],
   );
 
   // One page operation at a time: they all read the latest bytes.
@@ -747,6 +802,7 @@ export function WorkbenchProvider({
           else unsigned.current.add(sid);
         }
         try {
+          await commitMarkup(id);
           const next = await fn(await storeBytes(sid));
           let info = await queued(sid, () => platform.docs.push(sid, next, label));
           if (info.trimmed) {
@@ -768,7 +824,7 @@ export function WorkbenchProvider({
       editChain.current = editChain.current.then(run, run).then(done, () => done(false));
       return editChain.current;
     },
-    [confirm, core, engine, infoOf, queued, setInfo, showRevision, storeBytes, toast],
+    [commitMarkup, confirm, core, engine, infoOf, queued, setInfo, showRevision, storeBytes, toast],
   );
 
   /** Undo / redo: run after any page operation still in progress. */
@@ -778,6 +834,14 @@ export function WorkbenchProvider({
         const now = resolveId(id);
         const sid = metaRef.current[now]?.storeId;
         if (!sid) return true;
+        // Markup steps first (they sit on top of the store's current revision).
+        const h = history?.forDocument(now);
+        if (h && (which === "undo" ? h.canUndo(MARKUP_TOPIC) : h.canRedo(MARKUP_TOPIC))) {
+          if (which === "undo") h.undo(MARKUP_TOPIC);
+          else h.redo(MARKUP_TOPIC);
+          toast(`${which === "undo" ? "Undid" : "Redid"}: Markup`);
+          return true;
+        }
         const before = infosRef.current[sid];
         const label = which === "undo" ? before?.undoLabel : before?.redoLabel;
         const r = await queued(sid, () =>
@@ -791,7 +855,7 @@ export function WorkbenchProvider({
       };
       editChain.current = editChain.current.then(run, run).catch(() => true);
     },
-    [queued, resolveId, setInfo, showRevision, toast],
+    [history, queued, resolveId, setInfo, showRevision, toast],
   );
   const undo = useCallback((id: string) => step(id, "undo"), [step]);
   const redo = useCallback((id: string) => step(id, "redo"), [step]);
@@ -810,6 +874,7 @@ export function WorkbenchProvider({
         return false;
       }
       try {
+        await commitMarkup(id);
         await platform.saveAs(target, source, await storeBytes(m.storeId));
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
@@ -829,7 +894,7 @@ export function WorkbenchProvider({
       toast(`Saved as ${name}.`);
       return true;
     },
-    [queued, resolveId, setInfo, settled, storeBytes, toast, updateSettings],
+    [commitMarkup, queued, resolveId, setInfo, settled, storeBytes, toast, updateSettings],
   );
 
   const save = useCallback(
@@ -840,6 +905,7 @@ export function WorkbenchProvider({
       if (!m) return false;
       if (m.source.kind !== "path") return saveAs(id);
       try {
+        await commitMarkup(id);
         await platform.save(m.source.path, await storeBytes(m.storeId));
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
@@ -856,7 +922,7 @@ export function WorkbenchProvider({
       toast(`Saved ${m.name}.`);
       return true;
     },
-    [queued, resolveId, saveAs, setInfo, settled, storeBytes, toast],
+    [commitMarkup, queued, resolveId, saveAs, setInfo, settled, storeBytes, toast],
   );
 
   const openNew = useCallback(

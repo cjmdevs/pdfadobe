@@ -23,6 +23,9 @@ export interface DocInfo {
   signatureAccepted: boolean;
   /** Window showing it (the app's window label); "main" in the browser. */
   window: string;
+  /** Markup (Phase 3) is in the window's PDFium document but not pushed as a revision
+   * yet. Counts as unsaved; only that window can save it. */
+  markupPending: boolean;
 }
 
 export interface NewDoc {
@@ -44,6 +47,7 @@ export interface DocStore {
   markSaved(id: string, saved?: { path: string; name: string }): Promise<DocInfo>;
   acceptSignature(id: string): Promise<DocInfo>;
   clearTrimmed(id: string): Promise<DocInfo>;
+  setMarkupPending(id: string, pending: boolean): Promise<DocInfo>;
   /** The document's tab closed for good (not moved to another window). */
   release(id: string): Promise<void>;
   /** Unsaved documents in every window (quit prompt). */
@@ -61,6 +65,7 @@ interface Entry {
   path: string | null;
   signatureAccepted: boolean;
   window: string;
+  markupPending: boolean;
 }
 
 /** In-memory store for the browser platform and unit tests (single window). */
@@ -82,10 +87,11 @@ export class MemoryDocStore implements DocStore {
       path: e.path,
       undoLabel: h.undoLabel,
       redoLabel: h.redoLabel,
-      dirty: h.dirty,
+      dirty: h.dirty || e.markupPending,
       trimmed: h.trimmed,
       signatureAccepted: e.signatureAccepted,
       window: e.window,
+      markupPending: e.markupPending,
     };
   }
 
@@ -96,6 +102,7 @@ export class MemoryDocStore implements DocStore {
       path: init.path,
       signatureAccepted: false,
       window: "main",
+      markupPending: false,
     };
     this.docs.set(id, e);
     return this.infoOf(id, e);
@@ -149,6 +156,12 @@ export class MemoryDocStore implements DocStore {
     return this.infoOf(id, e);
   }
 
+  async setMarkupPending(id: string, pending: boolean) {
+    const e = this.get(id);
+    e.markupPending = pending;
+    return this.infoOf(id, e);
+  }
+
   /** The browser's stand-in for other windows (e2e) moves documents with this. */
   setWindow(id: string, window: string) {
     this.get(id).window = window;
@@ -159,7 +172,9 @@ export class MemoryDocStore implements DocStore {
   }
 
   async dirty() {
-    return [...this.docs].filter(([, e]) => e.history.dirty).map(([id, e]) => this.infoOf(id, e));
+    return [...this.docs]
+      .filter(([, e]) => e.history.dirty || e.markupPending)
+      .map(([id, e]) => this.infoOf(id, e));
   }
 
   async findPath(path: string) {

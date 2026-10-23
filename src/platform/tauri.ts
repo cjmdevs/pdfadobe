@@ -77,6 +77,7 @@ const docs: DocStore = {
   markSaved: (id, saved) => call<DocInfo>("doc_mark_saved", { id, saved: saved ?? null }),
   acceptSignature: (id) => call<DocInfo>("doc_accept_signature", { id }),
   clearTrimmed: (id) => call<DocInfo>("doc_clear_trimmed", { id }),
+  setMarkupPending: (id, pending) => call<DocInfo>("doc_set_markup_pending", { id, pending }),
   async release(id) {
     await call("doc_release", { id });
   },

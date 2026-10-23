@@ -3,12 +3,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPluginRegistration } from "@embedpdf/core";
 import { EmbedPDF } from "@embedpdf/core/react";
 import type { PdfEngine } from "@embedpdf/models";
+import { AnnotationPluginPackage } from "@embedpdf/plugin-annotation/react";
 import { AttachmentPluginPackage } from "@embedpdf/plugin-attachment/react";
 import { BookmarkPluginPackage } from "@embedpdf/plugin-bookmark/react";
 import {
   DocumentManagerPluginPackage,
   useActiveDocument,
 } from "@embedpdf/plugin-document-manager/react";
+import { HistoryPluginPackage } from "@embedpdf/plugin-history/react";
 import { InteractionManagerPluginPackage } from "@embedpdf/plugin-interaction-manager/react";
 import { PrintPluginPackage } from "@embedpdf/plugin-print/react";
 import { RenderPluginPackage } from "@embedpdf/plugin-render/react";
@@ -36,6 +38,7 @@ import { TabBar } from "./ui/TabBar";
 import { parseFirmLayout } from "./tools/registry";
 import { ToolToolbar, Toolbar } from "./ui/Toolbar";
 import { ToolsPane } from "./ui/ToolsPane";
+import { markupConfig } from "./markup/config";
 
 function plugins(settings: Settings) {
   const zoom =
@@ -64,6 +67,11 @@ function plugins(settings: Settings) {
     createPluginRegistration(InteractionManagerPluginPackage),
     createPluginRegistration(SelectionPluginPackage),
     createPluginRegistration(SearchPluginPackage),
+    // Markup (Phase 3). Every change is written to the tab's PDFium document at once
+    // (autoCommit) and recorded in the history plugin; the workbench pushes it to the
+    // document store as one "Markup" revision before anything that needs the bytes.
+    createPluginRegistration(HistoryPluginPackage),
+    createPluginRegistration(AnnotationPluginPackage, markupConfig(settings)),
     createPluginRegistration(ThumbnailPluginPackage, {
       width: 132,
       gap: 10,

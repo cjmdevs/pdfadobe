@@ -37,6 +37,12 @@ export interface Settings {
   firmLayoutPath: string | null;
   /** Last firm layout read from that file, used when the share is unreachable. */
   firmLayoutCache: string[] | null;
+  /** Markup author; null = the Windows user's display name. */
+  authorName: string | null;
+  /** Color swatches offered by the markup tools ("#rrggbb"). */
+  markupColors: string[];
+  /** "Make default" per markup tool: style properties only (color, width, font...). */
+  markupDefaults: Record<string, Record<string, string | number | boolean>>;
 }
 
 export const MAX_RECENT = 15;
@@ -73,6 +79,18 @@ export const DEFAULT_SETTINGS: Settings = {
   quickToolbar: null,
   firmLayoutPath: null,
   firmLayoutCache: null,
+  authorName: null,
+  markupColors: [
+    "#FFFF00",
+    "#00FF00",
+    "#00FFFF",
+    "#FF00FF",
+    "#FF0000",
+    "#0000FF",
+    "#000000",
+    "#FFFFFF",
+  ],
+  markupDefaults: {},
 };
 
 const oneOf =
@@ -127,7 +145,38 @@ export function sanitizeSettings(raw: unknown): Settings {
     firmLayoutPath:
       typeof r.firmLayoutPath === "string" && r.firmLayoutPath.trim() ? r.firmLayoutPath : null,
     firmLayoutCache: stringList(r.firmLayoutCache),
+    authorName:
+      typeof r.authorName === "string" && r.authorName.trim()
+        ? r.authorName.trim().slice(0, 100)
+        : null,
+    markupColors: colorList(r.markupColors) ?? d.markupColors,
+    markupDefaults: toolDefaults(r.markupDefaults),
   };
+}
+
+const isColor = (v: unknown): v is string => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
+
+function colorList(v: unknown): string[] | null {
+  if (!Array.isArray(v)) return null;
+  const list = v.filter(isColor).slice(0, 24);
+  return list.length ? list : null;
+}
+
+/** Tool id -> { property: plain value }. Anything else on disk is dropped. */
+function toolDefaults(v: unknown): Settings["markupDefaults"] {
+  if (!v || typeof v !== "object") return {};
+  const out: Settings["markupDefaults"] = {};
+  for (const [tool, patch] of Object.entries(v as Record<string, unknown>)) {
+    if (!/^[A-Za-z]{1,40}$/.test(tool) || !patch || typeof patch !== "object") continue;
+    const clean: Record<string, string | number | boolean> = {};
+    for (const [k, val] of Object.entries(patch as Record<string, unknown>)) {
+      if (!/^[A-Za-z]{1,40}$/.test(k)) continue;
+      if (typeof val === "string" ? val.length <= 40 : ["number", "boolean"].includes(typeof val))
+        clean[k] = val as string | number | boolean;
+    }
+    out[tool] = clean;
+  }
+  return out;
 }
 
 /** A list of strings (tool action refs), or null. Unknown refs are dropped later. */

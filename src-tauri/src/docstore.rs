@@ -32,6 +32,8 @@ pub struct DocInfo {
     pub trimmed: bool,
     pub signature_accepted: bool,
     pub window: String,
+    /// The window has markup not yet pushed as a revision (Phase 3); counts as unsaved.
+    pub markup_pending: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -63,11 +65,16 @@ struct Entry {
     path: Option<String>,
     signature_accepted: bool,
     window: String,
+    markup_pending: bool,
 }
 
 impl Entry {
     fn total(&self) -> usize {
         self.revs.iter().map(|r| r.bytes.len()).sum()
+    }
+
+    fn dirty(&self) -> bool {
+        self.markup_pending || self.saved != Some(self.index)
     }
 }
 
@@ -112,10 +119,11 @@ impl DocStore {
             path: e.path.clone(),
             undo_label: (e.index > 0).then(|| e.revs[e.index].label.clone()),
             redo_label: e.revs.get(e.index + 1).map(|r| r.label.clone()),
-            dirty: e.saved != Some(e.index),
+            dirty: e.dirty(),
             trimmed: e.trimmed,
             signature_accepted: e.signature_accepted,
             window: e.window.clone(),
+            markup_pending: e.markup_pending,
         }
     }
 
@@ -132,6 +140,7 @@ impl DocStore {
             path: init.path,
             signature_accepted: false,
             window: window.to_string(),
+            markup_pending: false,
         };
         let info = Self::info_of(&init.id, &e);
         self.docs.lock().expect("doc store lock").insert(init.id, e);
@@ -222,6 +231,13 @@ impl DocStore {
             .retain(|_, e| e.window != window);
     }
 
+    pub fn set_markup_pending(&self, id: &str, pending: bool) -> R<DocInfo> {
+        self.with(id, |e| {
+            e.markup_pending = pending;
+            Self::info_of(id, e)
+        })
+    }
+
     pub fn set_window(&self, id: &str, window: &str) -> R<()> {
         self.with(id, |e| e.window = window.to_string())
     }
@@ -230,7 +246,7 @@ impl DocStore {
         let docs = self.docs.lock().expect("doc store lock");
         let mut out: Vec<DocInfo> = docs
             .iter()
-            .filter(|(_, e)| e.saved != Some(e.index))
+            .filter(|(_, e)| e.dirty())
             .map(|(id, e)| Self::info_of(id, e))
             .collect();
         out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
@@ -247,7 +263,20 @@ impl DocStore {
     /// Saves the current revision over the document's file (quit prompt, "Save all",
     /// for documents shown in another window). Same rules as `save_pdf`.
     pub fn save(&self, id: &str) -> R<DocInfo> {
-        let (path, bytes) = self.with(id, |e| (e.path.clone(), e.revs[e.index].bytes.clone()))?;
+        let (path, bytes, pending) = self.with(id, |e| {
+            (
+                e.path.clone(),
+                e.revs[e.index].bytes.clone(),
+                e.markup_pending,
+            )
+        })?;
+        if pending {
+            // The markup lives in the window's PDFium document until it is pushed.
+            return Err(
+                "this document has markup that is not in the store yet; save it from its window"
+                    .into(),
+            );
+        }
         let path = path.ok_or("this document has never been saved; use Save As")?;
         save_with_backup(Path::new(&path), &bytes)?;
         self.mark_saved(id, None)
@@ -322,6 +351,11 @@ pub fn doc_accept_signature(store: State<'_, DocStore>, id: String) -> R<DocInfo
 #[tauri::command]
 pub fn doc_clear_trimmed(store: State<'_, DocStore>, id: String) -> R<DocInfo> {
     store.clear_trimmed(&id)
+}
+
+#[tauri::command]
+pub fn doc_set_markup_pending(store: State<'_, DocStore>, id: String, pending: bool) -> R<DocInfo> {
+    store.set_markup_pending(&id, pending)
 }
 
 #[tauri::command]
@@ -428,6 +462,17 @@ mod tests {
         s.release_window("w-1");
         assert!(s.info("b").is_err());
         assert!(s.info("a").is_ok());
+    }
+
+    #[test]
+    fn pending_markup_counts_as_unsaved_and_blocks_store_save() {
+        let s = DocStore::default();
+        assert!(!new(&s, "a", b"v0", Some(r"C:\x\a.pdf")).dirty);
+        let i = s.set_markup_pending("a", true).unwrap();
+        assert!(i.dirty && i.markup_pending);
+        assert_eq!(s.dirty().len(), 1);
+        assert!(s.save("a").is_err());
+        assert!(!s.set_markup_pending("a", false).unwrap().dirty);
     }
 
     #[test]

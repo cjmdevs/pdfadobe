@@ -79,6 +79,7 @@ pub fn run() {
             docstore::doc_accept_signature,
             docstore::doc_clear_trimmed,
             docstore::doc_release,
+            docstore::doc_set_markup_pending,
             docstore::doc_dirty,
             docstore::doc_find_path,
             docstore::doc_save,

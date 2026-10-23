@@ -5,6 +5,7 @@ import {
   useDocumentManagerCapability,
 } from "@embedpdf/plugin-document-manager/react";
 import type { DocumentState } from "@embedpdf/core";
+import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
 import {
   GlobalPointerProvider,
   PagePointerProvider,
@@ -251,6 +252,8 @@ function PageLayers({
           activeHighlightColor="rgba(255, 120, 0, 0.6)"
         />
         <SelectionLayer documentId={documentId} pageIndex={pageIndex} />
+        {/* Markup is drawn here from its appearance streams, not into the page render. */}
+        <AnnotationLayer documentId={documentId} pageIndex={pageIndex} />
       </PagePointerProvider>
     </Rotate>
   );
