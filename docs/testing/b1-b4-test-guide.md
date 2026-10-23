@@ -103,8 +103,9 @@ Open files with **Ctrl+O** and type the path, e.g. `\\localhost\PDFTest\workpape
     Ctrl+Q again, **Save all and quit**: both files saved (each has a `.bak`), app exits.
 16. **Close one window.** Open 2 windows, change a file in one, click its X. Pass: asks
     only about that window's file; the other window stays open.
-17. **Memory (optional).** Open 3 big PDFs in each of 2 windows. In Task Manager, expand
-    PDF Workbench and note the memory of each "WebView2" entry. Send the numbers.
+17. **Memory (optional).** Open `long-500p.pdf`, `combined.pdf` and `navigation.pdf` in
+    each of 2 windows (test files only, never client files). In Task Manager, expand PDF
+    Workbench and note the memory of each "WebView2" entry. Send the numbers.
 
 ## Checklist
 
