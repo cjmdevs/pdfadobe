@@ -39,6 +39,8 @@ import { parseFirmLayout } from "./tools/registry";
 import { ToolToolbar, Toolbar } from "./ui/Toolbar";
 import { ToolsPane } from "./ui/ToolsPane";
 import { PropertiesBar } from "./ui/markup/PropertiesBar";
+import { MarkupBridge } from "./ui/markup/MarkupBridge";
+import { FALLBACK_AUTHOR } from "./markup/config";
 import { markupConfig } from "./markup/config";
 
 function plugins(settings: Settings) {
@@ -239,6 +241,7 @@ function Shell({ ready }: { ready: boolean }) {
         </div>
       )}
       <Commands />
+      {ready && <MarkupBridge author={wb.settings.authorName ?? FALLBACK_AUTHOR} />}
       <Dialogs />
       <Toasts />
       {/* EmbedPDF auto-mounts its PrintFrame and CopyToClipboard utilities; mounting them

@@ -4,6 +4,8 @@ import { useDocumentState } from "@embedpdf/core/react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
+import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
+import { ERASER_MODE } from "../markup/config";
 import { usePageActions } from "../app/pageActions";
 import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
@@ -18,6 +20,8 @@ export function useDocToolContext(documentId: string): ToolContext {
   const { provides: zoom, state: zoomState } = useZoom(documentId);
   const { provides: annots, state: annotState } = useAnnotation(documentId);
   const activeMarkup = annotState.activeToolId;
+  const { provides: im, state: imState } = useInteractionManager(documentId);
+  const erasing = imState.activeMode === ERASER_MODE;
   const level = zoomState.zoomLevel;
   const mode =
     level === ZoomMode.FitPage ? "fit-page" : level === ZoomMode.FitWidth ? "fit-width" : "other";
@@ -43,7 +47,17 @@ export function useDocToolContext(documentId: string): ToolContext {
       // Markup needs the store's bytes on save, which encrypted documents do not have.
       markup:
         annots && !encrypted
-          ? { activeTool: activeMarkup, setTool: (id) => annots.setActiveTool(id) }
+          ? {
+              activeTool: activeMarkup,
+              setTool: (id) => annots.setActiveTool(id),
+              erasing,
+              setErasing: (on) => {
+                if (!on) return im?.activateDefaultMode();
+                annots.setActiveTool(null);
+                annots.deselectAnnotation();
+                im?.activate(ERASER_MODE);
+              },
+            }
           : null,
     }),
     [
@@ -59,6 +73,8 @@ export function useDocToolContext(documentId: string): ToolContext {
       mode,
       annots,
       activeMarkup,
+      im,
+      erasing,
     ],
   );
 }

@@ -8,6 +8,11 @@ import { patchFromStyle } from "./properties";
 /** Used until the Windows display name arrives (and in the browser build). */
 export const FALLBACK_AUTHOR = "Reviewer";
 
+/** Our Cloud tool (EmbedPDF's polygon tool with a cloudy border; see MarkupBridge). */
+export const CLOUD_TOOL = "cloud";
+/** Interaction mode of the ink eraser (EraserLayer). */
+export const ERASER_MODE = "markupEraser";
+
 /** Markup buttons in the Comment toolbar: EmbedPDF tool id, label, icon. */
 export const MARKUP_TOOLS = [
   { id: "textComment", label: "Sticky note", icon: "note" },
@@ -23,6 +28,7 @@ export const MARKUP_TOOLS = [
   { id: "lineArrow", label: "Arrow", icon: "arrow" },
   { id: "polyline", label: "Polyline", icon: "polyline" },
   { id: "polygon", label: "Polygon", icon: "polygon" },
+  { id: CLOUD_TOOL, label: "Cloud", icon: "cloud" },
   { id: "ink", label: "Draw", icon: "ink" },
 ] as const;
 
@@ -65,6 +71,7 @@ const FIRM_DEFAULTS: Record<string, Record<string, unknown>> = {
   },
   polyline: { strokeWidth: 2, strokeColor: "#FF0000" },
   polygon: { strokeWidth: 2, strokeColor: "#FF0000" },
+  [CLOUD_TOOL]: { strokeWidth: 1, strokeColor: "#FF0000" },
   ink: { strokeWidth: 2, strokeColor: "#0000FF", color: "#0000FF" },
 };
 
@@ -74,10 +81,13 @@ export function toolDefaults(settings: Settings, toolId: string): Record<string,
 }
 
 export function markupConfig(settings: Settings): Partial<AnnotationPluginConfig> {
-  const tools: AnnotationToolOverride[] = Object.keys(FIRM_DEFAULTS).map((id) => ({
-    id,
-    defaults: toolDefaults(settings, id),
-  }));
+  // The Cloud tool is added at runtime (MarkupBridge), so it takes no override here.
+  const tools: AnnotationToolOverride[] = Object.keys(FIRM_DEFAULTS)
+    .filter((id) => id !== CLOUD_TOOL)
+    .map((id) => ({
+      id,
+      defaults: toolDefaults(settings, id),
+    }));
   return {
     autoCommit: true,
     annotationAuthor: settings.authorName ?? FALLBACK_AUTHOR,

@@ -25,7 +25,8 @@ async function openComment(page: Page, path: string) {
   await expect(page.getByTestId("tool-toolbar")).toContainText("Comment");
 }
 
-/** Drags on page 1 between two points given as fractions of the page box. */
+/** Drags on page 1 between two points given as fractions of the page box (keep y within
+ * the visible part: below ~0.65 the page is outside the viewport at fit-width). */
 async function drawOnPage(page: Page, from: [number, number], to: [number, number]) {
   const box = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
   const at = ([fx, fy]: [number, number]) => [box.x + box.width * fx, box.y + box.height * fy];
@@ -167,5 +168,56 @@ test.describe("markup", () => {
     const ft = annots.find((a) => a.subtype === "/FreeText");
     expect(ft?.contents).toBe("Agrees to TB");
     expect(String(ft?.dict["/DA"])).toMatch(/12 Tf/);
+  });
+
+  test("draw ink, erase across its middle: saved as one /Ink with two strokes", async ({
+    page,
+    mockfs,
+  }) => {
+    await openComment(page, P.text);
+    await tb(page, "Draw").click();
+    await drawOnPage(page, [0.2, 0.55], [0.7, 0.55]);
+    // The ink tool commits the stroke after a short pause.
+    await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toBeEnabled();
+
+    await tb(page, "Eraser").click();
+    await expect(tb(page, "Eraser")).toHaveAttribute("aria-pressed", "true");
+    await expect(tb(page, "Draw")).toHaveAttribute("aria-pressed", "false");
+    await drawOnPage(page, [0.45, 0.5], [0.45, 0.6]);
+    await page.keyboard.press("Escape");
+    await expect(tb(page, "Eraser")).toHaveAttribute("aria-pressed", "false");
+
+    await page.keyboard.press("Control+s");
+    await idle(page);
+    const ink = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
+      (a) => a.subtype === "/Ink",
+    );
+    expect(ink).toHaveLength(1);
+    expect(ink[0]!.dict["/InkList"] as unknown[]).toHaveLength(2);
+    expect(ink[0]!.hasAppearance).toBe(true);
+  });
+
+  test("cloud: click the corners, double-click to finish; saved with a cloudy border", async ({
+    page,
+    mockfs,
+  }) => {
+    await openComment(page, P.text);
+    await tb(page, "Cloud").click();
+    const box = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
+    const at = (fx: number, fy: number) =>
+      [box.x + box.width * fx, box.y + box.height * fy] as const;
+    await page.mouse.click(...at(0.2, 0.3));
+    await page.mouse.click(...at(0.6, 0.3));
+    await page.mouse.click(...at(0.6, 0.5));
+    await page.mouse.dblclick(...at(0.2, 0.5));
+    await expect(props(page)).toContainText(/^Cloud(?! tool)/);
+
+    await page.keyboard.press("Control+s");
+    await idle(page);
+    const poly = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
+      (a) => a.subtype === "/Polygon",
+    );
+    expect(poly).toHaveLength(1);
+    expect(JSON.stringify(poly[0]!.dict["/BE"])).toContain('"/S":"/C"');
   });
 });

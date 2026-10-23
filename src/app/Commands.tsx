@@ -14,6 +14,8 @@ import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { PdfPermissionFlag, type PdfAnnotationObject } from "@embedpdf/models";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
+import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
+import { ERASER_MODE } from "../markup/config";
 import { Guard } from "../ui/Guard";
 import { matchShortcut, type Command } from "./shortcuts";
 import { useNav } from "./useNav";
@@ -165,6 +167,8 @@ function DocCommands({
   const { provides: selection } = useSelectionCapability();
   const { provides: viewport } = useViewportCapability();
   const { provides: annots, state: annotState } = useAnnotation(documentId);
+  const { provides: im, state: imState } = useInteractionManager(documentId);
+  const eraserOn = imState.activeMode === ERASER_MODE;
   const doc = useDocumentState(documentId)?.document ?? null;
   /** Resolves when the last Ctrl+A selection is in place. */
   const pendingSelect = useRef<Promise<unknown>>(Promise.resolve());
@@ -181,8 +185,9 @@ function DocCommands({
           el.blur();
           return true;
         }
-        // Markup: a tool that is on goes off first, then the selection.
-        if (annotState.activeToolId) annots?.setActiveTool(null);
+        // Markup: a tool (or the eraser) that is on goes off first, then the selection.
+        if (eraserOn) im?.activateDefaultMode();
+        else if (annotState.activeToolId) annots?.setActiveTool(null);
         else if (annotState.selectedUids.length) annots?.deselectAnnotation();
         else return false;
         return true;

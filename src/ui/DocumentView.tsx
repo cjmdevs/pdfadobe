@@ -6,6 +6,7 @@ import {
 } from "@embedpdf/plugin-document-manager/react";
 import type { DocumentState } from "@embedpdf/core";
 import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
+import { EraserLayer } from "./markup/EraserLayer";
 import {
   GlobalPointerProvider,
   PagePointerProvider,
@@ -254,6 +255,7 @@ function PageLayers({
         <SelectionLayer documentId={documentId} pageIndex={pageIndex} />
         {/* Markup is drawn here from its appearance streams, not into the page render. */}
         <AnnotationLayer documentId={documentId} pageIndex={pageIndex} />
+        <EraserLayer documentId={documentId} pageIndex={pageIndex} />
       </PagePointerProvider>
     </Rotate>
   );

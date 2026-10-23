@@ -26,6 +26,9 @@ export interface MarkupCommands {
   /** EmbedPDF annotation tool that is on (e.g. "highlight"), or null. */
   activeTool: string | null;
   setTool(id: string | null): void;
+  /** The ink eraser is on. */
+  erasing: boolean;
+  setErasing(on: boolean): void;
 }
 
 export interface ViewCommands {
@@ -251,7 +254,14 @@ export const TOOLS: ToolDef[] = [
       run: (c) => c.markup?.setTool(c.markup.activeTool === m.id ? null : m.id),
       pressed: (c) => c.markup?.activeTool === m.id,
       enabled: (c) => hasDoc(c) && c.markup !== null,
-    })),
+    })).concat({
+      id: "eraser",
+      label: "Eraser",
+      icon: "eraser",
+      run: (c) => c.markup?.setErasing(!c.markup.erasing),
+      pressed: (c) => c.markup?.erasing ?? false,
+      enabled: (c) => hasDoc(c) && c.markup !== null,
+    }),
   },
   // ---- Not built yet: hidden unless "Show tools that are coming later" is on. ----
   planned(
