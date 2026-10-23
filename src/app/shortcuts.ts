@@ -43,6 +43,7 @@ export type Command =
   | "selectAll"
   | "copy"
   | "escape"
+  | "deleteAnnotation"
   | "help"
   | "undo"
   | "redo"
@@ -175,7 +176,18 @@ export const SHORTCUTS: Shortcut[] = [
   },
   { command: "selectAll", label: "Select all text", keys: ["Ctrl+A"], source: "windows" },
   { command: "copy", label: "Copy selected text", keys: ["Ctrl+C"], source: "windows" },
-  { command: "escape", label: "Close search / dialog", keys: ["Escape"], source: "adobe" },
+  {
+    command: "escape",
+    label: "Close search / dialog; stop the markup tool",
+    keys: ["Escape"],
+    source: "adobe",
+  },
+  {
+    command: "deleteAnnotation",
+    label: "Delete the selected comment",
+    keys: ["Delete"],
+    source: "windows",
+  },
   { command: "help", label: "Keyboard shortcuts", keys: ["F1"], source: "adobe" },
   { command: "undo", label: "Undo page change", keys: ["Ctrl+Z"], source: "windows" },
   { command: "redo", label: "Redo page change", keys: ["Ctrl+Y"], source: "owner" },

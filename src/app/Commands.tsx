@@ -11,8 +11,9 @@ import { useSearch } from "@embedpdf/plugin-search/react";
 import { useSelectionCapability } from "@embedpdf/plugin-selection/react";
 import { useViewportCapability } from "@embedpdf/plugin-viewport/react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
-import { PdfPermissionFlag } from "@embedpdf/models";
+import { PdfPermissionFlag, type PdfAnnotationObject } from "@embedpdf/models";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
+import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { Guard } from "../ui/Guard";
 import { matchShortcut, type Command } from "./shortcuts";
 import { useNav } from "./useNav";
@@ -69,7 +70,8 @@ export function Commands() {
       case "escape":
         if (wb.dialog) wb.setDialog(null);
         else if (wb.searchOpen) wb.setSearchOpen(false);
-        else return false;
+        // Otherwise the document's own Escape (markup tool off, deselect).
+        else return docRunner.current?.(cmd) ?? false;
         return true;
       case "toggleNavPane":
         wb.updateSettings({ sidebarOpen: !wb.settings.sidebarOpen });
@@ -162,6 +164,7 @@ function DocCommands({
   const { provides: search } = useSearch(documentId);
   const { provides: selection } = useSelectionCapability();
   const { provides: viewport } = useViewportCapability();
+  const { provides: annots, state: annotState } = useAnnotation(documentId);
   const doc = useDocumentState(documentId)?.document ?? null;
   /** Resolves when the last Ctrl+A selection is in place. */
   const pendingSelect = useRef<Promise<unknown>>(Promise.resolve());
@@ -171,6 +174,27 @@ function DocCommands({
     const vp = viewport?.forDocument(documentId);
     const screen = () => (vp?.getMetrics().clientHeight ?? 600) * 0.9;
     switch (cmd) {
+      case "escape": {
+        // Typing in a text box or note: leave it, keeping the text (like Acrobat).
+        const el = document.activeElement;
+        if (el instanceof HTMLElement && el.isContentEditable) {
+          el.blur();
+          return true;
+        }
+        // Markup: a tool that is on goes off first, then the selection.
+        if (annotState.activeToolId) annots?.setActiveTool(null);
+        else if (annotState.selectedUids.length) annots?.deselectAnnotation();
+        else return false;
+        return true;
+      }
+      case "deleteAnnotation": {
+        const picked = annotState.selectedUids
+          .map((uid) => annotState.byUid[uid]?.object)
+          .filter((a): a is PdfAnnotationObject => a !== undefined && !a.flags?.includes("locked"));
+        if (!picked.length || wb.busy) return false;
+        annots?.deleteAnnotations(picked.map((a) => ({ pageIndex: a.pageIndex, id: a.id })));
+        return true;
+      }
       case "nextPage":
         nav.next();
         break;

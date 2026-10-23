@@ -38,6 +38,7 @@ import { TabBar } from "./ui/TabBar";
 import { parseFirmLayout } from "./tools/registry";
 import { ToolToolbar, Toolbar } from "./ui/Toolbar";
 import { ToolsPane } from "./ui/ToolsPane";
+import { PropertiesBar } from "./ui/markup/PropertiesBar";
 import { markupConfig } from "./markup/config";
 
 function plugins(settings: Settings) {
@@ -198,6 +199,7 @@ function Shell({ ready }: { ready: boolean }) {
       {loadedId && (
         <Guard resetKey={loadedId}>
           <ToolToolbar key={loadedId} documentId={loadedId} />
+          <PropertiesBar key={`props-${loadedId}`} documentId={loadedId} />
         </Guard>
       )}
       <main className="workspace">

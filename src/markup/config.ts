@@ -1,19 +1,91 @@
 // EmbedPDF annotation plugin setup (Phase 3). No React here.
 
-import type { AnnotationPluginConfig } from "@embedpdf/plugin-annotation";
+import type { AnnotationPluginConfig, AnnotationToolOverride } from "@embedpdf/plugin-annotation";
+import { PdfAnnotationLineEnding } from "@embedpdf/models";
 import type { Settings } from "../app/settings";
+import { patchFromStyle } from "./properties";
 
 /** Used until the Windows display name arrives (and in the browser build). */
 export const FALLBACK_AUTHOR = "Reviewer";
 
+/** Markup buttons in the Comment toolbar: EmbedPDF tool id, label, icon. */
+export const MARKUP_TOOLS = [
+  { id: "textComment", label: "Sticky note", icon: "note" },
+  { id: "highlight", label: "Highlight", icon: "highlight" },
+  { id: "underline", label: "Underline", icon: "underline" },
+  { id: "strikeout", label: "Strikethrough", icon: "strikeout" },
+  { id: "squiggly", label: "Squiggly", icon: "squiggly" },
+  { id: "freeText", label: "Text box", icon: "textbox" },
+  { id: "freeTextCallout", label: "Callout", icon: "callout" },
+  { id: "square", label: "Rectangle", icon: "shape" },
+  { id: "circle", label: "Ellipse", icon: "ellipse" },
+  { id: "line", label: "Line", icon: "line" },
+  { id: "lineArrow", label: "Arrow", icon: "arrow" },
+  { id: "polyline", label: "Polyline", icon: "polyline" },
+  { id: "polygon", label: "Polygon", icon: "polygon" },
+  { id: "ink", label: "Draw", icon: "ink" },
+] as const;
+
+/** Our name for an EmbedPDF tool ("square" -> "Rectangle"). */
+export function markupToolLabel(id: string | null | undefined): string | null {
+  return MARKUP_TOOLS.find((t) => t.id === id)?.label ?? null;
+}
+
+/**
+ * Firm defaults (closer to Acrobat than EmbedPDF's): thin red shapes, yellow highlight,
+ * black 12 pt text in a red-bordered box. The user's "Make default" choices go on top.
+ */
+const FIRM_DEFAULTS: Record<string, Record<string, unknown>> = {
+  highlight: { strokeColor: "#FFFF00", color: "#FFFF00" },
+  underline: { strokeColor: "#00B050" },
+  strikeout: { strokeColor: "#FF0000", intent: undefined },
+  squiggly: { strokeColor: "#0070C0" },
+  textComment: { strokeColor: "#FFFF00" },
+  freeText: {
+    contents: "",
+    fontSize: 12,
+    fontColor: "#000000",
+    strokeColor: "#FF0000",
+    strokeWidth: 1,
+  },
+  freeTextCallout: {
+    contents: "",
+    fontSize: 12,
+    fontColor: "#000000",
+    strokeColor: "#FF0000",
+    strokeWidth: 1,
+  },
+  square: { strokeWidth: 2, strokeColor: "#FF0000" },
+  circle: { strokeWidth: 2, strokeColor: "#FF0000" },
+  line: { strokeWidth: 2, strokeColor: "#FF0000" },
+  lineArrow: {
+    strokeWidth: 2,
+    strokeColor: "#FF0000",
+    lineEndings: { start: PdfAnnotationLineEnding.None, end: PdfAnnotationLineEnding.OpenArrow },
+  },
+  polyline: { strokeWidth: 2, strokeColor: "#FF0000" },
+  polygon: { strokeWidth: 2, strokeColor: "#FF0000" },
+  ink: { strokeWidth: 2, strokeColor: "#0000FF", color: "#0000FF" },
+};
+
+export function toolDefaults(settings: Settings, toolId: string): Record<string, unknown> {
+  const mine = settings.markupDefaults[toolId];
+  return { ...FIRM_DEFAULTS[toolId], ...(mine ? patchFromStyle(mine) : {}) };
+}
+
 export function markupConfig(settings: Settings): Partial<AnnotationPluginConfig> {
+  const tools: AnnotationToolOverride[] = Object.keys(FIRM_DEFAULTS).map((id) => ({
+    id,
+    defaults: toolDefaults(settings, id),
+  }));
   return {
     autoCommit: true,
     annotationAuthor: settings.authorName ?? FALLBACK_AUTHOR,
     colorPresets: settings.markupColors,
     selectAfterCreate: true,
     deactivateToolAfterCreate: false,
-    // Links open only through the viewer's own handling (no network calls).
+    // Links are not opened by clicking inside the annotation layer (no network calls).
     autoOpenLinks: false,
+    tools,
   };
 }

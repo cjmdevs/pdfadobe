@@ -5,6 +5,7 @@
 import type { PageActions } from "../app/pageActions";
 import type { PageOpDialog, WorkbenchApi } from "../app/workbench";
 import type { IconName } from "../ui/Icon";
+import { MARKUP_TOOLS } from "../markup/config";
 
 /** What an action works on. */
 export interface ToolContext {
@@ -17,6 +18,14 @@ export interface ToolContext {
   actions: PageActions | null;
   /** View commands of the active document (zoom etc.); null without a document. */
   view: ViewCommands | null;
+  /** Markup tools of the active document (Phase 3); null without a document. */
+  markup: MarkupCommands | null;
+}
+
+export interface MarkupCommands {
+  /** EmbedPDF annotation tool that is on (e.g. "highlight"), or null. */
+  activeTool: string | null;
+  setTool(id: string | null): void;
 }
 
 export interface ViewCommands {
@@ -226,19 +235,25 @@ export const TOOLS: ToolDef[] = [
       },
     ],
   },
+  {
+    id: "comment",
+    name: "Comment",
+    icon: "comment",
+    color: "#d39e00",
+    description: "Sticky notes, highlights, text boxes, shapes, drawing",
+    comingIn: null,
+    open: "toolbar",
+    toolbar: MARKUP_TOOLS.map((m): ToolAction => ({
+      id: m.id,
+      label: m.label,
+      icon: m.icon,
+      // A second click turns the tool off again (back to selecting).
+      run: (c) => c.markup?.setTool(c.markup.activeTool === m.id ? null : m.id),
+      pressed: (c) => c.markup?.activeTool === m.id,
+      enabled: (c) => hasDoc(c) && c.markup !== null,
+    })),
+  },
   // ---- Not built yet: hidden unless "Show tools that are coming later" is on. ----
-  planned(
-    "comment",
-    "Comment",
-    "comment",
-    "#d39e00",
-    "Sticky notes, highlights, text boxes, shapes",
-    [
-      { id: "highlight", label: "Highlight", icon: "highlight" },
-      { id: "textbox", label: "Text box", icon: "text" },
-      { id: "rectangle", label: "Rectangle", icon: "shape" },
-    ],
-  ),
   planned(
     "flyer",
     "Workpaper Tools",

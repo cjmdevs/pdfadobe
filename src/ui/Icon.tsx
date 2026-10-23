@@ -64,6 +64,35 @@ import chevronLeft from "@fluentui/svg-icons/icons/chevron_left_20_regular.svg?r
 import chevronRight from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg?raw";
 import chevronDown from "@fluentui/svg-icons/icons/chevron_down_20_regular.svg?raw";
 import customize from "@fluentui/svg-icons/icons/toolbox_20_regular.svg?raw";
+import underline from "@fluentui/svg-icons/icons/text_underline_20_regular.svg?raw";
+import strikeout from "@fluentui/svg-icons/icons/text_strikethrough_20_regular.svg?raw";
+import squiggly from "@fluentui/svg-icons/icons/text_underline_double_20_regular.svg?raw";
+import note from "@fluentui/svg-icons/icons/note_20_regular.svg?raw";
+import textbox from "@fluentui/svg-icons/icons/textbox_20_regular.svg?raw";
+import callout from "@fluentui/svg-icons/icons/comment_note_20_regular.svg?raw";
+import ellipse from "@fluentui/svg-icons/icons/oval_20_regular.svg?raw";
+import line from "@fluentui/svg-icons/icons/line_20_regular.svg?raw";
+import arrow from "@fluentui/svg-icons/icons/arrow_up_right_20_regular.svg?raw";
+import polyline from "@fluentui/svg-icons/icons/data_line_20_regular.svg?raw";
+import polygon from "@fluentui/svg-icons/icons/pentagon_20_regular.svg?raw";
+import cloud from "@fluentui/svg-icons/icons/cloud_20_regular.svg?raw";
+import ink from "@fluentui/svg-icons/icons/pen_20_regular.svg?raw";
+import eraser from "@fluentui/svg-icons/icons/eraser_20_regular.svg?raw";
+import lock from "@fluentui/svg-icons/icons/lock_closed_20_regular.svg?raw";
+import unlock from "@fluentui/svg-icons/icons/lock_open_20_regular.svg?raw";
+import comments from "@fluentui/svg-icons/icons/comment_multiple_20_regular.svg?raw";
+import fill from "@fluentui/svg-icons/icons/paint_bucket_20_regular.svg?raw";
+import textColor from "@fluentui/svg-icons/icons/text_color_20_regular.svg?raw";
+import lineWidth from "@fluentui/svg-icons/icons/line_thickness_20_regular.svg?raw";
+import lineStyle from "@fluentui/svg-icons/icons/line_style_20_regular.svg?raw";
+import makeDefault from "@fluentui/svg-icons/icons/star_settings_20_regular.svg?raw";
+import font from "@fluentui/svg-icons/icons/text_font_20_regular.svg?raw";
+import reply from "@fluentui/svg-icons/icons/arrow_reply_20_regular.svg?raw";
+import filter from "@fluentui/svg-icons/icons/filter_20_regular.svg?raw";
+import exportFile from "@fluentui/svg-icons/icons/arrow_export_ltr_20_regular.svg?raw";
+import importFile from "@fluentui/svg-icons/icons/arrow_import_20_regular.svg?raw";
+import flatten from "@fluentui/svg-icons/icons/layer_20_regular.svg?raw";
+import summary from "@fluentui/svg-icons/icons/document_text_20_regular.svg?raw";
 
 const SVG = {
   open,
@@ -129,6 +158,35 @@ const SVG = {
   chevronRight,
   chevronDown,
   customize,
+  underline,
+  strikeout,
+  squiggly,
+  note,
+  textbox,
+  callout,
+  ellipse,
+  line,
+  arrow,
+  polyline,
+  polygon,
+  cloud,
+  ink,
+  eraser,
+  lock,
+  unlock,
+  comments,
+  fill,
+  textColor,
+  lineWidth,
+  lineStyle,
+  makeDefault,
+  font,
+  reply,
+  filter,
+  exportFile,
+  importFile,
+  flatten,
+  summary,
 };
 
 export type IconName = keyof typeof SVG;

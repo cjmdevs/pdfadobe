@@ -1046,3 +1046,89 @@ button.primary.danger-fill {
   width: 32em;
   max-width: 100%;
 }
+
+/* ---- Markup (Phase 3) ---- */
+.props-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 8px;
+  background: var(--bg-chrome);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  font-size: 12px;
+}
+.props-title {
+  font-weight: 600;
+  white-space: nowrap;
+  padding-right: 4px;
+}
+.props-group {
+  display: inline-flex;
+  gap: 8px;
+}
+.props-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.props-field select {
+  font: inherit;
+}
+.color-picker {
+  position: relative;
+}
+.color-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0;
+}
+.swatch.none {
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    #d00 calc(50% - 1px),
+    #d00 calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+}
+.swatch[aria-pressed="true"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.color-popover {
+  position: fixed;
+  z-index: 50;
+  margin-top: 4px;
+  padding: 8px;
+  background: var(--bg-chrome);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.2);
+}
+.color-popover .swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 20px);
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.color-popover .swatch {
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+}
+.custom-color {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}

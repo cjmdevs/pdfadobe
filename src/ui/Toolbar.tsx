@@ -308,6 +308,7 @@ export function ToolToolbar({ documentId }: { documentId: string }) {
           aria-label={a.label}
           title={a.label}
           disabled={!actionEnabled(t, a, ctx)}
+          aria-pressed={a.pressed ? a.pressed(ctx) : undefined}
           onClick={() => a.run(ctx)}
         >
           <Icon name={a.icon} />

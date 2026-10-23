@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
+import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { usePageActions } from "../app/pageActions";
 import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
@@ -15,6 +16,8 @@ export function useDocToolContext(documentId: string): ToolContext {
   const nav = useNav(documentId);
   const actions = usePageActions(documentId);
   const { provides: zoom, state: zoomState } = useZoom(documentId);
+  const { provides: annots, state: annotState } = useAnnotation(documentId);
+  const activeMarkup = annotState.activeToolId;
   const level = zoomState.zoomLevel;
   const mode =
     level === ZoomMode.FitPage ? "fit-page" : level === ZoomMode.FitWidth ? "fit-width" : "other";
@@ -37,15 +40,41 @@ export function useDocToolContext(documentId: string): ToolContext {
             actualSize: () => zoom.requestZoom(ACTUAL_SIZE_SCALE),
           }
         : null,
+      // Markup needs the store's bytes on save, which encrypted documents do not have.
+      markup:
+        annots && !encrypted
+          ? { activeTool: activeMarkup, setTool: (id) => annots.setActiveTool(id) }
+          : null,
     }),
-    [wb, documentId, organizing, stored, nav.page, nav.pageCount, actions, encrypted, zoom, mode],
+    [
+      wb,
+      documentId,
+      organizing,
+      stored,
+      nav.page,
+      nav.pageCount,
+      actions,
+      encrypted,
+      zoom,
+      mode,
+      annots,
+      activeMarkup,
+    ],
   );
 }
 
 export function useNoDocToolContext(): ToolContext {
   const wb = useWorkbench();
   return useMemo(
-    () => ({ wb, documentId: null, pages: [], pageCount: 0, actions: null, view: null }),
+    () => ({
+      wb,
+      documentId: null,
+      pages: [],
+      pageCount: 0,
+      actions: null,
+      view: null,
+      markup: null,
+    }),
     [wb],
   );
 }
