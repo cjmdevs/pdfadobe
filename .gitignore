@@ -36,3 +36,6 @@ scripts/tmp/
 
 # Native Windows binaries fetched by scripts/fetch-win-binaries.mjs (pinned by SHA-256)
 src-tauri/vendor/
+
+# B3 edit samples made from installed Windows fonts (never commit font subsets)
+tests/corpus/edit/local/

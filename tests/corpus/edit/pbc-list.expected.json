@@ -1,0 +1,112 @@
+[
+  {
+    "kind": "heading",
+    "text": "Prepared by Client (PBC) Request List",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Client file 24-0117   Year end 12/31/2024",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "No.",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Item requested",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Due",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Status",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "1",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Bank statements and reconciliations for all operating accounts, December and January",
+    "lines": 2
+  },
+  {
+    "kind": "cell",
+    "text": "01/20/2025",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Received",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "2",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Aged accounts receivable listing tied to the general ledger",
+    "lines": 2
+  },
+  {
+    "kind": "cell",
+    "text": "01/20/2025",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Open",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "3",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Fixed asset additions over the capitalization threshold with invoices",
+    "lines": 2
+  },
+  {
+    "kind": "cell",
+    "text": "01/27/2025",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Partially received, two invoices outstanding",
+    "lines": 2
+  },
+  {
+    "kind": "cell",
+    "text": "4",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Payroll register and quarterly payroll tax returns",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "01/27/2025",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Open",
+    "lines": 1
+  }
+]

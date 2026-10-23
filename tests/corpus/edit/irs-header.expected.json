@@ -1,0 +1,62 @@
+[
+  {
+    "kind": "line",
+    "text": "Form",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "9999-X",
+    "lines": 1
+  },
+  {
+    "kind": "stacked",
+    "text": "Department of the Treasury Internal Revenue Service",
+    "lines": 2
+  },
+  {
+    "kind": "line",
+    "text": "Sample Return of Fictitious Income",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "For calendar year 2024 or tax year beginning ______, 2024, ending ______, 20__",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Go to the agency website for instructions and the latest information.",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "OMB No. 0000-0000",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "2024",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Name of taxpayer",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Identifying number",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Example Taxpayer LLC",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "00-0000000",
+    "lines": 1
+  }
+]

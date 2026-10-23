@@ -5,6 +5,16 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
+- **B3 Edit PDF, part 1 (spike) done 2026-10-23; waiting for owner approval and the
+  Acrobat check** (`docs/edit-spike-report.md`, `docs/testing/b3-spike-acrobat-check.md`).
+  No UI built. Spike code is dev-only in `scripts/spikes/b3-edit/`; samples in
+  `tests/corpus/edit/`. New dev deps: harfbuzzjs 1.6.4 (MIT; HarfBuzz "Old MIT" text,
+  owner to confirm before runtime use), @pdf-lib/fontkit 1.1.1 (MIT). Same day:
+  `navigation.pdf` now attaches files in name order. Its name tree was unsorted, and the
+  Windows qpdf 12.4.2 failed the bookmark-move test on it. Rerun
+  `npm run corpus -- --force` after a manual test saves over the generated files (that
+  is what broke 13 other tests on the build PC).
+
 - **Phase 2 + backlog B4 (workspace) + B1 (multiple windows) done; owner passed the
   Windows check 2026-10-23; tagged `phase-02-done`.** Follow-ups that day (owner
   approved): `.bak` deleted once the saved file reads back (below); the renderer no

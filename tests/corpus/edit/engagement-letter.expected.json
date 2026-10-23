@@ -1,0 +1,27 @@
+[
+  {
+    "kind": "heading",
+    "text": "Sample & Partners CPAs",
+    "lines": 1
+  },
+  {
+    "kind": "heading",
+    "text": "Engagement Letter - Tax Year 2024",
+    "lines": 1
+  },
+  {
+    "kind": "paragraph",
+    "text": "This letter confirms the terms of our engagement to prepare your federal and state income tax returns for the year ended December 31, 2024. We will prepare the returns from information you provide to us, and we will not audit or otherwise verify the data you submit. You are responsible for the completeness and accuracy of that information.",
+    "lines": 4
+  },
+  {
+    "kind": "paragraph",
+    "text": "Our fee for these services will be based on the time required at our standard billing rates, plus out-of-pocket costs. Invoices are due on presentation. If the engagement is terminated before completion, you agree to pay for the time expended to that date.",
+    "lines": 3
+  },
+  {
+    "kind": "paragraph",
+    "text": "Please sign and return a copy of this letter to indicate your agreement with these terms.",
+    "lines": 1
+  }
+]

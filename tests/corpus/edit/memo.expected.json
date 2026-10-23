@@ -1,0 +1,67 @@
+[
+  {
+    "kind": "heading",
+    "text": "MEMORANDUM",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "To:",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "Audit file 24-0117",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "From:",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "Senior associate",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Date:",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "February 3, 2025",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Re:",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "Revenue cutoff testing",
+    "lines": 1
+  },
+  {
+    "kind": "paragraph",
+    "text": "We selected sales invoices recorded in the last ten business days of the year and the first ten business days of the following year. For each invoice we traced the shipping document to confirm the revenue was recorded in the correct period.",
+    "lines": 3
+  },
+  {
+    "kind": "paragraph",
+    "text": "Two invoices dated December 30 were shipped on January 4. The client agreed to move both to the following year. No other exceptions were noted, and we consider the cutoff assertion supported.",
+    "lines": 3
+  },
+  {
+    "kind": "list-item",
+    "text": "Proposed adjustment AJE-07 reverses the two invoices.",
+    "lines": 1
+  },
+  {
+    "kind": "list-item",
+    "text": "Manager review is scheduled for next week.",
+    "lines": 1
+  }
+]
