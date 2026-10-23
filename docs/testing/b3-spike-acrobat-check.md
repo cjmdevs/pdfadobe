@@ -45,7 +45,9 @@ Do steps 1 to 4 for each of these files:
 3. **Select and copy.** Drag across the edited paragraph, **Ctrl+C**, paste into
    Notepad. Pass: the pasted text reads correctly, with spaces between words.
 4. **Fonts and editing.** Go to **File > Properties > Fonts**. Pass: the new font (for
-   example `XXXXXX+Calibri`) says **Embedded Subset**. Close it. Then open **All tools >
+   example `XXXXXX+Calibri`) says **Embedded Subset**. File a has no new font (it reuses
+   the original `LiberationSans-…` font): pass if that font says Embedded or Embedded
+   Subset. Close it. Then open **All tools >
    Edit a PDF** and click the edited paragraph. Pass: one box around the whole
    paragraph, and you can type a word. **Write down exactly what Acrobat says** if it
    warns about the font, and which font name shows in the font box.
