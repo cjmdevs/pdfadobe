@@ -19,10 +19,17 @@ const outsideWindow = (e: PointerEvent) =>
   e.clientY >= window.innerHeight;
 
 export function TabBar() {
-  const docs = useOpenDocuments();
+  const open = useOpenDocuments();
   const { activeDocumentId } = useActiveDocument();
   const { provides: manager } = useDocumentManagerCapability();
   const { meta, closeDocument, editState, dropTabOutside, moveToNewWindow } = useWorkbench();
+  // Every tab gets its meta before EmbedPDF opens it, and loses it when it closes, moves
+  // to another window or is replaced by a new revision. EmbedPDF drops a closed document
+  // only after PDFium has closed it, so one without meta is on its way out: not a tab.
+  const docs = open.flatMap((d) => {
+    const m = meta[d.id];
+    return m ? [{ ...d, m }] : [];
+  });
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [over, setOver] = useState<{ id: string; after: boolean } | null>(null);
 
@@ -71,9 +78,9 @@ export function TabBar() {
   return (
     <div className="tabbar" role="tablist" aria-label="Open documents">
       {docs.map((d) => {
-        const m = meta[d.id];
-        const name = m?.name ?? d.name ?? "Untitled";
-        const title = m?.source.kind === "path" ? m.source.path : name;
+        const { m } = d;
+        const name = m.name;
+        const title = m.source.kind === "path" ? m.source.path : name;
         const active = d.id === activeDocumentId;
         const mark = over?.id === d.id && drag.source !== d.id;
         return (

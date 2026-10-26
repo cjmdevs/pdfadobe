@@ -500,17 +500,30 @@ export function WorkbenchProvider({
     [docs],
   );
 
-  const forget = useCallback((ids: string[]) => {
-    for (const id of ids) {
-      pendingBackups.current.delete(id);
-      restorePages.current.delete(id);
-    }
-    const rest = Object.fromEntries(
-      Object.entries(metaRef.current).filter(([k]) => !ids.includes(k)),
-    );
-    metaRef.current = rest;
-    setMeta(rest);
-  }, []);
+  const forget = useCallback(
+    (ids: string[]) => {
+      for (const id of ids) {
+        pendingBackups.current.delete(id);
+        restorePages.current.delete(id);
+      }
+      const rest = Object.fromEntries(
+        Object.entries(metaRef.current).filter(([k]) => !ids.includes(k)),
+      );
+      metaRef.current = rest;
+      setMeta(rest);
+      // EmbedPDF picks the next tab only once PDFium has closed the document; until then
+      // the closing one would stay active and Ctrl+W, Ctrl+Z etc. would act on it. Pick
+      // now, like EmbedPDF does: the tab before it, else the one after.
+      const active = docs?.getActiveDocumentId();
+      if (!docs || !active || !ids.includes(active)) return;
+      const order = docs.getDocumentOrder();
+      const at = order.indexOf(active);
+      const left = order.slice(0, at).filter((id) => rest[id]);
+      const next = left.at(-1) ?? order.slice(at + 1).find((id) => rest[id]);
+      if (next) docs.setActiveDocument(next);
+    },
+    [docs],
+  );
 
   /** Closes tabs for good: the store forgets their documents. */
   const forceClose = useCallback(

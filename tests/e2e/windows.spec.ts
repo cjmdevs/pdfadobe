@@ -68,6 +68,32 @@ test.describe("tabs and windows", () => {
     await expect(tabs(page)).toHaveText([/workpaper-b/, /workpaper-c/, /workpaper-a/]);
   });
 
+  test("an edit or undo replaces the tab without a second copy showing", async ({ page }) => {
+    await boot(page);
+    await openPaths(page, [P.wpA, P.wpB]);
+    await tab(page, "workpaper-a").click();
+    await waitForPainted(page, 0);
+    // The old document leaves EmbedPDF only once PDFium has closed it: count every tab
+    // the bar ever shows meanwhile, not just where it ends up.
+    await page.evaluate(() => {
+      const w = window as unknown as { __maxTabs: number };
+      const bar = document.querySelector("[role=tablist]")!;
+      const count = () =>
+        (w.__maxTabs = Math.max(w.__maxTabs, bar.querySelectorAll("[role=tab]").length));
+      w.__maxTabs = 0;
+      count();
+      new MutationObserver(count).observe(bar, { childList: true, subtree: true });
+    });
+    await rotateFirstPage(page);
+    await expect(tab(page, "workpaper-a")).toContainText("•");
+    await page.keyboard.press("Control+z");
+    await expect(tab(page, "workpaper-a")).not.toContainText("•");
+    await idle(page);
+    expect(await page.evaluate(() => (window as unknown as { __maxTabs: number }).__maxTabs)).toBe(
+      2,
+    );
+  });
+
   test("a tab dragged out keeps its history and comes back with it", async ({ page }) => {
     await bootWithWindows(page);
     await openPaths(page, [P.wpA, P.wpB]);
