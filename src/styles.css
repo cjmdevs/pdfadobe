@@ -1051,6 +1051,19 @@ button.primary.danger-fill {
 .viewport img {
   -webkit-user-drag: none;
 }
+/* Dragging on a page (drawing, shapes, text selection) made the browser select the page
+   images, flashing the page blue. Text selection is EmbedPDF's own layer, so the browser's
+   is off here; text boxes being typed in keep it. */
+.viewport {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.viewport [contenteditable="true"],
+.viewport textarea,
+.viewport input {
+  user-select: text;
+  -webkit-user-select: text;
+}
 .props-bar {
   display: flex;
   align-items: center;

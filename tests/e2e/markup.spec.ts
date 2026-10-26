@@ -495,4 +495,25 @@ test.describe("markup", () => {
     // Three corners (6 numbers), none left over from the cancelled one.
     expect(polys[0]!.dict["/Vertices"] as unknown[]).toHaveLength(6);
   });
+
+  test("dragging on the page does not select the page (it flashed blue)", async ({ page }) => {
+    await openComment(page, P.text);
+    const selected = async () => {
+      await page.mouse.move(...(await pagePoint(page, 0.15, 0.4)));
+      await page.mouse.down();
+      await page.mouse.move(...(await pagePoint(page, 0.6, 0.55)), { steps: 8 });
+      const s = await page.evaluate(() => !(getSelection()?.isCollapsed ?? true));
+      await page.mouse.up();
+      await page.keyboard.press("Escape");
+      return s;
+    };
+    expect(await selected()).toBe(false); // no tool: text selection
+    await tb(page, "Draw").click();
+    expect(await selected()).toBe(false);
+  });
 });
+
+async function pagePoint(page: Page, fx: number, fy: number): Promise<[number, number]> {
+  const box = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
+  return [box.x + box.width * fx, box.y + box.height * fy];
+}
