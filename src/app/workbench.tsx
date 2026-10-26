@@ -21,7 +21,7 @@ import {
 import { useCoreState } from "@embedpdf/core/react";
 import { useDocumentManagerCapability } from "@embedpdf/plugin-document-manager/react";
 import { usePrintCapability } from "@embedpdf/plugin-print/react";
-import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
+import { useAnnotationCapability, useAnnotationPlugin } from "@embedpdf/plugin-annotation/react";
 import { useHistoryCapability } from "@embedpdf/plugin-history/react";
 import { PdfPermissionFlag, type PdfEngine } from "@embedpdf/models";
 import { isLinearized, pdfHeaderVersion } from "../engine/properties";
@@ -293,6 +293,7 @@ export function WorkbenchProvider({
   const { provides: docs } = useDocumentManagerCapability();
   const { provides: printer } = usePrintCapability();
   const { provides: annotations } = useAnnotationCapability();
+  const { plugin: annotationPlugin } = useAnnotationPlugin();
   const { provides: history } = useHistoryCapability();
   // Markup undo/redo available per tab (EmbedPDF history topic "annotations").
   const [markup, setMarkup] = useState<Record<string, { canUndo: boolean; canRedo: boolean }>>({});
@@ -318,7 +319,19 @@ export function WorkbenchProvider({
       const changed = h.canUndo(MARKUP_TOPIC);
       if (!changed && !h.canRedo(MARKUP_TOPIC)) return;
       if (changed) {
-        await annotations?.forDocument(id).commit().toPromise();
+        // EmbedPDF's commit() returns at once while an earlier commit is still running,
+        // leaving newer changes (e.g. a quick Ctrl+Y) pending, and saveAsCopy may run
+        // before a running commit's PDFium calls. Wait until nothing is pending and no
+        // commit runs. `commitInProgress` is the plugin's own lock (2.15.1, not public);
+        // without it we fall back to waiting for pending changes only.
+        const scope = annotations?.forDocument(id);
+        const locks = (annotationPlugin as unknown as { commitInProgress?: Map<string, boolean> })
+          ?.commitInProgress;
+        for (let i = 0; scope && i < 500; i++) {
+          await scope.commit().toPromise();
+          if (!scope.getState().hasPendingChanges && !locks?.get(id)) break;
+          await new Promise((r) => setTimeout(r, 10));
+        }
         const bytes = new Uint8Array(await engine.saveAsCopy(doc).toPromise());
         setInfo(await queued(sid, () => platform.docs.push(sid, bytes, "Markup")));
       }
@@ -326,7 +339,7 @@ export function WorkbenchProvider({
       setMarkup((s) => ({ ...s, [id]: { canUndo: false, canRedo: false } }));
       setInfo(await queued(sid, () => platform.docs.setMarkupPending(sid, false)));
     },
-    [annotations, core, engine, history, queued, setInfo],
+    [annotationPlugin, annotations, core, engine, history, queued, setInfo],
   );
 
   // Markup changes make the document unsaved (in the store too, for the quit prompt).

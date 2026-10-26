@@ -1048,6 +1048,9 @@ button.primary.danger-fill {
 }
 
 /* ---- Markup (Phase 3) ---- */
+.viewport img {
+  -webkit-user-drag: none;
+}
 .props-bar {
   display: flex;
   align-items: center;

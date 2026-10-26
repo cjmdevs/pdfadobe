@@ -453,4 +453,46 @@ test.describe("markup", () => {
     expect(text).toContain("Square A");
     expect(text).toContain("2. Rectangle");
   });
+
+  test("no native drag on the page (it showed a 'not allowed' cursor and cut strokes)", async ({
+    page,
+  }) => {
+    await openComment(page, P.text);
+    const img = page.locator('[data-testid=viewport] [data-page-index="0"] img').first();
+    const prevented = await img.evaluate((el) => {
+      const e = new DragEvent("dragstart", { bubbles: true, cancelable: true });
+      el.dispatchEvent(e);
+      return e.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
+    await expect(img).toHaveCSS("-webkit-user-drag", "none");
+  });
+
+  test("Esc while clicking a polygon drops the half-made shape; the next one starts fresh", async ({
+    page,
+    mockfs,
+  }) => {
+    await openComment(page, P.text);
+    const box = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
+    const at = (fx: number, fy: number) =>
+      [box.x + box.width * fx, box.y + box.height * fy] as const;
+    await tb(page, "Polygon").click();
+    await page.mouse.click(...at(0.6, 0.2));
+    await page.mouse.click(...at(0.8, 0.2));
+    await page.keyboard.press("Escape");
+    await expect(tb(page, "Polygon")).toHaveAttribute("aria-pressed", "false");
+
+    await tb(page, "Polygon").click();
+    await page.mouse.click(...at(0.2, 0.3));
+    await page.mouse.click(...at(0.4, 0.3));
+    await page.mouse.dblclick(...at(0.3, 0.45));
+    await page.keyboard.press("Control+s");
+    await idle(page);
+    const polys = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
+      (a) => a.subtype === "/Polygon",
+    );
+    expect(polys).toHaveLength(1);
+    // Three corners (6 numbers), none left over from the cancelled one.
+    expect(polys[0]!.dict["/Vertices"] as unknown[]).toHaveLength(6);
+  });
 });
