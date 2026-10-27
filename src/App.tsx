@@ -165,7 +165,7 @@ function Shell({ ready }: { ready: boolean }) {
       if (tickPath) {
         try {
           const firm = await readFirmTickmarks(tickPath);
-          wb.updateSettings({ firmTickmarksCache: firm.tickmarks });
+          wb.updateSettings({ firmTickmarksCache: firm.tickmarks, firmStampsCache: firm.stamps });
         } catch {
           wb.toast(
             wb.settings.firmTickmarksCache

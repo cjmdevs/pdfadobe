@@ -14,6 +14,7 @@ import { CLOUD_INTENSITY } from "../../markup/properties";
 import { CLOUD_TOOL, ERASER_MODE, STAMP_MODE, toolDefaults } from "../../markup/config";
 import { EDIT_MODE } from "../edit/editStore";
 import { FLYER_MODE } from "../flyer/flyerStore";
+import { NOTE_TOOL } from "../flyer/useFlyer";
 
 /** Stand-in pointer event for the cancel call (handlers release capture on it). */
 const NO_EVENT = {
@@ -70,6 +71,34 @@ export function MarkupBridge({ author }: { author: string }) {
     });
     // Once: later "Make default" changes go through setToolDefaults.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [annots]);
+
+  // Workpaper notes (Phase 4): EmbedPDF's text box, pale yellow, tagged as a Note.
+  useEffect(() => {
+    if (!annots || annots.getTool(NOTE_TOOL)) return;
+    const freeText = annots.getTool("freeText");
+    if (!freeText) return;
+    annots.addTool({
+      ...freeText,
+      id: NOTE_TOOL,
+      name: "Workpaper note",
+      matchScore: (a: PdfAnnotationObject) =>
+        a.type === PdfAnnotationSubtype.FREETEXT &&
+        (a as { custom?: { pwType?: string } }).custom?.pwType === "Note"
+          ? 30
+          : 0,
+      defaults: {
+        ...freeText.defaults,
+        contents: "",
+        fontSize: 10,
+        fontColor: "#000000",
+        color: "#FFF6BF",
+        strokeColor: "#C9A100",
+        strokeWidth: 1,
+        subject: "Workpaper note",
+        custom: { pwType: "Note" },
+      },
+    });
   }, [annots]);
 
   // A shape drawn by clicks (polygon, polyline, cloud, callout) or a drag in progress is

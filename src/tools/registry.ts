@@ -10,6 +10,8 @@ import { MARKUP_TOOLS } from "../markup/config";
 import { TEXT_STAMPS } from "../engine/stamps";
 import type { TickmarkDef } from "../engine/flyer/tickmarks";
 import type { LibraryEntry } from "../flyer/library";
+import type { StampTemplate } from "../engine/flyer/userStamps";
+import type { ConnectorStyle } from "../flyer/connectors";
 /** File commands load the platform layer; imported on use so this list stays Node-safe. */
 const markupFiles = () => import("../ui/markup/markupFiles");
 const flyerFiles = () => import("../ui/flyer/flyerFiles");
@@ -47,6 +49,21 @@ export interface FlyerCommands {
   clearRecent(): void;
   /** Arms a legend box of the tickmarks used in the document. */
   insertLegend(): void;
+  /** User and status stamp templates: built-in, firm, mine. */
+  stamps: { def: StampTemplate; source: "built-in" | "firm" | "mine" }[];
+  /** Template id of the stamp being placed, or null. */
+  placingStamp: string | null;
+  /** Arms a stamp (asks for its reference and fields first when it has them). */
+  pickStamp(id: string): void;
+  connectorStyles: readonly ConnectorStyle[];
+  /** Last style used (id). */
+  connectorStyle: string;
+  /** Drawing connectors: two clicks each, until Esc. */
+  connecting: boolean;
+  connect(styleId?: string): void;
+  /** The workpaper note tool is on. */
+  noting: boolean;
+  setNoting(on: boolean): void;
 }
 
 export interface EditCommands {
@@ -486,7 +503,7 @@ export const TOOLS: ToolDef[] = [
     name: "Workpaper Tools",
     icon: "tickmark",
     color: "#e3a400",
-    description: "Tickmarks, tickmark legend and the Stamp Summary (PDFlyer-style)",
+    description: "Tickmarks, sign-off stamps, connectors, notes, Stamp Summary (PDFlyer-style)",
     comingIn: null,
     open: "toolbar",
     panel: () => import("../ui/flyer/StampSummaryPanel"),
@@ -530,6 +547,50 @@ export const TOOLS: ToolDef[] = [
         ],
       },
       {
+        id: "signoff",
+        label: "Place a sign-off or initials stamp (click the page for each one, Esc stops)",
+        caption: "Sign-off",
+        icon: "stamp",
+        run: (c) =>
+          c.flyer?.placingStamp
+            ? c.flyer.stop()
+            : c.flyer?.pickStamp(c.flyer.stamps[0]?.def.id ?? ""),
+        pressed: (c) => c.flyer?.placingStamp != null,
+        enabled: (c) => hasDoc(c) && c.flyer !== null,
+        items: (c) =>
+          (c.flyer?.stamps ?? []).map((e) => ({
+            id: e.def.id,
+            label: e.source === "built-in" ? e.def.title : `${e.def.title} (${e.source})`,
+            checked: e.def.id === c.flyer?.placingStamp,
+            run: (cc: ToolContext) => cc.flyer?.pickStamp(e.def.id),
+          })),
+      },
+      {
+        id: "connector",
+        label: "Draw a connector (click the start, then the end; Esc stops)",
+        caption: "Connector",
+        icon: "arrow",
+        run: (c) => (c.flyer?.connecting ? c.flyer.stop() : c.flyer?.connect()),
+        pressed: (c) => c.flyer?.connecting ?? false,
+        enabled: (c) => hasDoc(c) && c.flyer !== null,
+        items: (c) =>
+          (c.flyer?.connectorStyles ?? []).map((st) => ({
+            id: st.id,
+            label: st.label,
+            checked: st.id === c.flyer?.connectorStyle,
+            run: (cc: ToolContext) => cc.flyer?.connect(st.id),
+          })),
+      },
+      {
+        id: "note",
+        label: "Workpaper note (drag a box, type; Esc ends)",
+        caption: "Note",
+        icon: "textbox",
+        run: (c) => c.flyer?.setNoting(!c.flyer.noting),
+        pressed: (c) => c.flyer?.noting ?? false,
+        enabled: (c) => hasDoc(c) && c.flyer !== null,
+      },
+      {
         id: "palette",
         label: "Tickmark palette (number keys pick a tickmark while placing)",
         caption: "Palette",
@@ -549,7 +610,7 @@ export const TOOLS: ToolDef[] = [
       },
       {
         id: "library",
-        label: "Tickmark library and workpaper settings…",
+        label: "Tickmark and stamp library, workpaper settings…",
         caption: "Library",
         icon: "library",
         run: (c) => c.wb.setDialog({ kind: "tickmarks" }),

@@ -10,6 +10,7 @@ import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workben
 import { CustomizeDialog } from "./CustomizeDialog";
 import { StampPicker } from "./markup/StampPicker";
 import { TickmarkLibrary } from "./flyer/TickmarkLibrary";
+import { StampDetails } from "./flyer/StampDetails";
 import { SettingsBody } from "./SettingsDialog";
 import { FlattenBody } from "./markup/FlattenDialog";
 import {
@@ -103,8 +104,18 @@ function MainDialog() {
       );
     case "tickmarks":
       return (
-        <Modal title="Tickmark library" onClose={close}>
+        <Modal title="Workpaper library" onClose={close}>
           <TickmarkLibrary />
+        </Modal>
+      );
+    case "workpaperStamp":
+      return (
+        <Modal title="Stamp details" onClose={close}>
+          <StampDetails
+            documentId={dialog.documentId}
+            templateId={dialog.templateId}
+            onClose={close}
+          />
         </Modal>
       );
     case "openError":

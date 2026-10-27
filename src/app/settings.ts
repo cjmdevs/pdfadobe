@@ -3,7 +3,8 @@
 
 import type { Scaling } from "../platform/types";
 import type { TickmarkDef } from "../engine/flyer/tickmarks";
-import { sanitizeTickmarks } from "../flyer/library";
+import type { StampTemplate } from "../engine/flyer/userStamps";
+import { sanitizeStampTemplates, sanitizeTickmarks } from "../flyer/library";
 
 export type Theme = "system" | "light" | "dark";
 export type ViewMode = "continuous" | "single" | "twoUp";
@@ -61,6 +62,14 @@ export interface Settings {
   activeTickmark: string;
   /** Floating tickmark palette shown. */
   tickmarkPaletteOpen: boolean;
+  /** The user's own stamp templates (Phase 4 stage 2). */
+  stampTemplates: StampTemplate[];
+  /** Firm stamp templates from the firm file (firmTickmarksPath), last copy. */
+  firmStampsCache: StampTemplate[] | null;
+  /** Initials on user and status stamps; null = from the author name. */
+  userInitials: string | null;
+  /** Last connector style used. */
+  connectorStyle: string;
 }
 
 export const MAX_RECENT = 15;
@@ -118,6 +127,10 @@ export const DEFAULT_SETTINGS: Settings = {
   recentTickmarks: [],
   activeTickmark: "agrees",
   tickmarkPaletteOpen: false,
+  stampTemplates: [],
+  firmStampsCache: null,
+  userInitials: null,
+  connectorStyle: "arrow",
 };
 
 const oneOf =
@@ -196,6 +209,18 @@ export function sanitizeSettings(raw: unknown): Settings {
         : d.activeTickmark,
     tickmarkPaletteOpen:
       typeof r.tickmarkPaletteOpen === "boolean" ? r.tickmarkPaletteOpen : d.tickmarkPaletteOpen,
+    stampTemplates: sanitizeStampTemplates(r.stampTemplates),
+    firmStampsCache: Array.isArray(r.firmStampsCache)
+      ? sanitizeStampTemplates(r.firmStampsCache)
+      : null,
+    userInitials:
+      typeof r.userInitials === "string" && r.userInitials.trim()
+        ? r.userInitials.trim().slice(0, 6)
+        : null,
+    connectorStyle:
+      typeof r.connectorStyle === "string" && /^\w{1,20}$/.test(r.connectorStyle)
+        ? r.connectorStyle
+        : d.connectorStyle,
   };
 }
 

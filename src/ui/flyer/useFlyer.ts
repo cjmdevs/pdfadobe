@@ -4,10 +4,43 @@ import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { useWorkbench } from "../../app/workbench";
 import { drawLegend, drawTickmark, type LegendEntry } from "../../engine/flyer/tickmarks";
-import { mergeLibrary } from "../../flyer/library";
+import { drawUserStamp, type StampTemplate } from "../../engine/flyer/userStamps";
+import { CONNECTOR_STYLES } from "../../flyer/connectors";
+import { mergeLibrary, mergeStamps } from "../../flyer/library";
 import { pwData } from "../../flyer/items";
 import type { FlyerCommands } from "../../tools/registry";
 import { FLYER_MODE, flyerPlacement, usePendingItem } from "./flyerStore";
+import { stampValues } from "./FlyerLayer";
+
+/** EmbedPDF tool for workpaper notes (a free-text box tagged as a Note; MarkupBridge). */
+export const NOTE_TOOL = "workpaperNote";
+
+type Annots = NonNullable<ReturnType<typeof useAnnotation>["provides"]>;
+type Im = ReturnType<typeof useInteractionManager>["provides"];
+
+/** Arms a user/status stamp with its reference and custom field values. */
+export async function armStamp(
+  wb: ReturnType<typeof useWorkbench>,
+  annots: Annots | null | undefined,
+  im: Im,
+  template: StampTemplate,
+  ref: string,
+  fields: Record<string, string>,
+) {
+  const sample = await drawUserStamp(template, stampValues(wb, ref, fields));
+  annots?.setActiveTool(null);
+  annots?.deselectAnnotation();
+  flyerPlacement.set({
+    kind: "stamp",
+    template,
+    ref,
+    fields,
+    width: sample.width,
+    height: sample.height,
+  });
+  im?.activate(FLYER_MODE);
+  wb.toast(`Click on the page to place "${template.title}" (Esc stops).`);
+}
 
 export function useFlyerCommands(documentId: string, enabled: boolean): FlyerCommands | null {
   const wb = useWorkbench();
@@ -15,7 +48,15 @@ export function useFlyerCommands(documentId: string, enabled: boolean): FlyerCom
   const { provides: annots, state } = useAnnotation(documentId);
   const { provides: im, state: imState } = useInteractionManager(documentId);
   const pending = usePendingItem();
-  const placing = imState.activeMode === FLYER_MODE && pending?.kind === "tickmark";
+  const flyerOn = imState.activeMode === FLYER_MODE;
+  const placing = flyerOn && pending?.kind === "tickmark";
+  const placingStamp = flyerOn && pending?.kind === "stamp" ? pending.template.id : null;
+  const connecting = flyerOn && pending?.kind === "connector";
+  const noting = state.activeToolId === NOTE_TOOL;
+  const stamps = useMemo(
+    () => mergeStamps(settings.firmStampsCache ?? [], settings.stampTemplates),
+    [settings.firmStampsCache, settings.stampTemplates],
+  );
   const library = useMemo(
     () => mergeLibrary(settings.firmTickmarksCache ?? [], settings.tickmarks),
     [settings.firmTickmarksCache, settings.tickmarks],
@@ -47,6 +88,41 @@ export function useFlyerCommands(documentId: string, enabled: boolean): FlyerCom
         im?.activateDefaultMode();
       },
       clearRecent: () => updateSettings({ recentTickmarks: [] }),
+      stamps,
+      placingStamp,
+      pickStamp(id) {
+        const t = stamps.find((e) => e.def.id === id)?.def;
+        if (!t) return;
+        // A reference or custom fields: asked for first (StampDetails dialog).
+        if ((t.kind === "status" && t.showRef) || t.fields.length)
+          wb.setDialog({ kind: "workpaperStamp", documentId, templateId: t.id });
+        else void armStamp(wb, annots, im, t, "", {}).catch(fail);
+      },
+      connectorStyles: CONNECTOR_STYLES,
+      connectorStyle: settings.connectorStyle,
+      connecting,
+      connect(styleId) {
+        const style =
+          CONNECTOR_STYLES.find((c) => c.id === (styleId ?? settings.connectorStyle)) ??
+          CONNECTOR_STYLES.find((c) => c.id === "arrow");
+        if (!style) return;
+        if (style.id !== settings.connectorStyle) updateSettings({ connectorStyle: style.id });
+        annots.setActiveTool(null);
+        annots.deselectAnnotation();
+        flyerPlacement.set({ kind: "connector", style, width: 0, height: 0 });
+        im?.activate(FLYER_MODE);
+        wb.toast(
+          "Click where the connector starts, then where it ends (a tickmark or other mark attaches it). Esc stops.",
+        );
+      },
+      noting,
+      setNoting(on) {
+        if (on) {
+          flyerPlacement.set(null);
+          im?.activateDefaultMode();
+        }
+        annots.setActiveTool(on ? NOTE_TOOL : null);
+      },
       insertLegend() {
         // Each tickmark used in this document, once, in library order.
         const used = new Map<string, LegendEntry>();
@@ -73,5 +149,20 @@ export function useFlyerCommands(documentId: string, enabled: boolean): FlyerCom
         }, fail);
       },
     };
-  }, [enabled, annots, im, library, settings, updateSettings, placing, state.byUid, wb]);
+  }, [
+    enabled,
+    annots,
+    im,
+    library,
+    stamps,
+    settings,
+    updateSettings,
+    placing,
+    placingStamp,
+    connecting,
+    noting,
+    state.byUid,
+    wb,
+    documentId,
+  ]);
 }

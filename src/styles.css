@@ -1638,3 +1638,27 @@ button.primary.danger-fill {
   font-size: 11px;
   color: var(--fg-muted);
 }
+.connector-jump {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 20;
+  box-shadow: var(--shadow);
+}
+.stamp-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 300px;
+}
+.stamp-summary .tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.stamp-summary .tabs button[aria-selected="true"] {
+  background: var(--bg-active);
+}
+.stamp-summary .note-text {
+  white-space: pre-wrap;
+}

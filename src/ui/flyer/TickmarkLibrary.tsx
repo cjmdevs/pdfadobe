@@ -1,10 +1,13 @@
-// Tickmark library (Phase 4): the built-in and firm tickmarks (read-only), the user's own
-// (new from a symbol, letters or an image; removable), the firm file on the share, and
-// the workpaper settings export/import.
+// Workpaper library (Phase 4): the built-in and firm tickmarks and sign-off stamps
+// (read-only), the user's own (new tickmarks from a symbol, letters or an image; new stamp
+// templates; removable), the user's initials, the firm file on the share, and the
+// workpaper settings export/import.
 import { useState } from "react";
 import { useWorkbench } from "../../app/workbench";
 import { toBase64, type TickMark, type TickmarkDef } from "../../engine/flyer/tickmarks";
-import { mergeLibrary, sanitizeTickmark } from "../../flyer/library";
+import { initialsOf } from "../../engine/flyer/userStamps";
+import { mergeLibrary, mergeStamps, sanitizeStampTemplate } from "../../flyer/library";
+import { sanitizeTickmark } from "../../flyer/library";
 import { platform } from "../../platform";
 import { exportWorkpaperSettings, importWorkpaperSettings, readFirmTickmarks } from "./flyerFiles";
 import { TickmarkIcon } from "./TickmarkIcon";
@@ -32,6 +35,31 @@ export function TickmarkLibrary() {
   const [color, setColor] = useState("#D0021B");
   const [size, setSize] = useState(14);
   const [image, setImage] = useState<TickmarkDef["image"] | null>(null);
+  const stamps = mergeStamps(settings.firmStampsCache ?? [], settings.stampTemplates);
+  const [stTitle, setStTitle] = useState("");
+  const [stColor, setStColor] = useState("#1F4E9C");
+  const [stTime, setStTime] = useState(true);
+  const [stRef, setStRef] = useState(true);
+  const [stFields, setStFields] = useState("");
+
+  const addStamp = () => {
+    const t = sanitizeStampTemplate({
+      id: `my.${crypto.randomUUID().slice(0, 8)}`,
+      title: stTitle,
+      kind: "status",
+      color: stColor,
+      showName: true,
+      showDate: true,
+      showTime: stTime,
+      showRef: stRef,
+      fields: stFields.split(",").map((f) => f.trim()),
+    });
+    if (!t) return setNote("Give the stamp a title.");
+    updateSettings({ stampTemplates: [...settings.stampTemplates, t] });
+    setNote(`Added the "${t.title}" stamp.`);
+    setStTitle("");
+    setStFields("");
+  };
 
   const draft: TickmarkDef | null = sanitizeTickmark({
     id: "draft",
@@ -68,13 +96,19 @@ export function TickmarkLibrary() {
     setNote(null);
     const p = path.trim();
     if (!p) {
-      updateSettings({ firmTickmarksPath: null, firmTickmarksCache: null });
+      updateSettings({ firmTickmarksPath: null, firmTickmarksCache: null, firmStampsCache: null });
       return setNote("No firm file: built-in and your own tickmarks only.");
     }
     try {
       const file = await readFirmTickmarks(p);
-      updateSettings({ firmTickmarksPath: p, firmTickmarksCache: file.tickmarks });
-      setNote(`Loaded ${file.tickmarks.length} firm tickmark(s).`);
+      updateSettings({
+        firmTickmarksPath: p,
+        firmTickmarksCache: file.tickmarks,
+        firmStampsCache: file.stamps,
+      });
+      setNote(
+        `Loaded ${file.tickmarks.length} firm tickmark(s) and ${file.stamps.length} stamp(s).`,
+      );
     } catch (e) {
       setNote(`Could not load it: ${e instanceof Error ? e.message : String(e)}`);
     }
@@ -182,8 +216,71 @@ export function TickmarkLibrary() {
         </button>
       </fieldset>
 
+      <h3>Sign-off stamps</h3>
+      <label>
+        My initials{" "}
+        <input
+          value={settings.userInitials ?? ""}
+          placeholder={initialsOf(wb.author)}
+          maxLength={6}
+          onChange={(e) => updateSettings({ userInitials: e.target.value.trim() || null })}
+        />
+      </label>
+      <ul className="tick-list">
+        {stamps.map((e) => (
+          <li key={e.def.id}>
+            <span style={{ color: e.def.color, fontWeight: 700 }}>
+              {e.def.kind === "user" ? "JP" : "✎"}
+            </span>
+            <span>
+              {e.def.title}
+              {e.def.fields.length > 0 && <small> ({e.def.fields.join(", ")})</small>}
+            </span>
+            <small className="muted">{e.source}</small>
+            {e.source === "mine" && (
+              <button
+                type="button"
+                aria-label={`Remove ${e.def.title}`}
+                onClick={() =>
+                  updateSettings({
+                    stampTemplates: settings.stampTemplates.filter((t) => t.id !== e.def.id),
+                  })
+                }
+              >
+                ×
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
       <fieldset>
-        <legend>Firm tickmarks (network share, read-only)</legend>
+        <legend>New sign-off stamp</legend>
+        <label>
+          Title{" "}
+          <input value={stTitle} maxLength={40} onChange={(e) => setStTitle(e.target.value)} />
+        </label>
+        <label>
+          Color <input type="color" value={stColor} onChange={(e) => setStColor(e.target.value)} />
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={stTime} onChange={(e) => setStTime(e.target.checked)} />
+          Time
+        </label>
+        <label className="check">
+          <input type="checkbox" checked={stRef} onChange={(e) => setStRef(e.target.checked)} />
+          W/P reference
+        </label>
+        <label>
+          Extra fields (comma-separated){" "}
+          <input value={stFields} onChange={(e) => setStFields(e.target.value)} />
+        </label>
+        <button type="button" onClick={addStamp}>
+          Add stamp
+        </button>
+      </fieldset>
+
+      <fieldset>
+        <legend>Firm tickmarks and stamps (network share, read-only)</legend>
         <label>
           Firm file{" "}
           <input
@@ -199,7 +296,7 @@ export function TickmarkLibrary() {
 
       <div className="row">
         <button type="button" onClick={() => void exportWorkpaperSettings(wb)}>
-          Export my tickmarks…
+          Export my tickmarks and stamps…
         </button>
         <button type="button" onClick={() => void importWorkpaperSettings(wb)}>
           Import…

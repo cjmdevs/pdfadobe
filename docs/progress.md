@@ -5,10 +5,10 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 4 stage 1 (tickmarks) built 2026-10-27, waiting for the owner check**
-  (`docs/testing/phase-04-stage1-test-guide.md`). `npm run check` (300 Vitest + 6
-  expected-fail, Rust, license-check), 118/118 Playwright. Stages 2-4 not started; stage 4
-  (PDFlyer marks) waits for a synthetic PDFlyer sample in `tests/corpus/pdflyer/`.
+- **Phase 4 stage 2 (connectors, sign-off stamps, notes) built 2026-10-27**, waiting for
+  the owner check (`docs/testing/phase-04-stage2-test-guide.md`); stage 1 check also
+  pending. `npm run check` (304 Vitest + 6 expected-fail, Rust, license-check), 120/120
+  Playwright. Stage 3 (calculator) next; stage 4 waits for a synthetic PDFlyer sample.
 - **B3 Edit PDF, stage 1 done: owner check passed 2026-10-27** (all 11 steps of
   `docs/testing/b3-stage1-test-guide.md`, including the Acrobat check and firm fonts
   offline via `\\localhost`). On the build PC:
@@ -36,46 +36,17 @@ Keep it under 2 pages; summarize older phases.
   "Markup" store revision before any page operation/save. Deviations: free text uses
   standard PDF fonts only; XFDF import is one undo step per comment.
 
-## B3 Edit PDF, stage 1 (2026-10-26)
+## B3 Edit PDF, stage 1 (2026-10-26, summary)
 
-Spike: `docs/edit-spike-report.md` (incl. step 0 on `tests/corpus/edit/real-format/`:
-6 synthetic tax-software-style pages, standard 14 fonts not embedded).
-
-Engine, `src/engine/edit/` (Node-safe; runs in the page worker):
-
-- `chars.ts` / `group.ts`: PDFium chars (size scaled by the char matrix: `Tf 1` + Tm)
-  grouped into boxes and paragraphs; dot leaders, typed `----` rules and lone amounts
-  stand alone. `pageInfo.ts`: boxes, styles and images as plain data for the UI.
-- `split.ts`: `removeBoxText` rewrites the parts of text objects shared with other boxes
-  (glyph positions verified, per-glyph fallback), as a commit/rollback transaction.
-- `retypeset.ts` / `typeset.ts`: one style per paragraph (font, size, colour, real or
-  simulated bold/italic, underline as a filled rect, alignment, line spacing); one-line
-  boxes grow, a set width wraps; every letter read back (U+0000/U+FFFD refused) before
-  anything is final; fonts without a space glyph get words written apart; overflow into
-  other text/rules reported, never pushed down. `document.ts`: bytes-in/bytes-out edits
-  by box/image id with a stale check.
-- `fonts/`: own sfnt reader (names, OS/2 fsType, cmap 4/12, hmtx), HarfBuzz subsetting
-  (`harfbuzz-subset.wasm` only, bytes injected), subsets renamed `ABCDEF+Name` via the
-  name table before PDFium loads them; font index cache (path/size/mtime), metric twins
-  for the standard 14, ranked proposals, real bold/italic faces.
-- `images.ts`: add/move/resize/rotate/replace/delete; JPEG via LoadJpegFileInline
-  (byte-identical), PNG via our decoder (PDFium stores Flate + SMask).
-
-Host: Rust `fonts.rs` lists Windows, user and firm fonts; the firm share is mirrored to
-`<config>\font-cache\firm\` and listed from there (offline-safe); `font_read` serves only
-font files in those folders. Setting `firmFontsPath`.
-
-UI, `src/ui/edit/` (registry tool `edit`, panel slot now rendered by the Tools pane):
-outlines, click-to-edit textarea in the closest browser font (exact result on commit:
-Esc, click elsewhere, Ctrl+S/W/P/Q), Add Text (click / drag width), Format panel (font
-picker: this document / standard / firm / Windows, with warnings), image handles, Add
-Image, Replace, Delete key, right-edge width handle, overflow note. Every change is one
-`wb.edit` undo step; the edited item is selected again after the tab reloads (keyed by
-store id: revisions reopen under new document ids).
-
-Deviations: a fourth font group "Standard PDF fonts (not embedded)" (default for new
-text; common in tax output). Line spacing is set in points (no presets). Corner resize
-keeps proportions by default (Shift: free). Text over an image wins the click.
+Spike: `docs/edit-spike-report.md`. Engine `src/engine/edit/` (Node-safe, page worker):
+PDFium chars grouped into boxes/paragraphs, `removeBoxText` split transaction, one style
+per paragraph retypeset with read-back of every letter, own sfnt reader + HarfBuzz
+subsetting (`ABCDEF+Name`), font index cache, images add/move/resize/replace/delete.
+Host `fonts.rs` lists Windows/user/firm fonts (firm share mirrored to
+`<config>\font-cache\firm\`). UI `src/ui/edit/`: outlines, click-to-edit, Add Text/Image,
+Format panel, handles; each change is one `wb.edit` undo step. Deviations: fourth font
+group "Standard PDF fonts (not embedded)", line spacing in points, corner resize keeps
+proportions (Shift: free), text over an image wins the click.
 
 ## Phase 4 stage 1: tickmarks (2026-10-27)
 
@@ -98,6 +69,27 @@ stored as the string `/EPDFCustom` = `{"pwType":"Tickmark","pwTick":"footed",...
 is `Tickmark: Footed`, Contents the meaning. Counting tickmarks continue from the highest
 value already in the document (no separate counter). Legend is a box, not a page. The 14
 symbols are our own guesses from the names (owner reviews at the check).
+
+## Phase 4 stage 2: connectors, sign-off stamps, notes (2026-10-27)
+
+Connectors (`src/flyer/connectors.ts`): /Line with styles (arrow, line, double, dashed,
+dot-to-arrow), red 1.5 pt, restyled with the Phase 3 properties bar. A click on an
+annotation attaches that end (`pwFrom`/`pwTo` = its /NM); FlyerOverlay re-routes attached
+lines whenever annotations change (`reroutes()`), ends stop 8 pt short of the target
+(EmbedPDF's 20 px line hit area would otherwise swallow clicks on the tickmark). Two pages:
+a "p. N" marker /Stamp at each end plus a /Link (GoTo, XYZ) over it, `pwPair`/`pwEnd`;
+links follow their marker and go when it is deleted; in our app a selected end offers
+"Go to the other end". Sign-off stamps (`src/engine/flyer/userStamps.ts`): Prepared by,
+Reviewed by, Final, Initials + own templates (title, color, time, W/P ref, extra fields);
+reference and fields asked before placing, name/initials/time fixed at each click.
+Notes: EmbedPDF free-text tool clone `workpaperNote` (pale yellow, tagged Note), listed
+in a Notes tab next to Stamp Summary. Settings file now carries `stamps` (stage 1 files
+still read); settings `stampTemplates`, `firmStampsCache`, `userInitials`,
+`connectorStyle`.
+
+Deviations: same-page connectors are attached only in our app (Acrobat sees a plain
+line); every workpaper item repeats until Esc (sign-off stamps too); notes are visible
+text boxes (not sticky notes) so a reviewer sees them on the page.
 
 ## Dependency versions and licenses
 

@@ -1,7 +1,11 @@
 // Per document (Phase 4): the floating tickmark palette, number keys 1-9 to switch the
-// armed tickmark, and the Stamp Summary rows for the CSV export.
+// armed tickmark, the Stamp Summary rows for the CSV export, connectors kept attached to
+// what they point at, and "go to the other end" for a selected cross-page connector.
 import { useEffect, useMemo, useRef } from "react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
+import { useScroll } from "@embedpdf/plugin-scroll/react";
+import { reroutes } from "../../flyer/connectors";
+import { pwData } from "../../flyer/items";
 import { useWorkbench } from "../../app/workbench";
 import { summaryRows } from "../../flyer/items";
 import { useDocToolContext } from "../../tools/useToolContext";
@@ -10,7 +14,8 @@ import { TickmarkIcon } from "./TickmarkIcon";
 
 export function FlyerOverlay({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
-  const { state } = useAnnotation(documentId);
+  const { provides: scope, state } = useAnnotation(documentId);
+  const { provides: scroll } = useScroll(documentId);
   const flyer = useDocToolContext(documentId).flyer;
   const rows = useMemo(
     () => summaryRows(Object.values(state.byUid).map((t) => t.object)),
@@ -24,6 +29,27 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
     summarySources.set(documentId, () => rowsRef.current);
     return () => void summarySources.delete(documentId);
   }, [documentId]);
+
+  // Connectors follow the annotations they are attached to; jump links follow their
+  // markers (and go when the marker is deleted).
+  useEffect(() => {
+    if (!scope) return;
+    const { update, remove } = reroutes(Object.values(state.byUid).map((t) => t.object));
+    for (const u of update) scope.updateAnnotation(u.pageIndex, u.id, u.patch);
+    for (const r of remove) scope.deleteAnnotation(r.pageIndex, r.id);
+  }, [scope, state.byUid]);
+
+  // A selected cross-page connector end: where its other end is.
+  const [only, ...more] = state.selectedUids;
+  const selected = only && !more.length ? state.byUid[only] : null;
+  const sel = selected ? pwData(selected.object) : null;
+  const partner =
+    sel?.pwType === "Connector" && sel.pwPair
+      ? Object.values(state.byUid).find((t) => {
+          const d = pwData(t.object);
+          return d?.pwType === "Connector" && d.pwPair === sel.pwPair && d.pwEnd !== sel.pwEnd;
+        })?.object
+      : undefined;
 
   // While placing: 1-9 pick the n-th tickmark of the library (as numbered in the palette).
   const latest = useRef(flyer);
@@ -51,37 +77,57 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [placing]);
 
-  if (!wb.settings.tickmarkPaletteOpen || !flyer) return null;
+  const jump = partner && (
+    <button
+      type="button"
+      className="connector-jump"
+      onClick={() => {
+        scroll?.scrollToPage({
+          pageNumber: partner.pageIndex + 1,
+          pageCoordinates: { x: partner.rect.origin.x, y: partner.rect.origin.y },
+          behavior: "instant",
+          alignY: 30,
+        });
+        scope?.selectAnnotation(partner.pageIndex, partner.id);
+      }}
+    >
+      Go to the other end (page {partner.pageIndex + 1})
+    </button>
+  );
+  if (!wb.settings.tickmarkPaletteOpen || !flyer) return jump || null;
   return (
-    <div className="tick-palette" role="toolbar" aria-label="Tickmark palette">
-      <header>
-        <span>Tickmarks</span>
-        <button
-          type="button"
-          className="tool"
-          aria-label="Close the palette"
-          onClick={() => wb.updateSettings({ tickmarkPaletteOpen: false })}
-        >
-          ×
-        </button>
-      </header>
-      <div className="tick-grid">
-        {flyer.library.map((e, i) => (
+    <>
+      {jump}
+      <div className="tick-palette" role="toolbar" aria-label="Tickmark palette">
+        <header>
+          <span>Tickmarks</span>
           <button
-            key={e.def.id}
             type="button"
-            title={`${e.def.name}${i < 9 ? ` (key ${i + 1})` : ""}`}
-            aria-label={e.def.name}
-            aria-pressed={flyer.placing && flyer.active?.id === e.def.id}
-            onClick={() =>
-              flyer.placing && flyer.active?.id === e.def.id ? flyer.stop() : flyer.arm(e.def.id)
-            }
+            className="tool"
+            aria-label="Close the palette"
+            onClick={() => wb.updateSettings({ tickmarkPaletteOpen: false })}
           >
-            <TickmarkIcon def={e.def} size={16} />
-            {i < 9 && <small>{i + 1}</small>}
+            ×
           </button>
-        ))}
+        </header>
+        <div className="tick-grid">
+          {flyer.library.map((e, i) => (
+            <button
+              key={e.def.id}
+              type="button"
+              title={`${e.def.name}${i < 9 ? ` (key ${i + 1})` : ""}`}
+              aria-label={e.def.name}
+              aria-pressed={flyer.placing && flyer.active?.id === e.def.id}
+              onClick={() =>
+                flyer.placing && flyer.active?.id === e.def.id ? flyer.stop() : flyer.arm(e.def.id)
+              }
+            >
+              <TickmarkIcon def={e.def} size={16} />
+              {i < 9 && <small>{i + 1}</small>}
+            </button>
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

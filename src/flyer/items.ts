@@ -3,10 +3,39 @@
 // EmbedPDF's annotation custom data (stored in the PDF as the /EPDFCustom JSON string)
 // under `pwType`, and its Subject reads "Tickmark: Footed". Node-safe, no React.
 
-import { PdfAnnotationSubtype, type PdfAnnotationObject } from "@embedpdf/models";
+import type { PdfAnnotationObject } from "@embedpdf/models";
 import { sequenceNumber, type TickmarkDef } from "../engine/flyer/tickmarks";
 
-export type PwType = "Tickmark" | "Legend";
+export type PwType =
+  | "Tickmark"
+  | "Legend"
+  | "Connector"
+  /** The /Link over a cross-page connector marker (not listed anywhere). */
+  | "ConnectorLink"
+  | "UserStamp"
+  | "StatusStamp"
+  | "Note";
+
+const PW_TYPES: readonly PwType[] = [
+  "Tickmark",
+  "Legend",
+  "Connector",
+  "ConnectorLink",
+  "UserStamp",
+  "StatusStamp",
+  "Note",
+];
+
+/** How the Stamp Summary names each type. */
+export const PW_TYPE_LABELS: Record<PwType, string> = {
+  Tickmark: "Tickmark",
+  Legend: "Legend",
+  Connector: "Connector",
+  ConnectorLink: "Connector link",
+  UserStamp: "User stamp",
+  StatusStamp: "Status stamp",
+  Note: "Note",
+};
 
 /** What we keep on a workpaper annotation. */
 export interface PwData {
@@ -15,13 +44,22 @@ export interface PwData {
   pwTick?: string;
   /** Sequence value placed ("B"), when the tickmark counts up. */
   pwLabel?: string;
+  /** Connector line: ids (/NM) of the annotations its ends are attached to. */
+  pwFrom?: string;
+  pwTo?: string;
+  /** Cross-page connector: pair id, which end this is, and the other end's page (1-based). */
+  pwPair?: string;
+  pwEnd?: "start" | "end";
+  pwPage?: number;
+  /** User/status stamp template id. */
+  pwStamp?: string;
 }
 
 export function pwData(a: PdfAnnotationObject): PwData | null {
   const c = (a as { custom?: unknown }).custom;
   if (!c || typeof c !== "object") return null;
   const t = (c as Record<string, unknown>).pwType;
-  return t === "Tickmark" || t === "Legend" ? (c as PwData) : null;
+  return PW_TYPES.includes(t as PwType) ? (c as PwData) : null;
 }
 
 export function tickmarkSubject(def: TickmarkDef, label?: string): string {
@@ -40,12 +78,37 @@ export function nextSequence(def: TickmarkDef, annots: PdfAnnotationObject[]): n
   return max + 1;
 }
 
+export interface NoteRow {
+  id: string;
+  pageIndex: number;
+  text: string;
+  author: string;
+  date: Date | null;
+  y: number;
+}
+
+/** Workpaper notes for the Notes panel, in page order. */
+export function noteRows(annots: PdfAnnotationObject[]): NoteRow[] {
+  return annots
+    .filter((a) => pwData(a)?.pwType === "Note")
+    .map((a) => ({
+      id: a.id,
+      pageIndex: a.pageIndex,
+      text: a.contents ?? "",
+      author: a.author ?? "",
+      date: a.modified ?? a.created ?? null,
+      y: a.rect.origin.y,
+    }))
+    .sort((p, q) => p.pageIndex - q.pageIndex || p.y - q.y);
+}
+
 export interface SummaryRow {
   id: string;
   pageIndex: number;
   type: PwType;
-  /** "Footed (B)" for tickmarks, "Tickmark legend". */
+  /** "Footed (B)", "Tickmark legend", "Connector to page 5", "Prepared by". */
   name: string;
+  /** Tickmark meaning, or the stamp's text (name, date, reference). */
   meaning: string;
   author: string;
   created: Date | null;
@@ -54,19 +117,35 @@ export interface SummaryRow {
   y: number;
 }
 
-/** Every workpaper item, in page then top-to-bottom order. */
+function rowName(d: PwData, subject: string): string {
+  switch (d.pwType) {
+    case "Tickmark":
+      return subject.replace(/^Tickmark: /, "");
+    case "Legend":
+      return "Tickmark legend";
+    case "Connector":
+      return d.pwPage
+        ? `Connector ${d.pwEnd === "end" ? "from" : "to"} page ${d.pwPage}`
+        : "Connector";
+    default:
+      return subject;
+  }
+}
+
+/** Every tickmark, legend, connector and user/status stamp (not notes: see noteRows), in
+ * page then top-to-bottom order. */
 export function summaryRows(annots: PdfAnnotationObject[]): SummaryRow[] {
   const rows: SummaryRow[] = [];
   for (const a of annots) {
     const d = pwData(a);
-    if (!d || a.type !== PdfAnnotationSubtype.STAMP) continue;
+    if (!d || d.pwType === "Note" || d.pwType === "ConnectorLink") continue;
     const subject = (a as { subject?: string }).subject ?? "";
     rows.push({
       id: a.id,
       pageIndex: a.pageIndex,
       type: d.pwType,
-      name: d.pwType === "Tickmark" ? subject.replace(/^Tickmark: /, "") : "Tickmark legend",
-      meaning: d.pwType === "Tickmark" ? (a.contents ?? "") : "",
+      name: rowName(d, subject),
+      meaning: d.pwType === "Legend" || d.pwType === "Connector" ? "" : (a.contents ?? ""),
       author: a.author ?? "",
       created: a.created ?? null,
       x: Math.round(a.rect.origin.x),
@@ -87,7 +166,7 @@ export function summaryCsv(rows: SummaryRow[], formatDate: (d: Date) => string):
   const body = rows.map((r) =>
     [
       String(r.pageIndex + 1),
-      r.type,
+      PW_TYPE_LABELS[r.type],
       r.name,
       r.meaning,
       r.author,

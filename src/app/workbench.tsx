@@ -105,6 +105,8 @@ export type Dialog =
   | { kind: "stamps"; documentId: string }
   /** Tickmark library and workpaper settings file (Phase 4). */
   | { kind: "tickmarks" }
+  /** Workpaper reference and custom fields before a user/status stamp is placed. */
+  | { kind: "workpaperStamp"; documentId: string; templateId: string }
   | null;
 
 /** Dialog-driven page operations (src/ui/PageOpsDialogs.tsx). */

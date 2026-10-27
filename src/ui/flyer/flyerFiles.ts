@@ -38,27 +38,33 @@ export async function exportSummaryCsv(wb: WorkbenchApi, documentId: string): Pr
   }
 }
 
-/** The user's tickmarks as a workpaper settings file (also how the firm file is made). */
+/** The user's tickmarks and stamps as a workpaper settings file (also how the firm file
+ * is made). */
 export async function exportWorkpaperSettings(wb: WorkbenchApi): Promise<void> {
   try {
     const target = await platform.pickSavePath("Workpaper settings.json", "json");
     if (!target) return;
-    const file = makeWorkpaperFile(wb.settings.tickmarks);
+    const file = makeWorkpaperFile(wb.settings.tickmarks, wb.settings.stampTemplates);
     await platform.saveAs(target, null, new TextEncoder().encode(JSON.stringify(file, null, 2)));
-    wb.toast(`Exported ${file.tickmarks.length} tickmark(s).`);
+    wb.toast(`Exported ${file.tickmarks.length} tickmark(s) and ${file.stamps.length} stamp(s).`);
   } catch (e) {
     wb.toast(`Export failed: ${message(e)}`, "error");
   }
 }
 
-/** Adds a file's tickmarks to the user's own (same id: replaced). */
+/** Adds a file's tickmarks and stamps to the user's own (same id: replaced). */
 export async function importWorkpaperSettings(wb: WorkbenchApi): Promise<void> {
   const [file] = await platform.pickFiles({ json: true });
   if (!file) return;
   try {
     const parsed = parseWorkpaperFile(new TextDecoder().decode(file.bytes));
-    wb.updateSettings({ tickmarks: importTickmarks(wb.settings.tickmarks, parsed.tickmarks) });
-    wb.toast(`Imported ${parsed.tickmarks.length} tickmark(s).`);
+    wb.updateSettings({
+      tickmarks: importTickmarks(wb.settings.tickmarks, parsed.tickmarks),
+      stampTemplates: importTickmarks(wb.settings.stampTemplates, parsed.stamps),
+    });
+    wb.toast(
+      `Imported ${parsed.tickmarks.length} tickmark(s) and ${parsed.stamps.length} stamp(s).`,
+    );
   } catch (e) {
     wb.toast(`Import failed: ${message(e)}`, "error");
   }

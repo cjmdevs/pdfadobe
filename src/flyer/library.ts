@@ -8,15 +8,18 @@ import {
   type TickMark,
   type TickmarkDef,
 } from "../engine/flyer/tickmarks";
+import { BUILT_IN_STAMPS, type StampTemplate } from "../engine/flyer/userStamps";
 
 export const SETTINGS_FORMAT = "pdf-workbench-workpaper";
 
-/** The export/import file (firm standard or one user's). Stamps and calculator settings
- * join it in later stages. */
+/** The export/import file (firm standard or one user's). Calculator settings join it in
+ * stage 3. */
 export interface WorkpaperFile {
   format: typeof SETTINGS_FORMAT;
   version: 1;
   tickmarks: TickmarkDef[];
+  /** User and status stamp templates (stage 2; absent in stage 1 files). */
+  stamps: StampTemplate[];
 }
 
 export type TickmarkSource = "built-in" | "firm" | "mine";
@@ -81,8 +84,47 @@ export function sanitizeTickmarks(v: unknown, max = 200): TickmarkDef[] {
   return out;
 }
 
-export function makeWorkpaperFile(tickmarks: TickmarkDef[]): WorkpaperFile {
-  return { format: SETTINGS_FORMAT, version: 1, tickmarks };
+export function sanitizeStampTemplate(raw: unknown): StampTemplate | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id = str(r.id, 80);
+  const title = str(r.title, 40);
+  if (!id || !/^[\w.-]+$/.test(id) || !title) return null;
+  const flag = (k: string, d: boolean) => (typeof r[k] === "boolean" ? (r[k] as boolean) : d);
+  return {
+    id,
+    title,
+    kind: r.kind === "user" ? "user" : "status",
+    color: isColor(r.color) ? r.color : "#1F4E9C",
+    showName: flag("showName", true),
+    showDate: flag("showDate", true),
+    showTime: flag("showTime", true),
+    showRef: flag("showRef", true),
+    fields: Array.isArray(r.fields)
+      ? r.fields
+          .map((f) => str(f, 30))
+          .filter((f): f is string => f !== null)
+          .slice(0, 6)
+      : [],
+  };
+}
+
+export function sanitizeStampTemplates(v: unknown, max = 50): StampTemplate[] {
+  if (!Array.isArray(v)) return [];
+  const out: StampTemplate[] = [];
+  for (const x of v) {
+    const t = sanitizeStampTemplate(x);
+    if (t && !out.some((o) => o.id === t.id)) out.push(t);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+export function makeWorkpaperFile(
+  tickmarks: TickmarkDef[],
+  stamps: StampTemplate[] = [],
+): WorkpaperFile {
+  return { format: SETTINGS_FORMAT, version: 1, tickmarks, stamps };
 }
 
 /** Reads an exported file; throws a readable error when it is not one. */
@@ -96,7 +138,7 @@ export function parseWorkpaperFile(text: string): WorkpaperFile {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   if (r.format !== SETTINGS_FORMAT)
     throw new Error("This is not a PDF Workbench workpaper settings file.");
-  return makeWorkpaperFile(sanitizeTickmarks(r.tickmarks));
+  return makeWorkpaperFile(sanitizeTickmarks(r.tickmarks), sanitizeStampTemplates(r.stamps));
 }
 
 /** Built-in first, then the firm file, then the user's own. A firm or personal tickmark
@@ -113,12 +155,31 @@ export function mergeLibrary(firm: TickmarkDef[], mine: TickmarkDef[]): LibraryE
   return out;
 }
 
+/** Stamp templates in the same order and with the same replace rule as tickmarks. */
+export function mergeStamps(
+  firm: StampTemplate[],
+  mine: StampTemplate[],
+): { def: StampTemplate; source: TickmarkSource }[] {
+  const out: { def: StampTemplate; source: TickmarkSource }[] = BUILT_IN_STAMPS.map((def) => ({
+    def,
+    source: "built-in",
+  }));
+  const put = (def: StampTemplate, source: TickmarkSource) => {
+    const i = out.findIndex((e) => e.def.id === def.id);
+    if (i >= 0) out[i] = { def, source };
+    else out.push({ def, source });
+  };
+  for (const d of firm) put(d, "firm");
+  for (const d of mine) put(d, "mine");
+  return out;
+}
+
 export function pushRecent(recent: string[], id: string): string[] {
   return [id, ...recent.filter((r) => r !== id)].slice(0, MAX_RECENT_TICKMARKS);
 }
 
-/** Adds or replaces imported tickmarks in the user's own list. */
-export function importTickmarks(mine: TickmarkDef[], incoming: TickmarkDef[]): TickmarkDef[] {
+/** Adds or replaces imported tickmarks (or stamps) in the user's own list. */
+export function importTickmarks<T extends { id: string }>(mine: T[], incoming: T[]): T[] {
   const out = mine.filter((m) => !incoming.some((i) => i.id === m.id));
   return [...out, ...incoming];
 }
