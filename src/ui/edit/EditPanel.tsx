@@ -26,10 +26,12 @@ import {
   useEditSession,
   useNewTextStyle,
   usePageInfo,
+  usePendingImage,
   useSessionFontKey,
   useSessionStyle,
 } from "./editStore";
 import { NEW_TEXT_STYLE } from "./TextEditor";
+import { deleteSelection, placeImageEdit, replaceImageEdit } from "./editActions";
 
 const SECTION_LABEL: Record<Section, string> = {
   document: "In this document",
@@ -71,6 +73,7 @@ export default function EditPanel({ documentId }: { documentId: string }) {
   const sel = useEditSelection(documentId);
   const session = useEditSession(documentId);
   const adding = useAddingText(documentId);
+  const placing = usePendingImage(documentId);
   const sessionStyle = useSessionStyle(documentId);
   const sessionFontKey = useSessionFontKey(documentId);
   const newText = useNewTextStyle();
@@ -120,11 +123,63 @@ export default function EditPanel({ documentId }: { documentId: string }) {
   );
 
   if (!target) {
+    const image = sel?.kind === "image" ? info?.images[sel.id] : undefined;
     return (
       <section className="tool-panel" aria-label="Edit PDF" data-testid="edit-panel">
         <h3 className="tool-panel-title">Edit PDF</h3>
-        {sel?.kind === "image" ? (
-          <p data-testid="edit-selection">Image on page {sel.page + 1}</p>
+        {placing ? (
+          <p data-testid="edit-target">
+            Click on the page to place {placing.name}, or drag to set its width. Esc cancels.
+          </p>
+        ) : sel?.kind === "image" && image ? (
+          <>
+            <p data-testid="edit-selection">
+              Image on page {sel.page + 1}: drag to move, corners to resize (Shift: free), the round
+              handle to rotate (Shift: 15° steps).
+            </p>
+            <div className="format-row">
+              <button
+                type="button"
+                disabled={wb.busy !== null}
+                onClick={() => void replaceImageEdit(wb, documentId, sel.page, image)}
+              >
+                Replace image…
+              </button>
+              <button
+                type="button"
+                disabled={wb.busy !== null}
+                onClick={() => void deleteSelection(wb, documentId, sel)}
+              >
+                Delete image
+              </button>
+            </div>
+            <div className="format-row" role="group" aria-label="Rotate image">
+              {(
+                [
+                  [90, "Rotate left"],
+                  [-90, "Rotate right"],
+                ] as const
+              ).map(([turn, label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  disabled={wb.busy !== null}
+                  onClick={() =>
+                    void placeImageEdit(
+                      wb,
+                      documentId,
+                      sel.page,
+                      image,
+                      { ...image.placement, rotation: image.placement.rotation + turn },
+                      "Rotate image",
+                    )
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
         ) : (
           <p className="muted">
             Click text to edit it (Esc or a click elsewhere finishes), or click an image to select

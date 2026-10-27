@@ -1,8 +1,9 @@
 // B3 Edit PDF in the reader: outlines and selection (U1), in-place text editing with
 // commit on Escape / a click elsewhere / Ctrl+S, one undo step per edit, refusals, and
-// Add Text (U2), the Format panel and font picker (U3). Saved files are read back with
+// Add Text (U2), the Format panel and font picker (U3), images (U4). Saved files are read back with
 // pdf.js and qpdf (no PDFium code).
 import { readFileSync } from "node:fs";
+import { zlibSync } from "fflate";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { pdfjsView } from "../helpers/leak-scan";
@@ -451,6 +452,214 @@ test.describe("Edit PDF", () => {
       expect(fonts).toContainEqual(
         expect.objectContaining({ base: "/Times-Roman", embedded: false }),
       );
+    });
+  });
+
+  test.describe("images", () => {
+    const JPEG_PATH = join(import.meta.dirname, "..", "corpus", "fixtures", "photo-rgb.jpg");
+    const JPEG = readFileSync(JPEG_PATH);
+    const frame = (page: Page) => page.getByTestId("edit-image-frame");
+
+    /** A small opaque PNG (8 x 8, blue). */
+    function png(): Buffer {
+      const w = 8;
+      const raw = new Uint8Array((w * 3 + 1) * w);
+      for (let y = 0; y < w; y++)
+        for (let x = 0; x < w; x++) raw.set([30, 60, 200], y * (w * 3 + 1) + 1 + x * 3);
+      const table = Array.from({ length: 256 }, (_, n) => {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+        return c >>> 0;
+      });
+      const crc = (b: Uint8Array) => {
+        let c = 0xffffffff;
+        for (const x of b) c = table[(c ^ x) & 0xff]! ^ (c >>> 8);
+        return (c ^ 0xffffffff) >>> 0;
+      };
+      const chunk = (type: string, data: Uint8Array) => {
+        const out = Buffer.alloc(12 + data.length);
+        out.writeUInt32BE(data.length, 0);
+        out.write(type, 4, "latin1");
+        out.set(data, 8);
+        out.writeUInt32BE(crc(out.subarray(4, 8 + data.length)), 8 + data.length);
+        return out;
+      };
+      const ihdr = Buffer.alloc(13);
+      ihdr.writeUInt32BE(w, 0);
+      ihdr.writeUInt32BE(w, 4);
+      ihdr.set([8, 2, 0, 0, 0], 8);
+      return Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        chunk("IHDR", ihdr),
+        chunk("IDAT", zlibSync(raw)),
+        chunk("IEND", new Uint8Array(0)),
+      ]);
+    }
+
+    async function pick(
+      page: Page,
+      name: string,
+      buffer: Buffer,
+      mimeType: string,
+      click: () => Promise<void>,
+    ) {
+      const chooser = page.waitForEvent("filechooser");
+      await click();
+      await (await chooser).setFiles({ name, mimeType, buffer });
+    }
+
+    /** Add Image with the JPEG, placed by a click in the empty part of the page. */
+    async function addJpeg(page: Page) {
+      await pick(page, "photo.jpg", JPEG, "image/jpeg", () =>
+        toolbarButton(page, "Add image").click(),
+      );
+      await expect(toolbarButton(page, "Add image")).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByTestId("edit-panel")).toContainText("Click on the page to place");
+      const pb = await pageBox(page);
+      await page.mouse.move(pb.x + pb.width * 0.5, pb.y + pb.height * 0.5);
+      await expect(page.getByTestId("edit-image-ghost")).toBeVisible();
+      await page.mouse.click(pb.x + pb.width * 0.5, pb.y + pb.height * 0.5);
+      await settled(page);
+      await expect(page.getByTestId("edit-image")).toHaveCount(1);
+      await expect(frame(page)).toBeVisible();
+    }
+
+    const savedHasJpeg = async (page: Page, mockfs: MockFs) => {
+      const writes = mockfs.writes.length;
+      await page.keyboard.press("Control+s");
+      await expect.poll(() => mockfs.writes.length).toBe(writes + 1);
+      return bytesAt(mockfs, MEMO).indexOf(JPEG) >= 0;
+    };
+
+    async function centre(page: Page) {
+      const b = (await page.getByTestId("edit-image").boundingBox())!;
+      return [b.x + b.width / 2, b.y + b.height / 2] as const;
+    }
+
+    test("Add Image places a JPEG, selected, stored byte-for-byte as JPEG", async ({
+      page,
+      mockfs,
+    }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      await expect(page.getByTestId("edit-panel")).toContainText("Image on page 1");
+      expect(await savedHasJpeg(page, mockfs)).toBe(true);
+    });
+
+    test("drag moves it; a corner resizes it in proportion; still the same JPEG", async ({
+      page,
+      mockfs,
+    }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      const before = (await page.getByTestId("edit-image").boundingBox())!;
+      const [x, y] = await centre(page);
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + 40, y + 30, { steps: 5 });
+      await expect(frame(page)).toHaveClass(/dragging/);
+      await page.mouse.up();
+      await settled(page);
+      const moved = (await page.getByTestId("edit-image").boundingBox())!;
+      expect(moved.x - before.x).toBeCloseTo(40, -1);
+      expect(moved.y - before.y).toBeCloseTo(30, -1);
+      await expect(frame(page)).toBeVisible(); // still selected
+
+      const se = (await page.locator("[data-handle=se]").boundingBox())!;
+      await page.mouse.move(se.x + se.width / 2, se.y + se.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(se.x + 60, se.y + 5, { steps: 5 });
+      await page.mouse.up();
+      await settled(page);
+      const big = (await page.getByTestId("edit-image").boundingBox())!;
+      expect(big.width).toBeGreaterThan(moved.width + 40);
+      expect(big.width / big.height).toBeCloseTo(moved.width / moved.height, 1);
+      // Top-left corner stayed put.
+      expect(big.x).toBeCloseTo(moved.x, -1);
+      expect(big.y).toBeCloseTo(moved.y, -1);
+      expect(await savedHasJpeg(page, mockfs)).toBe(true);
+    });
+
+    test("rotate from the panel and with the handle (Shift snaps to 15°)", async ({ page }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      await page.getByTestId("edit-panel").getByRole("button", { name: "Rotate left" }).click();
+      await settled(page);
+      await expect(frame(page)).toHaveAttribute("style", /rotate\(-90deg\)/);
+
+      const [cx, cy] = await centre(page);
+      const r = (await page.locator("[data-handle=rotate]").boundingBox())!;
+      await page.keyboard.down("Shift");
+      const hx = r.x + r.width / 2;
+      const hy = r.y + r.height / 2;
+      await page.mouse.move(hx, hy);
+      await page.mouse.down();
+      // Turn the handle about 40° around the centre: Shift snaps it to a 15° step.
+      const a = (40 * Math.PI) / 180;
+      const [vx, vy] = [hx - cx, hy - cy];
+      await page.mouse.move(
+        cx + vx * Math.cos(a) - vy * Math.sin(a),
+        cy + vx * Math.sin(a) + vy * Math.cos(a),
+        { steps: 6 },
+      );
+      await page.mouse.up();
+      await page.keyboard.up("Shift");
+      await settled(page);
+      const style = (await frame(page).getAttribute("style")) ?? "";
+      const deg = Number(/rotate\((-?[\d.]+)deg\)/.exec(style)?.[1]);
+      expect(Math.abs(deg % 15)).toBeLessThan(0.01);
+      expect(deg).not.toBe(-90);
+    });
+
+    test("Replace puts a PNG in the same place; Delete removes it; Ctrl+Z brings it back", async ({
+      page,
+      mockfs,
+    }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      const before = (await page.getByTestId("edit-image").boundingBox())!;
+      await pick(page, "blue.png", png(), "image/png", () =>
+        page.getByTestId("edit-panel").getByRole("button", { name: "Replace image…" }).click(),
+      );
+      await settled(page);
+      const after = (await page.getByTestId("edit-image").boundingBox())!;
+      // A square picture fits inside the old box, centred.
+      expect(after.width).toBeCloseTo(Math.min(before.width, before.height), -1);
+      expect(after.x + after.width / 2).toBeCloseTo(before.x + before.width / 2, -1);
+      expect(await savedHasJpeg(page, mockfs)).toBe(false);
+
+      await expect(frame(page)).toBeVisible();
+      await page.keyboard.press("Delete");
+      await settled(page);
+      await expect(page.getByTestId("edit-image")).toHaveCount(0);
+      await page.keyboard.press("Control+z");
+      await settled(page);
+      await expect(page.getByTestId("edit-image")).toHaveCount(1);
+    });
+
+    test("Delete removes a selected text box's text", async ({ page }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "Two invoices dated");
+      await page.mouse.click(x, y);
+      await page.keyboard.press("Escape");
+      await expect(box(page, "Two invoices dated")).toHaveClass(/selected/);
+      await page.keyboard.press("Delete");
+      await settled(page);
+      await expect(box(page, "Two invoices dated")).toHaveCount(0);
+      await expect(box(page, "We selected sales")).toBeVisible();
+    });
+
+    test("Escape cancels placing a picked image", async ({ page }) => {
+      await openEdit(page);
+      await pick(page, "photo.jpg", JPEG, "image/jpeg", () =>
+        toolbarButton(page, "Add image").click(),
+      );
+      await expect(toolbarButton(page, "Add image")).toHaveAttribute("aria-pressed", "true");
+      await page.keyboard.press("Escape");
+      await expect(toolbarButton(page, "Add image")).toHaveAttribute("aria-pressed", "false");
+      const pb = await pageBox(page);
+      await page.mouse.click(pb.x + pb.width * 0.5, pb.y + pb.height * 0.5);
+      await expect(page.getByTestId("edit-image")).toHaveCount(0);
     });
   });
 });

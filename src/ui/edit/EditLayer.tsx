@@ -9,7 +9,7 @@ import {
   useInteractionManager,
   usePointerHandlers,
 } from "@embedpdf/plugin-interaction-manager/react";
-import type { EditImage, EditPageInfo, EditTextBox, Rect } from "../../engine/edit";
+import type { EditImage, EditPageInfo, EditTextBox, Placement, Rect } from "../../engine/edit";
 import { hitTest } from "../../engine/edit/pageInfo";
 import { pageOp } from "../../app/pages";
 import { useWorkbench, type WorkbenchApi } from "../../app/workbench";
@@ -21,11 +21,15 @@ import {
   pageInfos,
   reselect,
   useAddingText,
+  pendingImage,
   useEditSelection,
   useEditSession,
+  usePendingImage,
   type EditSelection,
 } from "./editStore";
 import { TextEditor } from "./TextEditor";
+import { dragPlacement, hitHandle, naturalSize, type Handle, type Pt } from "./imageDrag";
+import { addImageEdit, placeImageEdit } from "./editActions";
 
 /** Store bytes per loaded document object: one read serves every page of the tab. */
 const bytesFor = new WeakMap<object, Promise<Uint8Array | null>>();
@@ -43,6 +47,9 @@ type Item = EditTextBox | EditImage;
 
 /** A drag shorter than this (points) is a click. */
 const DRAG = 8;
+/** Handle grab radius and the rotate handle's distance above the image (screen pixels). */
+const HANDLE = 7;
+const ROTATE_GAP = 22;
 
 const selectionOf = (page: number, it: Item): EditSelection => ({
   page,
@@ -61,13 +68,29 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
   const scale = docState?.scale ?? 1;
   const [info, setInfo] = useState<EditPageInfo | null>(null);
   const [hover, setHover] = useState<Item | null>(null);
-  const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null);
+  const [drag, setDrag] = useState<{
+    /** "text": Add Text; "image": placing a picked image. */
+    kind: "text" | "image";
+    x0: number;
+    y0: number;
+    x1: number;
+    y1: number;
+  } | null>(null);
+  /** An image being moved, resized or rotated: where it is now (PDF points). */
+  const [imgDrag, setImgDrag] = useState<{
+    img: EditImage;
+    handle: Handle;
+    from: Pt;
+    now: Placement;
+  } | null>(null);
+  const [ghost, setGhost] = useState<Pt | null>(null);
+  const pending = usePendingImage(documentId);
   const selection = useEditSelection(documentId);
   const session = useEditSession(documentId);
   const adding = useAddingText(documentId);
-  const latest = useRef({ info, busy: wb.busy, drag });
+  const latest = useRef({ info, busy: wb.busy, drag, imgDrag, selection, scale, wb });
   useEffect(() => {
-    latest.current = { info, busy: wb.busy, drag };
+    latest.current = { info, busy: wb.busy, drag, imgDrag, selection, scale, wb };
   });
 
   useEffect(() => {
@@ -101,40 +124,110 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
       const i = latest.current.info;
       return i ? hitTest(i, pos.x, i.height - pos.y) : null;
     };
+    const pdf = (pos: { x: number; y: number }): Pt => ({
+      x: pos.x,
+      y: (latest.current.info?.height ?? 0) - pos.y,
+    });
+    /** Handle size and rotate-handle gap: fixed on screen, so in points they shrink with zoom. */
+    const px = (n: number) => n / latest.current.scale;
     return register({
-      onPointerMove: (pos) => {
+      onPointerMove: (pos, evt) => {
         const d = latest.current.drag;
-        if (d) setDrag({ ...d, x1: pos.x, y1: pos.y });
+        const g = latest.current.imgDrag;
+        if (g)
+          setImgDrag({
+            ...g,
+            now: dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), evt.shiftKey),
+          });
+        else if (d) setDrag({ ...d, x1: pos.x, y1: pos.y });
+        else if (pendingImage.get(documentId)) setGhost(pdf(pos));
         else setHover(addText.get(documentId) ? null : at(pos));
       },
-      onPointerLeave: () => setHover(null),
-      onPointerDown: (pos) => {
+      onPointerLeave: () => {
+        setHover(null);
+        setGhost(null);
+      },
+      onPointerDown: (pos, evt) => {
         // A click on the page ends an open editor (the page keeps focus from moving, so
         // its blur does not fire). Nothing starts while an edit is running: the page is
         // about to reload.
         if (editSession.commit(documentId) || latest.current.busy) return;
-        if (addText.get(documentId)) {
-          setDrag({ x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
+        if (pendingImage.get(documentId) || addText.get(documentId)) {
+          const kind = pendingImage.get(documentId) ? "image" : "text";
+          setDrag({ kind, x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
           return;
         }
-        const hit = at(pos);
+        const i = latest.current.info;
+        const sel = latest.current.selection;
+        // The selected image's handles come first (they reach outside the image).
+        const selected =
+          sel?.kind === "image" && sel.page === pageIndex ? (i?.images[sel.id] ?? null) : null;
+        const handle = selected
+          ? hitHandle(selected.placement, pdf(pos), px(HANDLE), px(ROTATE_GAP))
+          : null;
+        const hit = handle && selected ? selected : at(pos);
         if (!hit) return editSelection.set(documentId, null);
         editSelection.set(documentId, selectionOf(pageIndex, hit));
         if (hit.kind === "text")
           editSession.open(documentId, { kind: "box", page: pageIndex, box: hit });
+        else {
+          evt.setPointerCapture?.();
+          setImgDrag({ img: hit, handle: handle ?? "move", from: pdf(pos), now: hit.placement });
+        }
       },
-      onPointerUp: (pos) => {
-        const d = latest.current.drag;
+      onPointerUp: (pos, evt) => {
+        const g = latest.current.imgDrag;
         const i = latest.current.info;
+        if (g) {
+          evt.releasePointerCapture?.();
+          setImgDrag(null);
+          const now = dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), evt.shiftKey);
+          const p = g.img.placement;
+          const changed =
+            Math.hypot(now.cx - p.cx, now.cy - p.cy) > 0.5 ||
+            Math.abs(now.width - p.width) > 0.5 ||
+            Math.abs(now.height - p.height) > 0.5 ||
+            Math.abs(now.rotation - p.rotation) > 0.2;
+          const label =
+            g.handle === "move"
+              ? "Move image"
+              : g.handle === "rotate"
+                ? "Rotate image"
+                : "Resize image";
+          if (changed)
+            void placeImageEdit(latest.current.wb, documentId, pageIndex, g.img, now, label);
+          return;
+        }
+        const d = latest.current.drag;
         if (!d || !i) return;
         setDrag(null);
-        const width = Math.abs(pos.x - d.x0) >= DRAG ? Math.abs(pos.x - d.x0) : null;
+        const dragged = Math.abs(pos.x - d.x0) >= DRAG ? Math.abs(pos.x - d.x0) : null;
+        const picked = pendingImage.get(documentId);
+        if (d.kind === "image" && picked) {
+          pendingImage.set(documentId, null);
+          setGhost(null);
+          // Its natural size centred on the click, or the dragged width (proportions kept).
+          const size = naturalSize(picked.px, i.width);
+          const width = dragged ?? size.width;
+          const height = (width * picked.px.height) / picked.px.width;
+          const left = dragged !== null ? Math.min(d.x0, pos.x) : pos.x - width / 2;
+          const top =
+            dragged !== null ? i.height - Math.min(d.y0, pos.y) : i.height - pos.y + height / 2;
+          void addImageEdit(latest.current.wb, documentId, pageIndex, picked.bytes, {
+            cx: left + width / 2,
+            cy: top - height / 2,
+            width,
+            height,
+            rotation: 0,
+          });
+          return;
+        }
         editSession.open(documentId, {
           kind: "new",
           page: pageIndex,
           x: Math.min(d.x0, pos.x),
           top: i.height - Math.min(d.y0, pos.y),
-          width,
+          width: dragged,
         });
       },
     });
@@ -154,6 +247,10 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         ? " hover"
         : "";
   const editingHere = session?.page === pageIndex ? session : null;
+  const selectedImage =
+    selection?.kind === "image" && selection.page === pageIndex ? info.images[selection.id] : null;
+  const framed = imgDrag?.now ?? selectedImage?.placement ?? null;
+  const ghostSize = pending ? naturalSize(pending.px, info.width) : null;
   return (
     <div className={`edit-layer${adding ? " adding" : ""}`} data-testid="edit-layer">
       {info.images.map((img) => (
@@ -176,6 +273,39 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
             style={css(b.rect)}
           />
         ),
+      )}
+      {framed && (
+        <div
+          className={`edit-frame${imgDrag ? " dragging" : ""}`}
+          data-testid="edit-image-frame"
+          aria-hidden="true"
+          style={{
+            left: (framed.cx - framed.width / 2) * scale,
+            top: (info.height - framed.cy - framed.height / 2) * scale,
+            width: framed.width * scale,
+            height: framed.height * scale,
+            transform: `rotate(${-framed.rotation}deg)`,
+          }}
+        >
+          {(["nw", "ne", "se", "sw"] as const).map((h) => (
+            <span key={h} className={`edit-handle ${h}`} data-handle={h} />
+          ))}
+          <span className="edit-rotate-stem" style={{ height: ROTATE_GAP }} />
+          <span className="edit-handle rotate" data-handle="rotate" style={{ top: -ROTATE_GAP }} />
+        </div>
+      )}
+      {ghostSize && ghost && !drag && (
+        <div
+          className="edit-item edit-new"
+          data-testid="edit-image-ghost"
+          aria-hidden="true"
+          style={{
+            left: (ghost.x - ghostSize.width / 2) * scale,
+            top: (info.height - ghost.y - ghostSize.height / 2) * scale,
+            width: ghostSize.width * scale,
+            height: ghostSize.height * scale,
+          }}
+        />
       )}
       {drag && (
         <div

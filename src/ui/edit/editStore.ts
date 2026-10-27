@@ -200,3 +200,26 @@ export function usePageInfo(documentId: string, page: number | null): EditPageIn
 export function useAddingText(documentId: string): boolean {
   return useSyncExternalStore(subscribe, () => get(documentId).adding);
 }
+
+/** An image picked with Add Image, waiting for a click (or drag) on a page. */
+export interface PendingImage {
+  bytes: Uint8Array;
+  /** Pixel size, for the default placement size and its proportions. */
+  px: { width: number; height: number };
+  name: string;
+}
+
+const pendingImages = new Map<string, PendingImage>();
+export const pendingImage = {
+  get: (documentId: string) => pendingImages.get(documentId) ?? null,
+  set(documentId: string, img: PendingImage | null) {
+    if (img) pendingImages.set(documentId, img);
+    else pendingImages.delete(documentId);
+    if (img) patch(documentId, { adding: false, selection: null });
+    for (const l of listeners) l();
+  },
+};
+
+export function usePendingImage(documentId: string): PendingImage | null {
+  return useSyncExternalStore(subscribe, () => pendingImages.get(documentId) ?? null);
+}

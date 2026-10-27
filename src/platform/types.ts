@@ -57,7 +57,8 @@ export type PrintResult = { status: "printed"; pages: number } | { status: "canc
 export interface Platform {
   readonly kind: "tauri" | "browser";
   /** Native open dialog (multi-select). Empty array when cancelled. `images` also offers JPG/PNG/TIFF. */
-  pickFiles(opts?: { images?: boolean; xfdf?: boolean }): Promise<OpenedFile[]>;
+  /** `pictures`: JPEG and PNG only (Edit PDF images). */
+  pickFiles(opts?: { images?: boolean; xfdf?: boolean; pictures?: boolean }): Promise<OpenedFile[]>;
   /** Folder picker; null when cancelled. */
   pickFolder(): Promise<string | null>;
   /** PDFs and images directly in a folder (not subfolders), in natural name order. */

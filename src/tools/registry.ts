@@ -35,6 +35,10 @@ export interface EditCommands {
   /** Add Text is armed: the next click (or drag) on a page places new text. */
   adding: boolean;
   setAdding(on: boolean): void;
+  /** Picks a JPEG or PNG; the next click (or drag) on a page places it. */
+  addImage(): void;
+  /** A picked image is waiting to be placed. */
+  placingImage: boolean;
 }
 
 /** A tool's panel in the Tools pane, loaded on first use (keeps this list Node-safe). */
@@ -306,6 +310,20 @@ export const TOOLS: ToolDef[] = [
           c.edit.setAdding(!c.edit.adding);
         },
         pressed: (c) => c.edit?.adding ?? false,
+        enabled: (c) => hasDoc(c) && c.edit !== null,
+      },
+      {
+        id: "addImage",
+        label: "Add image (JPEG or PNG; click to place, drag to set the width)",
+        caption: "Add Image",
+        icon: "addImage",
+        run: (c) => {
+          if (!c.documentId || !c.edit) return;
+          if (c.wb.meta[c.documentId]?.activeTool !== "edit")
+            c.wb.setActiveTool(c.documentId, "edit");
+          c.edit.addImage();
+        },
+        pressed: (c) => c.edit?.placingImage ?? false,
         enabled: (c) => hasDoc(c) && c.edit !== null,
       },
     ],

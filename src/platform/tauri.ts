@@ -150,17 +150,19 @@ export const tauriPlatform: Platform = {
 
   async pickFiles(opts) {
     const picked = await open({
-      multiple: true,
+      multiple: !opts?.pictures,
       directory: false,
       filters: opts?.xfdf
         ? [{ name: "Comments (XFDF)", extensions: ["xfdf"] }]
-        : opts?.images
-          ? [
-              { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
-              { name: "PDF files", extensions: ["pdf"] },
-              { name: "Images", extensions: IMAGE_EXTENSIONS },
-            ]
-          : [{ name: "PDF files", extensions: ["pdf"] }],
+        : opts?.pictures
+          ? [{ name: "Images (JPEG, PNG)", extensions: ["jpg", "jpeg", "png"] }]
+          : opts?.images
+            ? [
+                { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
+                { name: "PDF files", extensions: ["pdf"] },
+                { name: "Images", extensions: IMAGE_EXTENSIONS },
+              ]
+            : [{ name: "PDF files", extensions: ["pdf"] }],
     });
     if (!picked) return [];
     const paths = Array.isArray(picked) ? picked : [picked];

@@ -18,6 +18,15 @@ import {
   type RetypesetResult,
 } from "./retypeset";
 import { removeBoxText } from "./split";
+import type { Rect } from "./chars";
+import {
+  addImage,
+  deleteImage,
+  pageImages,
+  placeImage,
+  replaceImage,
+  type Placement,
+} from "./images";
 
 /** A text box on a page, as editPageInfo listed it. */
 export interface BoxRef {
@@ -146,4 +155,64 @@ function merge(own: ParagraphStyle, over: Partial<PlainStyle> | undefined): Para
     ...rest,
     font: !font || font.kind === "original" ? own.font : font,
   };
+}
+
+/** An image on a page, as editPageInfo listed it (its rect is checked before editing). */
+export interface ImageRef {
+  page: number;
+  id: number;
+  rect: Rect;
+}
+
+export type ImageEdit =
+  | { kind: "place"; placement: Placement }
+  | { kind: "delete" }
+  /** New picture (JPEG or PNG bytes) in the old place. */
+  | { kind: "replace"; data: Uint8Array };
+
+/** Moves / resizes / rotates, deletes or replaces one image. */
+export function editImage(
+  m: PdfiumModule,
+  bytes: Uint8Array,
+  ref: ImageRef,
+  op: ImageEdit,
+): Uint8Array {
+  const doc = RawDoc.open(m, bytes);
+  try {
+    doc.withPage(ref.page, (page) => {
+      const img = pageImages(m, page)[ref.id];
+      const same = (a: number, b: number) => Math.abs(a - b) < 0.5;
+      if (
+        !img ||
+        !same(img.bounds.l, ref.rect.l) ||
+        !same(img.bounds.r, ref.rect.r) ||
+        !same(img.bounds.b, ref.rect.b) ||
+        !same(img.bounds.t, ref.rect.t)
+      )
+        throw new EditRefused("The page changed since this image was selected. Select it again.");
+      if (op.kind === "place") placeImage(m, page, img.obj, op.placement);
+      else if (op.kind === "delete") deleteImage(m, page, img.obj);
+      else replaceImage(m, page, img.obj, op.data);
+    });
+    return doc.save();
+  } finally {
+    doc.close();
+  }
+}
+
+/** Adds a JPEG (kept as JPEG) or PNG image at `placement`, on top of the page. */
+export function addImageToPage(
+  m: PdfiumModule,
+  bytes: Uint8Array,
+  page: number,
+  data: Uint8Array,
+  placement: Placement,
+): Uint8Array {
+  const doc = RawDoc.open(m, bytes);
+  try {
+    doc.withPage(page, (p) => addImage(m, doc.ptr, p, data, placement));
+    return doc.save();
+  } finally {
+    doc.close();
+  }
 }

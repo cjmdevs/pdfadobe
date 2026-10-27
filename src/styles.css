@@ -1413,3 +1413,52 @@ button.primary.danger-fill {
 .format-warnings .error {
   color: #b3261e;
 }
+
+/* Selected image: frame, corner handles (resize) and the rotate handle above it. */
+.edit-frame {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  transform-origin: center;
+  pointer-events: none;
+}
+.edit-frame.dragging {
+  border-style: dashed;
+  background: rgba(26, 95, 180, 0.08);
+}
+.edit-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  margin: -6px 0 0 -6px;
+  box-sizing: border-box;
+  border: 2px solid var(--accent);
+  background: #fff;
+}
+.edit-handle.nw {
+  left: 0;
+  top: 0;
+}
+.edit-handle.ne {
+  left: 100%;
+  top: 0;
+}
+.edit-handle.se {
+  left: 100%;
+  top: 100%;
+}
+.edit-handle.sw {
+  left: 0;
+  top: 100%;
+}
+.edit-handle.rotate {
+  left: 50%;
+  border-radius: 50%;
+}
+.edit-rotate-stem {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  width: 0;
+  border-left: 1px solid var(--accent);
+}

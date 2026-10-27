@@ -6,7 +6,14 @@ import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { ERASER_MODE, STAMP_MODE } from "../markup/config";
-import { EDIT_MODE, addText, useAddingText } from "../ui/edit/editStore";
+import {
+  EDIT_MODE,
+  addText,
+  pendingImage,
+  useAddingText,
+  usePendingImage,
+} from "../ui/edit/editStore";
+import { pickImageToAdd } from "../ui/edit/editActions";
 import { TEXT_STAMPS } from "../engine/stamps";
 import { stampPlacement, textStamp } from "../ui/markup/stampPlacement";
 import { importXfdf } from "../ui/markup/importXfdf";
@@ -31,6 +38,7 @@ export function useDocToolContext(documentId: string): ToolContext {
     level === ZoomMode.FitPage ? "fit-page" : level === ZoomMode.FitWidth ? "fit-width" : "other";
   const docState = useDocumentState(documentId);
   const adding = useAddingText(documentId);
+  const placingImage = usePendingImage(documentId) !== null;
   const encrypted = docState?.document?.isEncrypted ?? false;
   const m = wb.meta[documentId];
   const organizing = m?.activeTool === "organize";
@@ -87,8 +95,17 @@ export function useDocToolContext(documentId: string): ToolContext {
             setOn: (on) => (on ? im?.activate(EDIT_MODE) : im?.activateDefaultMode()),
             adding,
             setAdding: (on) => {
-              if (on) im?.activate(EDIT_MODE);
+              if (on) {
+                im?.activate(EDIT_MODE);
+                pendingImage.set(documentId, null);
+              }
               addText.set(documentId, on);
+            },
+            placingImage,
+            addImage: () => {
+              im?.activate(EDIT_MODE);
+              addText.set(documentId, false);
+              void pickImageToAdd(wb, documentId);
             },
           },
     }),
@@ -111,6 +128,7 @@ export function useDocToolContext(documentId: string): ToolContext {
       erasing,
       imState.activeMode,
       adding,
+      placingImage,
     ],
   );
 }

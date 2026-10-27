@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { useWorkbench } from "../../app/workbench";
-import { EDIT_MODE, editSession, resetEdit } from "./editStore";
+import { EDIT_MODE, editSession, pendingImage, resetEdit } from "./editStore";
 
 export function EditBridge({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
@@ -30,6 +30,7 @@ export function EditBridge({ documentId }: { documentId: string }) {
     if (editing) return;
     editSession.commit(documentId);
     resetEdit(documentId);
+    pendingImage.set(documentId, null);
   }, [documentId, editing]);
 
   return null;

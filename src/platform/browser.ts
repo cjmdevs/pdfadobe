@@ -22,16 +22,18 @@ import {
 
 const SETTINGS_KEY = "pdf-workbench.settings";
 
-function pickWithInput(images = false, xfdf = false): Promise<File[]> {
+function pickWithInput(images = false, xfdf = false, pictures = false): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
     input.accept = xfdf
       ? ".xfdf,application/vnd.adobe.xfdf"
-      : images
-        ? "application/pdf,.pdf,image/jpeg,image/png,image/tiff,.tif,.tiff"
-        : "application/pdf,.pdf";
-    input.multiple = true;
+      : pictures
+        ? "image/jpeg,image/png,.jpg,.jpeg,.png"
+        : images
+          ? "application/pdf,.pdf,image/jpeg,image/png,image/tiff,.tif,.tiff"
+          : "application/pdf,.pdf";
+    input.multiple = !pictures;
     input.onchange = () => resolve(Array.from(input.files ?? []));
     input.oncancel = () => resolve([]);
     input.click();
@@ -202,7 +204,9 @@ export const browserPlatform: Platform = {
   },
 
   async pickFiles(opts) {
-    return Promise.all((await pickWithInput(opts?.images, opts?.xfdf)).map(fileToOpened));
+    return Promise.all(
+      (await pickWithInput(opts?.images, opts?.xfdf, opts?.pictures)).map(fileToOpened),
+    );
   },
 
   async pickFolder() {

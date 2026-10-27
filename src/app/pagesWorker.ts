@@ -9,7 +9,17 @@ import { summarizeComments } from "../engine/summary";
 import { documentXfdf } from "../engine/xfdf";
 import type { QpdfJob, QpdfResult } from "../engine/pages";
 import { editPageInfo } from "../engine/edit/pageInfo";
-import { addTextBox, editBoxText, type BoxRef, type PlainStyle } from "../engine/edit/document";
+import {
+  addImageToPage,
+  addTextBox,
+  editBoxText,
+  editImage,
+  type BoxRef,
+  type ImageEdit,
+  type ImageRef,
+  type PlainStyle,
+} from "../engine/edit/document";
+import type { Placement } from "../engine/edit/images";
 import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
 
 type Ctx = P.PagesCtx;
@@ -64,6 +74,10 @@ export const OPS = {
     paragraphs: string[],
     styles: (Partial<PlainStyle> | undefined)[] = [],
   ) => editBoxText(c.module, b, ref, paragraphs, { subset: await subsetter() }, styles),
+  editImage: async (c: Ctx, b: Uint8Array, ref: ImageRef, op: ImageEdit) =>
+    editImage(c.module, b, ref, op),
+  addImage: async (c: Ctx, b: Uint8Array, page: number, data: Uint8Array, at: Placement) =>
+    addImageToPage(c.module, b, page, data, at),
   addText: async (
     c: Ctx,
     b: Uint8Array,
