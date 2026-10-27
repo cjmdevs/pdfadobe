@@ -50,3 +50,6 @@ export function groupPage(
     m.FPDFText_ClosePage(textPage);
   }
 }
+
+export { editPageInfo, hitTest } from "./pageInfo";
+export type { EditImage, EditPageInfo, EditTextBox } from "./pageInfo";

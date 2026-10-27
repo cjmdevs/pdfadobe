@@ -48,6 +48,9 @@ import tools from "@fluentui/svg-icons/icons/wrench_20_regular.svg?raw";
 import more from "@fluentui/svg-icons/icons/more_horizontal_20_regular.svg?raw";
 import settings from "@fluentui/svg-icons/icons/settings_20_regular.svg?raw";
 import comment from "@fluentui/svg-icons/icons/comment_20_regular.svg?raw";
+import editPdf from "@fluentui/svg-icons/icons/document_edit_20_regular.svg?raw";
+import addText from "@fluentui/svg-icons/icons/text_add_20_regular.svg?raw";
+import addImage from "@fluentui/svg-icons/icons/image_add_20_regular.svg?raw";
 import stamp from "@fluentui/svg-icons/icons/stamp_32_light.svg?raw";
 import redact from "@fluentui/svg-icons/icons/eraser_20_regular.svg?raw";
 import form from "@fluentui/svg-icons/icons/form_20_regular.svg?raw";
@@ -142,6 +145,9 @@ const SVG = {
   more,
   settings,
   comment,
+  editPdf,
+  addText,
+  addImage,
   stamp,
   redact,
   form,

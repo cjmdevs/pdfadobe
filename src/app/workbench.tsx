@@ -136,6 +136,11 @@ export interface WorkbenchApi {
   /** Current bytes of a tab, from the document store (null for tabs that cannot be
    * edited, e.g. encrypted). */
   docBytes(id: string): Promise<Uint8Array | null>;
+  /**
+   * The store's current bytes without committing unsaved markup first: for reading the
+   * page content (Edit PDF outlines), never for writing. Null like docBytes.
+   */
+  contentBytes(id: string): Promise<Uint8Array | null>;
   editState(id: string): EditState;
   /**
    * Runs a page operation on a tab: `fn` gets the current bytes and returns new ones,
@@ -783,6 +788,15 @@ export function WorkbenchProvider({
     [commitMarkup, core, storeBytes],
   );
 
+  const contentBytes = useCallback(
+    async (id: string) => {
+      if (core?.documents[id]?.document?.isEncrypted) return null;
+      const sid = metaRef.current[id]?.storeId;
+      return sid ? storeBytes(sid).catch(() => null) : null;
+    },
+    [core, storeBytes],
+  );
+
   const editState = useCallback(
     (id: string): EditState => {
       const info = infos[meta[id]?.storeId ?? ""];
@@ -1151,6 +1165,7 @@ export function WorkbenchProvider({
       singlePage,
       setSinglePage,
       docBytes,
+      contentBytes,
       editState,
       edit,
       undo,
@@ -1194,6 +1209,7 @@ export function WorkbenchProvider({
       singlePage,
       setSinglePage,
       docBytes,
+      contentBytes,
       editState,
       edit,
       undo,

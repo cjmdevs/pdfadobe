@@ -1298,3 +1298,35 @@ button.primary.danger-fill {
 .flatten-form p {
   max-width: 440px;
 }
+
+/* Edit PDF (B3): outlines around text boxes and images while Edit mode is on. The
+   layer never takes the pointer: the page's interaction mode does (EditLayer). */
+.edit-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.edit-item {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgba(110, 110, 110, 0.55);
+}
+.edit-item.hover {
+  border-color: var(--accent);
+}
+.edit-item.selected {
+  border: 2px solid var(--accent);
+  background: rgba(26, 95, 180, 0.06);
+}
+.edit-image {
+  border-style: dashed;
+}
+.tool-panel {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border, #ddd);
+}
+.tool-panel-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+}

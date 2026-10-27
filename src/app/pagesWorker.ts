@@ -8,6 +8,7 @@ import { flattenMarkup, type FlattenTarget } from "../engine/flatten";
 import { summarizeComments } from "../engine/summary";
 import { documentXfdf } from "../engine/xfdf";
 import type { QpdfJob, QpdfResult } from "../engine/pages";
+import { editPageInfo } from "../engine/edit/pageInfo";
 
 type Ctx = P.PagesCtx;
 
@@ -52,6 +53,8 @@ export const OPS = {
       generated: new Date(),
       formatDate: (d) => d.toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }),
     }),
+  // Edit PDF (backlog B3).
+  editPageInfo: async (c: Ctx, b: Uint8Array, page: number) => editPageInfo(c.module, b, page),
   /** Images (JPEG/PNG/TIFF files) -> one PDF, one page per image. */
   imagesToPdf: async (_c: Ctx, files: Uint8Array[]) =>
     P.imagesToPdf(files.flatMap((f) => P.imagePages(f))),

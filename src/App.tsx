@@ -40,6 +40,7 @@ import { ToolToolbar, Toolbar } from "./ui/Toolbar";
 import { ToolsPane } from "./ui/ToolsPane";
 import { PropertiesBar } from "./ui/markup/PropertiesBar";
 import { MarkupBridge } from "./ui/markup/MarkupBridge";
+import { EditBridge } from "./ui/edit/EditBridge";
 import { CommentsPanel } from "./ui/markup/CommentsPanel";
 
 import { markupConfig } from "./markup/config";
@@ -203,6 +204,7 @@ function Shell({ ready }: { ready: boolean }) {
         <Guard resetKey={loadedId}>
           <ToolToolbar key={loadedId} documentId={loadedId} />
           <PropertiesBar key={`props-${loadedId}`} documentId={loadedId} />
+          <EditBridge key={`edit-${loadedId}`} documentId={loadedId} />
         </Guard>
       )}
       <main className="workspace">

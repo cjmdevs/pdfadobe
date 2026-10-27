@@ -1,7 +1,7 @@
 // Right-hand Tools pane (backlog B4): search box and the list of tools from the registry.
 // Clicking a tool opens its toolbar above the page (or runs it, e.g. Combine Files).
 // Tools that are not built yet are hidden unless "Show tools that are coming later" is on.
-import { useState } from "react";
+import { lazy, Suspense, useState, type ReactNode } from "react";
 import { TOOLS, comingLabel, isBuilt, type ToolContext, type ToolDef } from "../tools/registry";
 import { useDocToolContext, useNoDocToolContext } from "../tools/useToolContext";
 import { Icon } from "./Icon";
@@ -18,6 +18,15 @@ function NoDocToolsPane() {
   return <Pane ctx={useNoDocToolContext()} />;
 }
 
+/** Each tool's panel, made once (React.lazy must not be re-created per render). */
+const PANELS = new Map<string, (documentId: string) => ReactNode>(
+  TOOLS.flatMap((t) => {
+    if (!t.panel) return [];
+    const Lazy = lazy(t.panel);
+    return [[t.id, (documentId: string) => <Lazy documentId={documentId} />] as const];
+  }),
+);
+
 function matches(t: ToolDef, q: string): boolean {
   const s = q.trim().toLowerCase();
   return !s || t.name.toLowerCase().includes(s) || t.description.toLowerCase().includes(s);
@@ -27,6 +36,7 @@ function Pane({ ctx }: { ctx: ToolContext }) {
   const { settings, updateSettings, meta, setActiveTool } = ctx.wb;
   const [query, setQuery] = useState("");
   const active = ctx.documentId ? meta[ctx.documentId]?.activeTool : null;
+  const panel = active && ctx.documentId ? PANELS.get(active)?.(ctx.documentId) : null;
   const shown = TOOLS.filter(
     (t) => !t.unlisted && (isBuilt(t) || settings.showComingTools) && matches(t, query),
   );
@@ -58,6 +68,7 @@ function Pane({ ctx }: { ctx: ToolContext }) {
           <Icon name="chevronRight" size={16} />
         </button>
       </header>
+      {panel && <Suspense fallback={null}>{panel}</Suspense>}
       <ul className="tool-list">
         {shown.map((t) => {
           const built = isBuilt(t);

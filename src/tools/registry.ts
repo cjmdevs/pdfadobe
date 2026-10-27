@@ -2,6 +2,7 @@
 // arrives in, what opening it does, and its toolbar actions. The workspace shell
 // (Tools pane, tool toolbar, quick toolbar, Customize dialog) only reads this list:
 // later phases add tools here and never change the shell.
+import type { ComponentType } from "react";
 import type { PageActions } from "../app/pageActions";
 import type { PageOpDialog, WorkbenchApi } from "../app/workbench";
 import type { IconName } from "../ui/Icon";
@@ -23,7 +24,20 @@ export interface ToolContext {
   view: ViewCommands | null;
   /** Markup tools of the active document (Phase 3); null without a document. */
   markup: MarkupCommands | null;
+  /** Edit PDF mode (backlog B3); null without an editable document. */
+  edit: EditCommands | null;
 }
+
+export interface EditCommands {
+  /** Edit mode is on: outlines shown, clicks select text boxes and images. */
+  on: boolean;
+  setOn(on: boolean): void;
+}
+
+/** A tool's panel in the Tools pane, loaded on first use (keeps this list Node-safe). */
+export type ToolPanel = () => Promise<{
+  default: ComponentType<{ documentId: string }>;
+}>;
 
 export interface MarkupCommands {
   /** EmbedPDF annotation tool that is on (e.g. "highlight"), or null. */
@@ -86,8 +100,8 @@ export interface ToolDef {
   needsDocument?: boolean;
   /** Document area while the tool is open ("pages" = Organize grid); reader otherwise. */
   view?: "pages";
-  /** Optional panel content shown in the Tools pane while the tool is open. */
-  panel?: null;
+  /** Optional panel shown in the Tools pane while the tool is open. */
+  panel?: ToolPanel;
   /** The tool's own toolbar actions. Any of them can be pinned to the quick toolbar. */
   toolbar: ToolAction[];
   /** Hidden from the Tools pane (built-in commands that can only be pinned). */
@@ -249,6 +263,33 @@ export const TOOLS: ToolDef[] = [
         icon: "actual",
         run: (c) => c.view?.actualSize(),
         enabled: (c) => c.view !== null,
+      },
+    ],
+  },
+  {
+    id: "edit",
+    name: "Edit PDF",
+    icon: "editPdf",
+    color: "#c2338a",
+    description: "Edit text and images on the page",
+    comingIn: null,
+    open: "toolbar",
+    panel: () => import("../ui/edit/EditPanel"),
+    toolbar: [
+      {
+        id: "edit",
+        label: "Edit text and images",
+        caption: "Edit",
+        icon: "editPdf",
+        run: (c) => {
+          if (!c.documentId || !c.edit) return;
+          // From the quick toolbar the tool may be closed: open it (Edit mode follows).
+          if (c.wb.meta[c.documentId]?.activeTool !== "edit")
+            c.wb.setActiveTool(c.documentId, "edit");
+          else c.edit.setOn(!c.edit.on);
+        },
+        pressed: (c) => c.edit?.on ?? false,
+        enabled: (c) => hasDoc(c) && c.edit !== null,
       },
     ],
   },
