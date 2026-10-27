@@ -37,6 +37,8 @@ export interface Settings {
   firmLayoutPath: string | null;
   /** Last firm layout read from that file, used when the share is unreachable. */
   firmLayoutCache: string[] | null;
+  /** Firm font folder on the network share (Edit PDF), or null. Mirrored locally. */
+  firmFontsPath: string | null;
   /** Comments panel shown (right side, Phase 3). */
   commentsOpen: boolean;
   /** Markup author; null = the Windows user's display name. */
@@ -82,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
   quickToolbar: null,
   firmLayoutPath: null,
   firmLayoutCache: null,
+  firmFontsPath: null,
   commentsOpen: false,
   authorName: null,
   markupColors: [
@@ -149,6 +152,8 @@ export function sanitizeSettings(raw: unknown): Settings {
     firmLayoutPath:
       typeof r.firmLayoutPath === "string" && r.firmLayoutPath.trim() ? r.firmLayoutPath : null,
     firmLayoutCache: stringList(r.firmLayoutCache),
+    firmFontsPath:
+      typeof r.firmFontsPath === "string" && r.firmFontsPath.trim() ? r.firmFontsPath : null,
     commentsOpen: typeof r.commentsOpen === "boolean" ? r.commentsOpen : d.commentsOpen,
     authorName:
       typeof r.authorName === "string" && r.authorName.trim()

@@ -4,6 +4,7 @@
 // it 404s ("not found"); Playwright intercepts it with page.route() to stand in for the
 // Windows file system, including locked files and network shares (see tests/e2e/fixtures.ts).
 // The response's `x-mockfs-error` header carries a FileErrorKind for simulated failures.
+import type { FontIndexCache } from "../engine/edit/fonts";
 import { MemoryDocStore } from "../app/docstore";
 import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
 import { QpdfError } from "../engine/pages/qpdf";
@@ -15,6 +16,7 @@ import {
   type AppWindows,
   type CustomStamp,
   type StampLibrary,
+  type FontFolders,
   type Platform,
 } from "./types";
 
@@ -139,6 +141,19 @@ function fakeWindows(): AppWindows | null {
   };
 }
 
+/** Browser build: no font folders (Edit PDF uses the document's own fonts only). */
+let sessionFontIndex: FontIndexCache | null = null;
+const fonts: FontFolders = {
+  list: async () => ({ files: [], firm: "none" }),
+  read: async () => {
+    throw new PlatformError("unsupported", "font files need the Windows app");
+  },
+  loadIndex: async () => sessionFontIndex,
+  saveIndex: async (cache) => {
+    sessionFontIndex = cache;
+  },
+};
+
 /** Browser build: custom stamps last for the session (tests, development). */
 const sessionStamps = new Map<string, { info: CustomStamp; bytes: Uint8Array }>();
 const stamps: StampLibrary = {
@@ -212,6 +227,7 @@ export const browserPlatform: Platform = {
 
   docs,
   stamps,
+  fonts,
   get windows() {
     return fakeWindowsOnce();
   },

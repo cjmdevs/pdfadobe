@@ -8,11 +8,13 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
 import { QpdfError, type Qpdf } from "../engine/pages/qpdf";
 import type { DocInfo, DocStore } from "../app/docstore";
+import type { FontIndexCache } from "../engine/edit/fonts";
 import {
   PlatformError,
   baseName,
   type AppWindows,
   type CustomStamp,
+  type FontFolders,
   type StampLibrary,
   type FileErrorKind,
   type OpenedFile,
@@ -133,6 +135,15 @@ const stamps: StampLibrary = {
   },
 };
 
+const fonts: FontFolders = {
+  list: (firm) => call("fonts_list", { firm }),
+  read: async (path) => new Uint8Array(await call<ArrayBuffer>("font_read", { path })),
+  loadIndex: () => call<FontIndexCache | null>("font_index_load"),
+  saveIndex: async (cache) => {
+    await call("font_index_save", { value: cache });
+  },
+};
+
 export const tauriPlatform: Platform = {
   userDisplayName: () => call<string | null>("user_display_name").catch(() => null),
   kind: "tauri",
@@ -191,6 +202,7 @@ export const tauriPlatform: Platform = {
   docs,
   windows,
   stamps,
+  fonts,
 
   takeLaunchPaths: () => call<string[]>("take_launch_paths"),
 

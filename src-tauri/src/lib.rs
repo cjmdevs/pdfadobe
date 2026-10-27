@@ -1,6 +1,7 @@
 mod app_windows;
 mod docstore;
 mod fileio;
+mod fonts;
 mod launch;
 mod print;
 mod qpdf_job;
@@ -74,6 +75,10 @@ pub fn run() {
             stamps::stamp_read,
             stamps::stamp_add,
             stamps::stamp_remove,
+            fonts::fonts_list,
+            fonts::font_read,
+            fonts::font_index_load,
+            fonts::font_index_save,
             repair::repair_pdf,
             print::print_pdf,
             docstore::doc_create,

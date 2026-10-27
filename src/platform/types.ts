@@ -3,6 +3,7 @@
 // - browser.ts: plain browser for dev and Playwright (files via <input>, drag-drop, and a
 //   test-only mock file system served at /__mockfs/ that Playwright intercepts).
 
+import type { FontFileEntry, FontIndexCache } from "../engine/edit/fonts";
 import type { Qpdf } from "../engine/pages/qpdf";
 import type { DocInfo, DocStore } from "../app/docstore";
 
@@ -91,6 +92,8 @@ export interface Platform {
   windows: AppWindows | null;
   /** The user's custom stamp images (Phase 3). */
   stamps: StampLibrary;
+  /** Font files for Edit PDF (backlog B3). */
+  fonts: FontFolders;
   /** qpdf-repair `source` into `target` (never the same file). */
   repair(source: string, target: string): Promise<{ hadWarnings: boolean }>;
   /** Native print. Throws PlatformError("unsupported") when only WebView print exists. */
@@ -103,6 +106,18 @@ export interface CustomStamp {
   id: string;
   name: string;
   mime: "image/png" | "image/jpeg";
+}
+
+/** Font folders for Edit PDF: Windows, the user's fonts, and the firm share (mirrored). */
+export interface FontFolders {
+  /** Every font file. `firm` is the share from settings; "offline" = its local copy used. */
+  list(
+    firm: string | null,
+  ): Promise<{ files: FontFileEntry[]; firm: "none" | "online" | "offline" }>;
+  read(path: string): Promise<Uint8Array>;
+  /** The engine's font index cache, or null. */
+  loadIndex(): Promise<FontIndexCache | null>;
+  saveIndex(cache: FontIndexCache): Promise<void>;
 }
 
 /** Custom stamp images, per user (Windows: config folder; browser: this session). */
