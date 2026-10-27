@@ -44,7 +44,11 @@ export async function exportWorkpaperSettings(wb: WorkbenchApi): Promise<void> {
   try {
     const target = await platform.pickSavePath("Workpaper settings.json", "json");
     if (!target) return;
-    const file = makeWorkpaperFile(wb.settings.tickmarks, wb.settings.stampTemplates);
+    const file = makeWorkpaperFile(
+      wb.settings.tickmarks,
+      wb.settings.stampTemplates,
+      wb.settings.calc,
+    );
     await platform.saveAs(target, null, new TextEncoder().encode(JSON.stringify(file, null, 2)));
     wb.toast(`Exported ${file.tickmarks.length} tickmark(s) and ${file.stamps.length} stamp(s).`);
   } catch (e) {
@@ -61,6 +65,7 @@ export async function importWorkpaperSettings(wb: WorkbenchApi): Promise<void> {
     wb.updateSettings({
       tickmarks: importTickmarks(wb.settings.tickmarks, parsed.tickmarks),
       stampTemplates: importTickmarks(wb.settings.stampTemplates, parsed.stamps),
+      ...(parsed.calculator ? { calc: parsed.calculator } : {}),
     });
     wb.toast(
       `Imported ${parsed.tickmarks.length} tickmark(s) and ${parsed.stamps.length} stamp(s).`,

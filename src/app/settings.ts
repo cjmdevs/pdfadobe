@@ -5,6 +5,7 @@ import type { Scaling } from "../platform/types";
 import type { TickmarkDef } from "../engine/flyer/tickmarks";
 import type { StampTemplate } from "../engine/flyer/userStamps";
 import { sanitizeStampTemplates, sanitizeTickmarks } from "../flyer/library";
+import { DEFAULT_CALC, sanitizeCalc, type CalcSettings } from "../flyer/calc";
 
 export type Theme = "system" | "light" | "dark";
 export type ViewMode = "continuous" | "single" | "twoUp";
@@ -70,6 +71,10 @@ export interface Settings {
   userInitials: string | null;
   /** Last connector style used. */
   connectorStyle: string;
+  /** Calculator (Phase 4 stage 3). */
+  calc: CalcSettings;
+  /** Floating calculator shown. */
+  calcOpen: boolean;
 }
 
 export const MAX_RECENT = 15;
@@ -131,6 +136,8 @@ export const DEFAULT_SETTINGS: Settings = {
   firmStampsCache: null,
   userInitials: null,
   connectorStyle: "arrow",
+  calc: DEFAULT_CALC,
+  calcOpen: false,
 };
 
 const oneOf =
@@ -221,6 +228,8 @@ export function sanitizeSettings(raw: unknown): Settings {
       typeof r.connectorStyle === "string" && /^\w{1,20}$/.test(r.connectorStyle)
         ? r.connectorStyle
         : d.connectorStyle,
+    calc: sanitizeCalc(r.calc),
+    calcOpen: typeof r.calcOpen === "boolean" ? r.calcOpen : d.calcOpen,
   };
 }
 

@@ -9,6 +9,7 @@ import { summarizeComments } from "../engine/summary";
 import { documentXfdf } from "../engine/xfdf";
 import type { QpdfJob, QpdfResult } from "../engine/pages";
 import { editPageInfo } from "../engine/edit/pageInfo";
+import { pageNumbers } from "../engine/flyer/numbers";
 import {
   addImageToPage,
   addTextBox,
@@ -65,6 +66,8 @@ export const OPS = {
       generated: new Date(),
       formatDate: (d) => d.toLocaleString(locale, { dateStyle: "short", timeStyle: "short" }),
     }),
+  // Workpaper Tools (Phase 4): amounts printed on a page, for the calculator.
+  pageNumbers: async (c: Ctx, b: Uint8Array, page: number) => pageNumbers(c.module, b, page),
   // Edit PDF (backlog B3).
   editPageInfo: async (c: Ctx, b: Uint8Array, page: number) => editPageInfo(c.module, b, page),
   editText: async (

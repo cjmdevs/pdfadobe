@@ -194,3 +194,84 @@ test("a connector across two pages: a marker and a link on each page", async ({ 
   expect(links.map((l) => l.page).sort()).toEqual([0, 1]);
   expect(raw.filter((a) => a.subtype === "/Stamp" && a.hasAppearance)).toHaveLength(2);
 });
+
+test("calculator: keys, click amounts, foot with variance, tape on the page", async ({
+  page,
+  mockfs,
+}) => {
+  await boot(page);
+  await openPaths(page, [P.footing]);
+  await waitForPainted(page, 0);
+  await page.getByRole("button", { name: "Workpaper Tools", exact: true }).click();
+  await tb(page, "Calculator: 10-key or standard, click amounts, foot/cross-foot, tape").click();
+  const calc = page.getByTestId("calculator");
+  const shown = page.getByTestId("calc-display");
+
+  // Typed: 10 + 5.25 + => 15.25.
+  await page.keyboard.type("10+5.25+");
+  await expect(shown).toHaveText("15.25");
+  await page.keyboard.press("t");
+  await expect(shown).toHaveText("15.25");
+
+  // Amounts clicked on the page: Cash Q1 and Receivables Q1.
+  const box = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
+  const k = box.width / 612;
+  const at = (x: number, yPdf: number) => ({ x: box.x + x * k, y: box.y + (792 - yPdf) * k });
+  await calc.getByRole("button", { name: "Click amounts on page" }).click();
+  for (const y of [655, 631]) {
+    const p = at(320, y + 4);
+    await page.mouse.move(p.x, p.y);
+    await page.mouse.click(p.x, p.y);
+  }
+  await expect(shown).toHaveText("5,350.50");
+
+  // Foot the Q1 column (four amounts) against the general-ledger figure: -0.50 off.
+  await calc.getByRole("button", { name: "Foot / cross-foot" }).click();
+  const a = at(280, 665);
+  const b = at(350, 575);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 5 });
+  await page.mouse.up();
+  await expect(page.getByTestId("foot-result")).toContainText("4 amount(s) selected");
+  const gl = at(212, 504);
+  await page.mouse.move(gl.x, gl.y);
+  await page.mouse.click(gl.x, gl.y);
+  await expect(page.getByTestId("foot-result")).toContainText("Foot of 4: 7,850.50");
+  await expect(page.getByTestId("foot-result")).toContainText("variance -0.50");
+  await calc.getByRole("button", { name: "Add to tape" }).click();
+  await calc.getByRole("button", { name: "Mark total" }).click();
+
+  // Tape on the page.
+  await calc.getByRole("button", { name: "Place tape on page" }).click();
+  const t = at(480, 560);
+  await page.mouse.move(t.x, t.y);
+  await page.mouse.move(t.x + 2, t.y);
+  await expect(page.getByTestId("flyer-ghost")).toBeVisible();
+  await page.mouse.click(t.x, t.y);
+  const summary = page.getByTestId("stamp-summary");
+  await expect(summary.getByRole("button", { name: /^Calculator tape/ })).toHaveCount(1);
+  await expect(summary.getByRole("button", { name: /^Unreconciled Difference/ })).toHaveCount(1);
+
+  await page.keyboard.press("Control+s");
+  await idle(page);
+  const raw = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.footing)));
+  const tape = raw.find((x) => x.subject === "Calculator tape")!;
+  expect(tape.subtype).toBe("/Stamp");
+  expect(tape.hasAppearance).toBe(true);
+  expect(tape.contents).toContain("7,850.50 T foot");
+  expect(tape.contents).toContain("-0.50 variance");
+
+  // Open the tape again, add a line, update it in place (same id).
+  await summary.getByRole("button", { name: /^Calculator tape/ }).click();
+  await page.getByRole("button", { name: "Open this tape in the calculator" }).click();
+  await page.keyboard.type("100+");
+  await calc.getByRole("button", { name: "Update tape" }).click();
+  await page.keyboard.press("Control+s");
+  await idle(page);
+  const tapes = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.footing))).filter(
+    (x) => x.subject === "Calculator tape",
+  );
+  expect(tapes).toHaveLength(1);
+  expect(tapes[0]!.contents?.endsWith("100.00 +")).toBe(true);
+});

@@ -14,7 +14,9 @@ export type PwType =
   | "ConnectorLink"
   | "UserStamp"
   | "StatusStamp"
-  | "Note";
+  | "Note"
+  /** Calculator tape. */
+  | "Tape";
 
 const PW_TYPES: readonly PwType[] = [
   "Tickmark",
@@ -24,6 +26,7 @@ const PW_TYPES: readonly PwType[] = [
   "UserStamp",
   "StatusStamp",
   "Note",
+  "Tape",
 ];
 
 /** How the Stamp Summary names each type. */
@@ -35,6 +38,7 @@ export const PW_TYPE_LABELS: Record<PwType, string> = {
   UserStamp: "User stamp",
   StatusStamp: "Status stamp",
   Note: "Note",
+  Tape: "Calculator tape",
 };
 
 /** What we keep on a workpaper annotation. */
@@ -53,6 +57,8 @@ export interface PwData {
   pwPage?: number;
   /** User/status stamp template id. */
   pwStamp?: string;
+  /** Calculator tape lines, to open the tape in the calculator again. */
+  pwTape?: { op: string; value: number; note?: string }[];
 }
 
 export function pwData(a: PdfAnnotationObject): PwData | null {
@@ -123,6 +129,8 @@ function rowName(d: PwData, subject: string): string {
       return subject.replace(/^Tickmark: /, "");
     case "Legend":
       return "Tickmark legend";
+    case "Tape":
+      return "Calculator tape";
     case "Connector":
       return d.pwPage
         ? `Connector ${d.pwEnd === "end" ? "from" : "to"} page ${d.pwPage}`

@@ -5,10 +5,11 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 4 stage 2 (connectors, sign-off stamps, notes) built 2026-10-27**, waiting for
-  the owner check (`docs/testing/phase-04-stage2-test-guide.md`); stage 1 check also
-  pending. `npm run check` (304 Vitest + 6 expected-fail, Rust, license-check), 120/120
-  Playwright. Stage 3 (calculator) next; stage 4 waits for a synthetic PDFlyer sample.
+- **Phase 4 stage 3 (calculator tape, foot/cross-foot) built 2026-10-27**, waiting for
+  the owner check (`docs/testing/phase-04-stage3-test-guide.md`); stage 1 and 2 checks
+  also pending. `npm run check` (312 Vitest + 6 expected-fail, Rust, license-check),
+  121/121 Playwright. Stage 4 (PDFlyer marks) waits for a synthetic PDFlyer sample in
+  `tests/corpus/pdflyer/`; after it, tag `phase-04-done`.
 - **B3 Edit PDF, stage 1 done: owner check passed 2026-10-27** (all 11 steps of
   `docs/testing/b3-stage1-test-guide.md`, including the Acrobat check and firm fonts
   offline via `\\localhost`). On the build PC:
@@ -48,27 +49,15 @@ Format panel, handles; each change is one `wb.edit` undo step. Deviations: fourt
 group "Standard PDF fonts (not embedded)", line spacing in points, corner resize keeps
 proportions (Shift: free), text over an image wins the click.
 
-## Phase 4 stage 1: tickmarks (2026-10-27)
+## Phase 4 stage 1: tickmarks (2026-10-27, summary)
 
-Spec and owner decisions: `docs/phases/phase-04.md`. Engine `src/engine/flyer/tickmarks.ts`
-(Node-safe): 14 firm tickmarks + counting letters/numbers drawn with pdf-lib as one-page
-PDFs that become /Stamp appearances; image tickmarks; legend box. `src/flyer/library.ts`:
-built-in < firm file < personal (same id replaces), workpaper settings JSON
-(`format: "pdf-workbench-workpaper"`), Recent. `src/flyer/items.ts`: tags, Stamp Summary
-rows, CSV (formula-safe, UTF-8 BOM). UI `src/ui/flyer/`: registry tool `flyer` (Tickmark
-
-- library dropdown, Recent with Clear Recent Stamps, Palette, Legend, Library dialog,
-  Export CSV), page layer in mode `workpaperPlace` (place until Esc; 1-9 pick from the
-  palette), Stamp Summary as the tool's panel. Shell: toolbar actions can now have dropdowns
-  (`items`, `menuOnly`), also on the quick toolbar. Settings: `tickmarks`,
-  `firmTickmarksPath`/`Cache` (read at start like the firm layout), `recentTickmarks`,
-  `activeTickmark`, `tickmarkPaletteOpen`. File dialogs gained JSON/CSV filters.
-
-Deviations: our tag is not a `/PWType` name key: EmbedPDF can only write its custom data,
-stored as the string `/EPDFCustom` = `{"pwType":"Tickmark","pwTick":"footed",...}`; Subject
-is `Tickmark: Footed`, Contents the meaning. Counting tickmarks continue from the highest
-value already in the document (no separate counter). Legend is a box, not a page. The 14
-symbols are our own guesses from the names (owner reviews at the check).
+Spec and owner decisions: `docs/phases/phase-04.md`. `src/engine/flyer/tickmarks.ts`: 14
+firm tickmarks + counting letters/numbers + image tickmarks drawn with pdf-lib as /Stamp
+appearances; legend box. `src/flyer/library.ts`: built-in < firm file < personal, the
+workpaper settings JSON (`format: "pdf-workbench-workpaper"`). `src/flyer/items.ts`: tags,
+Stamp Summary rows, CSV. UI `src/ui/flyer/`: tool `flyer`, toolbar dropdowns (shell now
+supports `items`/`menuOnly`), palette (1-9), place until Esc. Deviation: the tag lives in
+EmbedPDF's custom data (`/EPDFCustom` JSON, `pwType`), not a `/PWType` name key.
 
 ## Phase 4 stage 2: connectors, sign-off stamps, notes (2026-10-27)
 
@@ -90,6 +79,25 @@ still read); settings `stampTemplates`, `firmStampsCache`, `userInitials`,
 Deviations: same-page connectors are attached only in our app (Acrobat sees a plain
 line); every workpaper item repeats until Esc (sign-off stamps too); notes are visible
 text boxes (not sticky notes) so a reviewer sees them on the page.
+
+## Phase 4 stage 3: calculator tape, foot/cross-foot (2026-10-27)
+
+`src/flyer/calc.ts` (pure): 10-key adding machine (+ - x / = S T, repeat add, add mode)
+and standard (left to right), decimals 0/2/floating, `foot()`/`footTape()`. Amounts on a
+page: `src/engine/flyer/numbers.ts` (PDFium chars split into words, `parseAmount` reads
+"$1,234.56", "(1,234.56)", "1,234.56-"), worker op `pageNumbers`, cached per document id
+(`src/ui/flyer/pageNumbers.ts`; clicks wait for it). Floating calculator
+(`CalculatorPanel`, keyboard while open), "Click amounts on page" (Shift subtracts),
+Foot / cross-foot (drag a box; wider than tall = cross-foot; then click the total; "No
+total"), Mark total (Footed / Cross-footed when it agrees, UD when not). Tape: /Stamp
+drawn by `src/engine/flyer/tape.ts` (Courier, ruled totals), `pwType: "Tape"`, lines in
+`pwTape`; "Open this tape in the calculator" + Update tape. New corpus file
+`generated/footing.pdf` (synthetic schedule, Q1 vs general ledger 0.50 off). Settings
+`calc`, `calcOpen`; the settings file carries `calculator`.
+
+Deviations: Update tape makes a new annotation in the same corner (an appearance cannot be
+replaced in place; re-using the id after a delete drops it) and moves attached
+connectors to it. Standard mode has no operator precedence (like a desk calculator).
 
 ## Dependency versions and licenses
 

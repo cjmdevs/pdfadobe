@@ -24,7 +24,13 @@ export type PendingItem =
       height: number;
     }
   /** Connector: first click sets the start (connectorStart), second the end. */
-  | { kind: "connector"; style: ConnectorStyle; width: 0; height: 0 };
+  | { kind: "connector"; style: ConnectorStyle; width: 0; height: 0 }
+  /** Calculator: a click on an amount sends it (Shift: subtract). */
+  | { kind: "pick"; width: 0; height: 0 }
+  /** Foot/cross-foot: drag around a column or row of amounts, then click the total. */
+  | { kind: "foot"; width: 0; height: 0 }
+  /** Calculator tape waiting to be placed (once). */
+  | { kind: "tape"; art: StampDrawing; width: number; height: number };
 
 let pending: PendingItem | null = null;
 const listeners = new Set<() => void>();

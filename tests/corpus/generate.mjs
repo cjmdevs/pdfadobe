@@ -82,6 +82,44 @@ async function textOnePage() {
   return doc.save();
 }
 
+/**
+ * A small schedule for the calculator (Phase 4 stage 3): amounts right-aligned in
+ * columns, column totals that foot, a Total column that cross-foots, and a "per general
+ * ledger" amount that is 0.50 off the Q1 total (a variance to find).
+ */
+export const FOOTING_ROWS = [
+  ["Cash", "1,250.00", "300.00", "1,550.00"],
+  ["Receivables", "4,100.50", "(200.50)", "3,900.00"],
+  ["Inventory", "2,000.00", "750.25", "2,750.25"],
+  ["Prepaids", "500.00", "0.00", "500.00"],
+  ["Total", "7,850.50", "849.75", "8,700.25"],
+];
+
+async function footingSchedule() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic footing schedule");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const page = doc.addPage([612, 792]);
+  page.drawText("Current Assets Schedule (synthetic)", { x: 72, y: 720, size: 16, font: bold });
+  const cols = [340, 430, 520];
+  ["Q1", "Q2", "Total"].forEach((h, i) =>
+    page.drawText(h, { x: cols[i] - bold.widthOfTextAtSize(h, 11), y: 680, size: 11, font: bold }),
+  );
+  FOOTING_ROWS.forEach((row, r) => {
+    const y = 655 - r * 24;
+    const f = r === FOOTING_ROWS.length - 1 ? bold : font;
+    page.drawText(row[0], { x: 72, y, size: 11, font: f });
+    row
+      .slice(1)
+      .forEach((v, i) =>
+        page.drawText(v, { x: cols[i] - f.widthOfTextAtSize(v, 11), y, size: 11, font: f }),
+      );
+  });
+  page.drawText("Q1 per general ledger: 7,850.00", { x: 72, y: 500, size: 11, font });
+  return doc.save();
+}
+
 async function long200() {
   const doc = await PDFDocument.create();
   stamp(doc, "Synthetic 200-page document");
@@ -656,6 +694,7 @@ export async function generateCorpus({ force = false } = {}) {
   };
 
   await write("text-1p.pdf", textOnePage);
+  await write("footing.pdf", footingSchedule);
   await write("long-200p.pdf", long200);
   await write("long-500p.pdf", long500);
   await write("navigation.pdf", navigation);

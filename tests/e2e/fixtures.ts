@@ -17,6 +17,7 @@ export const CORPUS = join(import.meta.dirname, "..", "corpus", "generated");
 /** Virtual Windows paths used across tests. All synthetic. */
 export const P = {
   text: "C:\\Corpus\\text-1p.pdf",
+  footing: "C:\\Corpus\\footing.pdf",
   long200: "C:\\Corpus\\long-200p.pdf",
   long500: "\\\\fileserver\\share\\Corpus\\long-500p.pdf",
   nav: "C:\\Corpus\\navigation.pdf",
@@ -40,6 +41,7 @@ type Entry = { file: string } | { bytes: Buffer } | { error: string; message: st
 
 const DEFAULT_FS: Record<string, Entry> = {
   [P.text]: { file: "text-1p.pdf" },
+  [P.footing]: { file: "footing.pdf" },
   [P.long200]: { file: "long-200p.pdf" },
   [P.long500]: { file: "long-500p.pdf" },
   [P.nav]: { file: "navigation.pdf" },

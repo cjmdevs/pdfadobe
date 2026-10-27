@@ -9,17 +9,19 @@ import {
   type TickmarkDef,
 } from "../engine/flyer/tickmarks";
 import { BUILT_IN_STAMPS, type StampTemplate } from "../engine/flyer/userStamps";
+import { sanitizeCalc, type CalcSettings } from "./calc";
 
 export const SETTINGS_FORMAT = "pdf-workbench-workpaper";
 
-/** The export/import file (firm standard or one user's). Calculator settings join it in
- * stage 3. */
+/** The export/import file (firm standard or one user's). */
 export interface WorkpaperFile {
   format: typeof SETTINGS_FORMAT;
   version: 1;
   tickmarks: TickmarkDef[];
   /** User and status stamp templates (stage 2; absent in stage 1 files). */
   stamps: StampTemplate[];
+  /** Calculator settings (stage 3; absent in older files). */
+  calculator?: CalcSettings;
 }
 
 export type TickmarkSource = "built-in" | "firm" | "mine";
@@ -123,8 +125,15 @@ export function sanitizeStampTemplates(v: unknown, max = 50): StampTemplate[] {
 export function makeWorkpaperFile(
   tickmarks: TickmarkDef[],
   stamps: StampTemplate[] = [],
+  calculator?: CalcSettings,
 ): WorkpaperFile {
-  return { format: SETTINGS_FORMAT, version: 1, tickmarks, stamps };
+  return {
+    format: SETTINGS_FORMAT,
+    version: 1,
+    tickmarks,
+    stamps,
+    ...(calculator ? { calculator } : {}),
+  };
 }
 
 /** Reads an exported file; throws a readable error when it is not one. */
@@ -138,7 +147,11 @@ export function parseWorkpaperFile(text: string): WorkpaperFile {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
   if (r.format !== SETTINGS_FORMAT)
     throw new Error("This is not a PDF Workbench workpaper settings file.");
-  return makeWorkpaperFile(sanitizeTickmarks(r.tickmarks), sanitizeStampTemplates(r.stamps));
+  return makeWorkpaperFile(
+    sanitizeTickmarks(r.tickmarks),
+    sanitizeStampTemplates(r.stamps),
+    r.calculator ? sanitizeCalc(r.calculator) : undefined,
+  );
 }
 
 /** Built-in first, then the firm file, then the user's own. A firm or personal tickmark

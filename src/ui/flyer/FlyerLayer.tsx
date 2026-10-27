@@ -1,7 +1,9 @@
 // Places the armed workpaper item (flyerStore) where the user clicks on this page.
 // Tickmarks, user/status stamps and connectors stay armed (click, click... Esc stops); a
 // legend box goes once. A connector takes two clicks: start, then end (on this page or
-// another one); a click on an annotation attaches that end to it.
+// another one); a click on an annotation attaches that end to it. With the calculator, a
+// click on an amount sends it, and foot/cross-foot drags around amounts, then takes the
+// total; a calculator tape is placed once.
 import { useEffect, useRef, useState } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
@@ -38,6 +40,9 @@ import {
 } from "../../flyer/connectors";
 import { nextSequence, tickmarkSubject, type PwData } from "../../flyer/items";
 import { pushRecent } from "../../flyer/library";
+import { foot, sendAmount, tapeText } from "../../flyer/calc";
+import { calcStore, useCalcView } from "./calcStore";
+import { numberAt, numbersIn, numbersOn, type ShownNumber } from "./pageNumbers";
 import {
   FLYER_MODE,
   connectorStartStore,
@@ -72,20 +77,20 @@ export function stampValues(
 }
 
 /** A stamp annotation with `art` as its appearance, centred on `pos`, kept on the page. */
-function placeArt(
+export function placeArt(
   sc: Scope,
   wb: WorkbenchApi,
   pageIndex: number,
   size: Size,
   pos: Position,
   art: StampDrawing,
-  meta: { subject: string; contents?: string; custom: PwData },
+  meta: { subject: string; contents?: string; custom: PwData; id?: string },
 ): PdfStampAnnoObject {
   const x = Math.min(Math.max(0, pos.x - art.width / 2), size.width - art.width);
   const y = Math.min(Math.max(0, pos.y - art.height / 2), size.height - art.height);
   const anno: PdfStampAnnoObject = {
     type: PdfAnnotationSubtype.STAMP,
-    id: crypto.randomUUID(),
+    id: meta.id ?? crypto.randomUUID(),
     pageIndex,
     rect: { origin: { x, y }, size: { width: art.width, height: art.height } },
     subject: meta.subject,
@@ -188,6 +193,23 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
   const item = usePendingItem();
   const start = useConnectorStart();
   const [cursor, setCursor] = useState<Position | null>(null);
+  // Calculator modes: this page's amounts, and the foot/cross-foot drag.
+  const wantsNumbers = active && (item?.kind === "pick" || item?.kind === "foot");
+  const [nums, setNums] = useState<ShownNumber[]>([]);
+  const [drag, setDrag] = useState<{ from: Position; to: Position } | null>(null);
+  const dragRef = useRef<{ from: Position; to: Position } | null>(null);
+  const { footing } = useCalcView();
+  useEffect(() => {
+    if (!wantsNumbers) return;
+    let live = true;
+    numbersOn(wb, documentId, pageIndex).then(
+      (list) => live && setNums(list),
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [wantsNumbers, wb, documentId, pageIndex]);
   const latest = useRef({ scope, im, pageSize, state, wb, doc });
   useEffect(() => {
     latest.current = { scope, im, pageSize, state, wb, doc };
@@ -196,15 +218,112 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
   useEffect(() => {
     if (!active) return;
     return register({
-      onPointerMove: (pos) => setCursor(pos),
+      onPointerMove: (pos) => {
+        setCursor(pos);
+        if (dragRef.current) {
+          dragRef.current = { ...dragRef.current, to: pos };
+          setDrag(dragRef.current);
+        }
+      },
       onPointerLeave: () => setCursor(null),
-      onPointerDown: (pos) => {
+      onPointerUp: () => {
+        const d0 = dragRef.current;
+        dragRef.current = null;
+        setDrag(null);
+        if (!d0) return;
+        const r = {
+          origin: { x: Math.min(d0.from.x, d0.to.x), y: Math.min(d0.from.y, d0.to.y) },
+          size: { width: Math.abs(d0.to.x - d0.from.x), height: Math.abs(d0.to.y - d0.from.y) },
+        };
+        void numbersOn(latest.current.wb, documentId, pageIndex).then((list) => {
+          const picked = numbersIn(list, r);
+          if (!picked.length) {
+            latest.current.wb.toast("No amounts in that area (scanned pages need OCR first).");
+            return;
+          }
+          calcStore.set({
+            footing: {
+              documentId,
+              pageIndex,
+              stage: "total",
+              values: picked.map((n) => n.value),
+              rects: picked.map((n) => n.rect),
+              across: r.size.width > r.size.height,
+              result: null,
+              totalRect: null,
+            },
+          });
+          latest.current.wb.toast(
+            `${picked.length} amount(s) selected. Click the total to compare, or No total in the calculator.`,
+          );
+        });
+      },
+      onPointerDown: (pos, evt) => {
         const p = flyerPlacement.get();
         const { scope: sc, im: m, pageSize: size, state: st, wb: w, doc: d } = latest.current;
         if (!p || !sc || !size) return;
         const annots = Object.values(st.byUid).map((t) => t.object);
         const fail = (e: unknown) =>
           w.toast(`Could not place it: ${e instanceof Error ? e.message : String(e)}`, "error");
+
+        // The page's amounts may still be loading on the first click: wait for them.
+        const amounts = () => numbersOn(w, documentId, pageIndex);
+        if (p.kind === "pick") {
+          const subtract = evt.shiftKey;
+          void amounts().then((list) => {
+            const n = numberAt(list, pos.x, pos.y);
+            if (!n) return;
+            const cfg = latest.current.wb.settings.calc;
+            calcStore.set({ calc: sendAmount(calcStore.get().calc, n.value, subtract, cfg) });
+          });
+          return;
+        }
+
+        if (p.kind === "foot") {
+          const f = calcStore.get().footing;
+          if (f?.stage === "total" && f.documentId === documentId) {
+            void amounts().then((list) => {
+              const n = numberAt(list, pos.x, pos.y);
+              if (!n) return;
+              // The total is not one of the amounts it totals.
+              const keep = f.rects
+                .map((r, i) => ({ r, v: f.values[i] ?? 0 }))
+                .filter(
+                  ({ r }) => r.origin.x !== n.rect.origin.x || r.origin.y !== n.rect.origin.y,
+                );
+              const values = keep.map((k) => k.v);
+              calcStore.set({
+                footing: {
+                  ...f,
+                  stage: "done",
+                  values,
+                  rects: keep.map((k) => k.r),
+                  result: foot(values, n.value, f.across),
+                  totalRect: n.rect,
+                },
+              });
+              flyerPlacement.set(null);
+              m?.activateDefaultMode();
+            });
+            return;
+          }
+          dragRef.current = { from: pos, to: pos };
+          setDrag(dragRef.current);
+          return;
+        }
+
+        if (p.kind === "tape") {
+          flyerPlacement.set(null);
+          m?.activateDefaultMode();
+          const t = calcStore.get().calc.tape;
+          const anno = placeArt(sc, w, pageIndex, size, pos, p.art, {
+            subject: "Calculator tape",
+            contents: tapeText(t, w.settings.calc.decimals),
+            custom: { pwType: "Tape", pwTape: t },
+          });
+          sc.selectAnnotation(pageIndex, anno.id);
+          return;
+        }
 
         if (p.kind === "connector") {
           const here: ConnectorStart = {
@@ -286,45 +405,100 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
     });
   }, [active, register, pageIndex, documentId]);
 
-  if (!active || !item) return null;
-  // Connector: a line from the start (on this page) to the pointer.
-  if (item.kind === "connector") {
-    if (!start || start.documentId !== documentId || start.pageIndex !== pageIndex) return null;
-    const to = cursor ?? start;
-    return (
-      <svg
-        aria-hidden="true"
-        data-testid="connector-ghost"
-        style={{ position: "absolute", inset: 0, overflow: "visible", pointerEvents: "none" }}
-        width="100%"
-        height="100%"
-      >
-        <circle cx={start.x * scale} cy={start.y * scale} r={3} fill={CONNECTOR_COLOR} />
-        <line
-          x1={start.x * scale}
-          y1={start.y * scale}
-          x2={to.x * scale}
-          y2={to.y * scale}
-          stroke={CONNECTOR_COLOR}
-          strokeDasharray="4 3"
-        />
-      </svg>
-    );
-  }
-  if (!cursor) return null;
-  return (
+  // Footing in progress or done on this page: the selected amounts and the total.
+  const marks =
+    footing && footing.documentId === documentId && footing.pageIndex === pageIndex
+      ? footing
+      : null;
+  const box = (r: { origin: Position; size: Size }, color: string, key: string) => (
     <div
-      aria-hidden="true"
-      data-testid="flyer-ghost"
+      key={key}
       style={{
         position: "absolute",
-        left: (cursor.x - item.width / 2) * scale,
-        top: (cursor.y - item.height / 2) * scale,
-        width: item.width * scale,
-        height: item.height * scale,
-        border: "1px dashed #c00",
+        left: r.origin.x * scale - 1,
+        top: r.origin.y * scale - 1,
+        width: r.size.width * scale + 2,
+        height: r.size.height * scale + 2,
+        background: color,
         pointerEvents: "none",
       }}
     />
+  );
+  const footLayer = marks && (
+    <div aria-hidden="true" data-testid="foot-marks">
+      {marks.rects.map((r, i) => box(r, "rgb(0 120 255 / 0.18)", `f${i}`))}
+      {marks.totalRect && box(marks.totalRect, "rgb(0 160 60 / 0.25)", "total")}
+    </div>
+  );
+  if (!active || !item) return footLayer || null;
+  if (item.kind === "pick" || item.kind === "foot") {
+    const hover = cursor ? numberAt(nums, cursor.x, cursor.y) : null;
+    return (
+      <>
+        {footLayer}
+        {hover && box(hover.rect, "rgb(255 200 0 / 0.35)", "hover")}
+        {drag && (
+          <div
+            data-testid="foot-drag"
+            style={{
+              position: "absolute",
+              left: Math.min(drag.from.x, drag.to.x) * scale,
+              top: Math.min(drag.from.y, drag.to.y) * scale,
+              width: Math.abs(drag.to.x - drag.from.x) * scale,
+              height: Math.abs(drag.to.y - drag.from.y) * scale,
+              border: "1px dashed #0060c0",
+              pointerEvents: "none",
+            }}
+          />
+        )}
+      </>
+    );
+  }
+  // Connector: a line from the start (on this page) to the pointer.
+  if (item.kind === "connector") {
+    if (!start || start.documentId !== documentId || start.pageIndex !== pageIndex)
+      return footLayer || null;
+    const to = cursor ?? start;
+    return (
+      <>
+        {footLayer}
+        <svg
+          aria-hidden="true"
+          data-testid="connector-ghost"
+          style={{ position: "absolute", inset: 0, overflow: "visible", pointerEvents: "none" }}
+          width="100%"
+          height="100%"
+        >
+          <circle cx={start.x * scale} cy={start.y * scale} r={3} fill={CONNECTOR_COLOR} />
+          <line
+            x1={start.x * scale}
+            y1={start.y * scale}
+            x2={to.x * scale}
+            y2={to.y * scale}
+            stroke={CONNECTOR_COLOR}
+            strokeDasharray="4 3"
+          />
+        </svg>
+      </>
+    );
+  }
+  if (!cursor) return footLayer || null;
+  return (
+    <>
+      {footLayer}
+      <div
+        aria-hidden="true"
+        data-testid="flyer-ghost"
+        style={{
+          position: "absolute",
+          left: (cursor.x - item.width / 2) * scale,
+          top: (cursor.y - item.height / 2) * scale,
+          width: item.width * scale,
+          height: item.height * scale,
+          border: "1px dashed #c00",
+          pointerEvents: "none",
+        }}
+      />
+    </>
   );
 }

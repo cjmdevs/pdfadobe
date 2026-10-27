@@ -11,6 +11,9 @@ import { summaryRows } from "../../flyer/items";
 import { useDocToolContext } from "../../tools/useToolContext";
 import { summarySources } from "./flyerFiles";
 import { TickmarkIcon } from "./TickmarkIcon";
+import { CalculatorPanel } from "./CalculatorPanel";
+import { calcStore } from "./calcStore";
+import { EMPTY_CALC, type TapeLine } from "../../flyer/calc";
 
 export function FlyerOverlay({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
@@ -94,10 +97,39 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
       Go to the other end (page {partner.pageIndex + 1})
     </button>
   );
-  if (!wb.settings.tickmarkPaletteOpen || !flyer) return jump || null;
+  // A selected calculator tape opens in the calculator for changes.
+  const tape = sel?.pwType === "Tape" && selected ? selected.object : null;
+  const editTape = tape && (
+    <button
+      type="button"
+      className="connector-jump"
+      onClick={() => {
+        const lines = (sel?.pwTape ?? []) as TapeLine[];
+        calcStore.set({
+          calc: { ...EMPTY_CALC, tape: lines, shown: lines.at(-1)?.value ?? 0 },
+          editing: { documentId, pageIndex: tape.pageIndex, id: tape.id, rect: tape.rect },
+          footing: null,
+        });
+        wb.updateSettings({ calcOpen: true });
+      }}
+    >
+      Open this tape in the calculator
+    </button>
+  );
+  const calc = wb.settings.calcOpen && flyer && <CalculatorPanel documentId={documentId} />;
+  if (!wb.settings.tickmarkPaletteOpen || !flyer)
+    return (
+      <>
+        {jump}
+        {editTape}
+        {calc}
+      </>
+    );
   return (
     <>
       {jump}
+      {editTape}
+      {calc}
       <div className="tick-palette" role="toolbar" aria-label="Tickmark palette">
         <header>
           <span>Tickmarks</span>
