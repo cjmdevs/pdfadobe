@@ -5,11 +5,10 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 4 owner run 2026-10-27:** A, D-J passed. B and C fixed the same day (letter/
-  number tickmarks, sections, Clear Recent, Library tabs), waiting for the owner check
-  (`docs/testing/phase-04-fixes-test-guide.md`). `npm run check` (315 Vitest + 6
-  expected-fail), 122/122 Playwright. Stage 4 (PDFlyer marks) waits for a synthetic
-  PDFlyer sample in `tests/corpus/pdflyer/`; after it, tag `phase-04-done`.
+- **Phase 4 stages 1-3 + fixes: owner check passed 2026-10-27** (combined run A-J and
+  `docs/testing/phase-04-fixes-test-guide.md`). Stage 4 (PDFlyer marks in old
+  workpapers) waits for a synthetic PDFlyer sample in `tests/corpus/pdflyer/`; after it,
+  tag `phase-04-done`.
 - **B3 Edit PDF, stage 1 done: owner check passed 2026-10-27** (all 11 steps of
   `docs/testing/b3-stage1-test-guide.md`, including the Acrobat check and firm fonts
   offline via `\\localhost`). On the build PC:
