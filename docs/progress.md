@@ -5,8 +5,9 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **B3 Edit PDF, stage 1 built 2026-10-26; waiting for the owner's check**
-  (`docs/testing/b3-stage1-test-guide.md`, includes the Acrobat check). On the build PC:
+- **B3 Edit PDF, stage 1 done: owner check passed 2026-10-27** (all 11 steps of
+  `docs/testing/b3-stage1-test-guide.md`, including the Acrobat check and firm fonts
+  offline via `\\localhost`). On the build PC:
   `npm run check` (296 Vitest + 6 expected-fail redaction pins, 44 Rust, license-check),
   117/117 Playwright. Stage 2 (mixed styles, spacing, kerning, push-down) not started.
 - **Phase 3 (markup) built 2026-10-23; still waiting for the owner's Windows + Acrobat
