@@ -18,7 +18,7 @@ import { objBounds, type PageChar, type Rect, type Rules } from "./chars";
 import type { IndexedFace } from "./fonts";
 import { FaceMetrics, withPostScriptName } from "./fonts/sfnt";
 import type { Subsetter } from "./fonts/subset";
-import type { TextBox } from "./group";
+import type { Paragraph, TextBox } from "./group";
 import { heap } from "../pages/raw";
 import { EditRefused } from "./refusal";
 import { removeBoxText, type Removal } from "./split";
@@ -158,9 +158,16 @@ export function retypeset(
       for (const line of lines) {
         for (const run of line.runs) {
           if (!run.text) continue;
-          created.push(
-            placeText(m, doc, page, font.handle, run.text, run.x, run.y, s, boldFake, italicFake),
-          );
+          // No space glyph: each word on its own, at the spaced position.
+          const pieces = font.noSpace ? run.text.split(" ") : [run.text];
+          let x = run.x;
+          for (const piece of pieces) {
+            if (piece)
+              created.push(
+                placeText(m, doc, page, font.handle, piece, x, run.y, s, boldFake, italicFake),
+              );
+            x += font.width(piece, s.size) + font.spaceWidth * s.size;
+          }
         }
         if (s.underline && line.text) {
           const pos = font.underline.position * s.size;
@@ -174,7 +181,12 @@ export function retypeset(
     // Read every letter back before anything is final.
     const want = placed.flatMap((p) => p.lines.flatMap((l) => l.runs.map((r) => r.text))).join("");
     const got = readBack(m, page, created);
-    if (got.replace(/\s+/g, "") !== want.replace(/\s+/g, "")) {
+    // U+0000 / U+FFFD: a glyph written without a character (a .notdef box).
+    if (
+      got.includes(String.fromCharCode(0)) ||
+      got.includes(String.fromCharCode(0xfffd)) ||
+      got.replace(/\s+/g, "") !== want.replace(/\s+/g, "")
+    ) {
       const have = new Set([...got]);
       const missing = [...new Set([...want.replace(/\s+/g, "")])].filter((c) => !have.has(c));
       throw new EditRefused(
@@ -215,6 +227,13 @@ interface LoadedFont {
   /** Fractions of the size; position negative below the baseline. */
   underline: { position: number; thickness: number };
   width(text: string, size: number): number;
+  /**
+   * The font has no space character (PDF subsets keep only the letters used): words
+   * are written one per run, spaced by `spaceWidth` (fraction of the size), so no
+   * .notdef box is written for a space.
+   */
+  noSpace: boolean;
+  spaceWidth: number;
 }
 
 /** Loads each chosen font once per edit, checking permission and letters first. */
@@ -284,6 +303,8 @@ class FontLoader {
           thickness: face.underlineThickness / face.unitsPerEm,
         },
         width: (s, size) => metrics.width(s, size),
+        noSpace: false,
+        spaceWidth: metrics.width(" ", 1),
         report: {
           name,
           kind: "file",
@@ -304,13 +325,29 @@ class FontLoader {
         missing,
       );
     const style = name.replace(/^[A-Z]{6}\+/, "").toLowerCase();
+    const measure = pdfiumMeasurer(m, this.doc, handle);
+    const letter = text.replace(/\s+/g, "").charAt(0);
+    const noSpace =
+      /\s/.test(text) && !!letter && !hasSpace(m, this.doc, this.page, handle, letter);
+    // Without a space glyph, a word gap of a quarter em (close to most text fonts').
+    const spaceWidth = noSpace ? 0.25 : measure(" ", 1);
     return {
       handle,
       name,
       bold: /bold|black|heavy|semibold|demi/.test(style) || m.FPDFFont_GetWeight(handle) >= 600,
       italic: /italic|oblique/.test(style),
       underline: { position: -0.1, thickness: 0.05 },
-      width: pdfiumMeasurer(m, this.doc, handle),
+      noSpace,
+      spaceWidth,
+      width: noSpace
+        ? (s, size) => {
+            const words = s.split(" ");
+            return (
+              words.reduce((a, w) => a + (w ? measure(w, size) : 0), 0) +
+              (words.length - 1) * spaceWidth * size
+            );
+          }
+        : measure,
       report: {
         name,
         kind: choice.kind,
@@ -382,6 +419,17 @@ function readBack(m: PdfiumModule, page: number, objs: number[]): string {
   }
 }
 
+/** Whether a PDF font maps the space character: "a a" written and read back exactly. */
+function hasSpace(
+  m: PdfiumModule,
+  doc: number,
+  page: number,
+  font: number,
+  letter: string,
+): boolean {
+  return missingLetters(m, doc, page, font, `${letter} ${letter}`, true).length === 0;
+}
+
 /** Letters of `text` a PDF font can't show, found by writing each one and reading it back. */
 function missingLetters(
   m: PdfiumModule,
@@ -389,10 +437,12 @@ function missingLetters(
   page: number,
   font: number,
   text: string,
+  whole = false,
 ): string[] {
   const missing: string[] = [];
-  for (const c of new Set([...text])) {
-    if (/\s/.test(c)) continue;
+  // `whole`: the text as one run (to check a space between letters); else letter by letter.
+  for (const c of whole ? [text] : new Set([...text])) {
+    if (!whole && /\s/.test(c)) continue;
     const obj = m.FPDFPageObj_CreateTextObj(doc, font, 10);
     setText(m, obj, c);
     // Far off the page, so it can't sit on an identical glyph (PDFium would drop it).
@@ -563,21 +613,26 @@ export function findOverflow(
   return out;
 }
 
+/** The paragraph's most common font and size (a bold run-in head is only one word). */
+export function mainChar(p: Paragraph): PageChar {
+  const chars = p.lines.flatMap((l) => l.chars);
+  const counts = new Map<string, { n: number; c: PageChar }>();
+  for (const c of chars) {
+    const k = `${c.font}|${c.size.toFixed(1)}`;
+    const e = counts.get(k);
+    if (e) e.n++;
+    else counts.set(k, { n: 1, c });
+  }
+  const main = [...counts.values()].sort((a, b) => b.n - a.n)[0]?.c ?? chars[0];
+  if (!main) throw new Error("empty paragraph");
+  return main;
+}
+
 /** Current style of each paragraph in `box`, for the properties panel and edits. */
 export function detectStyle(m: PdfiumModule, box: TextBox, rules: Rules): ParagraphStyle[] {
   const underlined = underlinesOf(box, rules);
   return box.paragraphs.map((p) => {
-    // The most common font and size in the paragraph (a bold run-in head is one word).
-    const chars = p.lines.flatMap((l) => l.chars);
-    const counts = new Map<string, { n: number; c: PageChar }>();
-    for (const c of chars) {
-      const k = `${c.font}|${c.size.toFixed(1)}`;
-      const e = counts.get(k);
-      if (e) e.n++;
-      else counts.set(k, { n: 1, c });
-    }
-    const main = [...counts.values()].sort((a, b) => b.n - a.n)[0]?.c ?? chars[0];
-    if (!main) throw new Error("empty paragraph");
+    const main = mainChar(p);
     const style = main.font.replace(/^[A-Z]{6}\+/, "").toLowerCase();
     const color = fillColor(m, main.obj);
     const single = p.lines.length === 1 && box.lines.length === p.lines.length;

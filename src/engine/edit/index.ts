@@ -52,4 +52,6 @@ export function groupPage(
 }
 
 export { editPageInfo, hitTest } from "./pageInfo";
-export type { EditImage, EditPageInfo, EditTextBox } from "./pageInfo";
+export type { EditImage, EditPageInfo, EditTextBox, PlainParagraphStyle } from "./pageInfo";
+export { addTextBox, editBoxText } from "./document";
+export type { BoxRef, EditOutcome, PlainFont, PlainStyle } from "./document";

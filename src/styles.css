@@ -1330,3 +1330,24 @@ button.primary.danger-fill {
   font-size: 13px;
   font-weight: 600;
 }
+.edit-layer.adding {
+  cursor: text;
+}
+.edit-new {
+  border: 1px dashed var(--accent);
+}
+/* The in-place editor covers the box's own text while typing (closest browser font;
+   the exact PDF result shows after the edit commits). */
+.edit-editor {
+  position: absolute;
+  pointer-events: auto;
+  box-sizing: content-box;
+  margin: 0;
+  padding: 0 1px;
+  border: 1px solid var(--accent);
+  outline: none;
+  background: #fff;
+  resize: none;
+  overflow: hidden;
+  z-index: 2;
+}

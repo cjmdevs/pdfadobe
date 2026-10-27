@@ -6,7 +6,7 @@ import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { ERASER_MODE, STAMP_MODE } from "../markup/config";
-import { EDIT_MODE } from "../ui/edit/editStore";
+import { EDIT_MODE, addText, useAddingText } from "../ui/edit/editStore";
 import { TEXT_STAMPS } from "../engine/stamps";
 import { stampPlacement, textStamp } from "../ui/markup/stampPlacement";
 import { importXfdf } from "../ui/markup/importXfdf";
@@ -30,6 +30,7 @@ export function useDocToolContext(documentId: string): ToolContext {
   const mode =
     level === ZoomMode.FitPage ? "fit-page" : level === ZoomMode.FitWidth ? "fit-width" : "other";
   const docState = useDocumentState(documentId);
+  const adding = useAddingText(documentId);
   const encrypted = docState?.document?.isEncrypted ?? false;
   const m = wb.meta[documentId];
   const organizing = m?.activeTool === "organize";
@@ -84,6 +85,11 @@ export function useDocToolContext(documentId: string): ToolContext {
         : {
             on: imState.activeMode === EDIT_MODE,
             setOn: (on) => (on ? im?.activate(EDIT_MODE) : im?.activateDefaultMode()),
+            adding,
+            setAdding: (on) => {
+              if (on) im?.activate(EDIT_MODE);
+              addText.set(documentId, on);
+            },
           },
     }),
     [
@@ -104,6 +110,7 @@ export function useDocToolContext(documentId: string): ToolContext {
       im,
       erasing,
       imState.activeMode,
+      adding,
     ],
   );
 }

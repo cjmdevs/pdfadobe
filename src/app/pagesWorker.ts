@@ -9,6 +9,8 @@ import { summarizeComments } from "../engine/summary";
 import { documentXfdf } from "../engine/xfdf";
 import type { QpdfJob, QpdfResult } from "../engine/pages";
 import { editPageInfo } from "../engine/edit/pageInfo";
+import { addTextBox, editBoxText, type BoxRef, type PlainStyle } from "../engine/edit/document";
+import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
 
 type Ctx = P.PagesCtx;
 
@@ -55,6 +57,21 @@ export const OPS = {
     }),
   // Edit PDF (backlog B3).
   editPageInfo: async (c: Ctx, b: Uint8Array, page: number) => editPageInfo(c.module, b, page),
+  editText: async (
+    c: Ctx,
+    b: Uint8Array,
+    ref: BoxRef,
+    paragraphs: string[],
+    styles: (Partial<PlainStyle> | undefined)[] = [],
+  ) => editBoxText(c.module, b, ref, paragraphs, { subset: await subsetter() }, styles),
+  addText: async (
+    c: Ctx,
+    b: Uint8Array,
+    page: number,
+    at: { x: number; y: number; width: number | null },
+    paragraphs: string[],
+    style: PlainStyle,
+  ) => addTextBox(c.module, b, page, at, paragraphs, style, { subset: await subsetter() }),
   /** Images (JPEG/PNG/TIFF files) -> one PDF, one page per image. */
   imagesToPdf: async (_c: Ctx, files: Uint8Array[]) =>
     P.imagesToPdf(files.flatMap((f) => P.imagePages(f))),
@@ -63,7 +80,7 @@ export const OPS = {
 export type Ops = typeof OPS;
 
 export type WorkerRequest =
-  | { type: "init"; wasmUrl: string }
+  | { type: "init"; wasmUrl: string; subsetWasmUrl: string }
   | { type: "call"; id: number; op: keyof Ops; args: unknown[] }
   | { type: "qpdfResult"; id: number; result?: QpdfResult; error?: string };
 
@@ -77,6 +94,13 @@ const scope = self as unknown as {
 };
 
 let ctx: Promise<Ctx> | null = null;
+/** HarfBuzz's subsetter (Edit PDF), loaded from the local asset on first use. */
+let subsetWasmUrl = "";
+let subset: Promise<Subsetter> | null = null;
+const subsetter = () =>
+  (subset ??= fetch(subsetWasmUrl)
+    .then((r) => r.arrayBuffer())
+    .then(createSubsetter));
 let qpdfSeq = 0;
 const qpdfWaiting = new Map<number, { resolve(r: QpdfResult): void; reject(e: Error): void }>();
 
@@ -101,6 +125,7 @@ function buffersIn(v: unknown, out: Set<ArrayBuffer> = new Set()): Set<ArrayBuff
 scope.onmessage = (e) => {
   const msg = e.data;
   if (msg.type === "init") {
+    subsetWasmUrl = msg.subsetWasmUrl;
     ctx = fetch(msg.wasmUrl)
       .then((r) => r.arrayBuffer())
       .then(createPdfium)

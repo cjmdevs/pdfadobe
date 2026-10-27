@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { useWorkbench } from "../../app/workbench";
-import { EDIT_MODE, editSelection } from "./editStore";
+import { EDIT_MODE, editSession, resetEdit } from "./editStore";
 
 export function EditBridge({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
@@ -21,8 +21,15 @@ export function EditBridge({ documentId }: { documentId: string }) {
     else if (im.getActiveMode() === EDIT_MODE) im.activateDefaultMode();
   }, [im, toolOpen]);
 
+  // Leaving Edit mode commits an open editor, then clears everything. Only a real
+  // on -> off change: a tab reloaded by an edit mounts with the mode still off.
+  const wasEditing = useRef(editing);
   useEffect(() => {
-    if (!editing) editSelection.set(documentId, null);
+    if (wasEditing.current === editing) return;
+    wasEditing.current = editing;
+    if (editing) return;
+    editSession.commit(documentId);
+    resetEdit(documentId);
   }, [documentId, editing]);
 
   return null;

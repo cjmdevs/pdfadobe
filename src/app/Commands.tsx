@@ -16,7 +16,7 @@ import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { ERASER_MODE, STAMP_MODE } from "../markup/config";
-import { EDIT_MODE, editSelection } from "../ui/edit/editStore";
+import { EDIT_MODE, addText, editSelection, editSession } from "../ui/edit/editStore";
 import { stampPlacement } from "../ui/markup/stampPlacement";
 import { Guard } from "../ui/Guard";
 import { matchShortcut, type Command } from "./shortcuts";
@@ -189,7 +189,9 @@ function DocCommands({
         }
         // Edit PDF: the selection goes first, then the tool closes.
         if (imState.activeMode === EDIT_MODE) {
-          if (editSelection.get(documentId)) editSelection.set(documentId, null);
+          if (editSession.commit(documentId)) return true;
+          if (addText.get(documentId)) addText.set(documentId, false);
+          else if (editSelection.get(documentId)) editSelection.set(documentId, null);
           else wb.setActiveTool(documentId, null);
           return true;
         }

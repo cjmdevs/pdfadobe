@@ -8,6 +8,8 @@ import { RawDoc } from "../pages/raw";
 import { pageChars, pageRules, type Rect } from "./chars";
 import { groupChars } from "./group";
 import { pageImages } from "./images";
+import { detectStyle, mainChar, type Rgba } from "./retypeset";
+import type { Align } from "./typeset";
 
 export interface EditTextBox {
   kind: "text";
@@ -16,9 +18,29 @@ export interface EditTextBox {
   rect: Rect;
   /** Each line's rect, for a tighter outline and for hit-testing. */
   lines: Rect[];
-  paragraphs: number;
-  /** Start of the text, for accessible names (never logged). */
+  /** Each paragraph's text (hard breaks between them). */
+  paragraphs: string[];
+  /** Start of the text: identifies the box when it is edited (never logged). */
   preview: string;
+  /** First baseline, PDF points. */
+  baseline: number;
+  /** Style of each paragraph, for the editor and the properties panel. */
+  styles: PlainParagraphStyle[];
+  /** Every paragraph is one line: the box grows instead of wrapping. */
+  grows: boolean;
+}
+
+/** A paragraph's style as plain data. */
+export interface PlainParagraphStyle {
+  /** Base font name as written in the PDF ("ABCDEF+Calibri-Bold", "Helvetica"). */
+  fontName: string;
+  size: number;
+  color: Rgba;
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  align: Align;
+  leading: number;
 }
 
 export interface EditImage {
@@ -43,7 +65,8 @@ export function editPageInfo(m: PdfiumModule, bytes: Uint8Array, pageIndex: numb
   try {
     return doc.withPage(pageIndex, (page) => {
       const textPage = m.FPDFText_LoadPage(page);
-      const boxes = groupChars(pageChars(m, textPage), pageRules(m, page));
+      const rules = pageRules(m, page);
+      const boxes = groupChars(pageChars(m, textPage), rules);
       m.FPDFText_ClosePage(textPage);
       return {
         width: m.FPDF_GetPageWidthF(page),
@@ -54,8 +77,15 @@ export function editPageInfo(m: PdfiumModule, bytes: Uint8Array, pageIndex: numb
           // A point of air around the glyphs, like Acrobat's box outline.
           rect: pad(b, 1),
           lines: b.lines.map((l) => ({ l: l.l, r: l.r, b: l.b, t: l.t })),
-          paragraphs: b.paragraphs.length,
+          paragraphs: b.paragraphs.map((p) => p.text),
           preview: (b.paragraphs[0]?.text ?? "").slice(0, 60),
+          baseline: b.lines[0]?.y ?? b.b,
+          grows: b.paragraphs.every((p) => p.lines.length === 1),
+          styles: detectStyle(m, b, rules).map(({ font: _font, ...s }, i) => {
+            void _font;
+            const p = b.paragraphs[i];
+            return { ...s, fontName: p ? mainChar(p).font : "" };
+          }),
         })),
         images: pageImages(m, page).map((img, id) => ({
           kind: "image" as const,

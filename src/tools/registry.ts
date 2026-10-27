@@ -32,6 +32,9 @@ export interface EditCommands {
   /** Edit mode is on: outlines shown, clicks select text boxes and images. */
   on: boolean;
   setOn(on: boolean): void;
+  /** Add Text is armed: the next click (or drag) on a page places new text. */
+  adding: boolean;
+  setAdding(on: boolean): void;
 }
 
 /** A tool's panel in the Tools pane, loaded on first use (keeps this list Node-safe). */
@@ -288,7 +291,21 @@ export const TOOLS: ToolDef[] = [
             c.wb.setActiveTool(c.documentId, "edit");
           else c.edit.setOn(!c.edit.on);
         },
-        pressed: (c) => c.edit?.on ?? false,
+        pressed: (c) => (c.edit?.on ?? false) && !c.edit?.adding,
+        enabled: (c) => hasDoc(c) && c.edit !== null,
+      },
+      {
+        id: "addText",
+        label: "Add text (click to place, drag to set the width)",
+        caption: "Add Text",
+        icon: "addText",
+        run: (c) => {
+          if (!c.documentId || !c.edit) return;
+          if (c.wb.meta[c.documentId]?.activeTool !== "edit")
+            c.wb.setActiveTool(c.documentId, "edit");
+          c.edit.setAdding(!c.edit.adding);
+        },
+        pressed: (c) => c.edit?.adding ?? false,
         enabled: (c) => hasDoc(c) && c.edit !== null,
       },
     ],
