@@ -68,9 +68,15 @@ and send the last 30 lines.
 
 ## Checklist
 
-- [ ] 1 Acrobat firm set - [ ] 2 place/Esc/keys - [ ] 3 counting - [ ] 4 palette/recent
-- [ ] 5 own tickmarks - [ ] 6 legend - [ ] 7 summary/CSV - [ ] 8 reopen + Acrobat
-- [ ] 9 settings file
+- [ ] 1 Firm set in Acrobat
+- [ ] 2 Place, number keys, Esc
+- [ ] 3 Counting letters
+- [ ] 4 Palette and Recent
+- [ ] 5 Own tickmarks
+- [ ] 6 Legend
+- [ ] 7 Stamp Summary and CSV
+- [ ] 8 Reopen and Acrobat
+- [ ] 9 Settings file
 
 ## If a step fails
 
