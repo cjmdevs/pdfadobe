@@ -1751,3 +1751,76 @@ button.primary.danger-fill {
 .calc-tape small {
   color: #555;
 }
+
+/* Tickmark sections (glyph instead of an icon) and letter/number grids */
+.icon.glyph {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  color: #d0021b;
+  font:
+    700 17px/1 "Segoe UI Symbol",
+    "Segoe UI",
+    sans-serif;
+}
+.action-menu.grid {
+  display: grid;
+  grid-template-columns: repeat(10, 28px);
+  gap: 2px;
+  min-width: 0;
+  padding: 4px;
+}
+.action-menu.grid li.wide {
+  grid-column: 1 / -1;
+}
+.action-menu.grid li:not(.wide) button {
+  justify-content: center;
+  padding: 3px 0;
+  color: #d0021b;
+  font-weight: 700;
+  border: 1px solid var(--border);
+}
+.action-menu.grid li:not(.wide) .tick {
+  display: none;
+}
+.action-menu.grid button[aria-checked="true"] {
+  background: var(--bg-active);
+}
+.tick-library .tabs {
+  display: flex;
+  gap: 4px;
+  margin: 6px 0 10px;
+}
+.tick-library .tabs button[aria-selected="true"] {
+  background: var(--bg-active);
+  font-weight: 600;
+}
+.tick-library .lib-section h4 {
+  margin: 10px 0 4px;
+  font-size: 12px;
+}
+.tick-library .lib-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.lib-field {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 2px 8px;
+  align-items: center;
+}
+.lib-field small {
+  grid-column: 2;
+}
+.tick-library .tick-preview {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid var(--border);
+}

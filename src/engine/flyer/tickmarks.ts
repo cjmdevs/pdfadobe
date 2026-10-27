@@ -16,6 +16,20 @@ export interface TickmarkImage {
   data: string;
 }
 
+/** Toolbar sections, like PDFlyer's tickmark buttons (owner request 2026-10-27). */
+export type TickSection =
+  "letters" | "numbers" | "checks" | "confirm" | "footing" | "other" | "mine";
+
+export const TICK_SECTIONS: readonly { id: TickSection; label: string; glyph: string }[] = [
+  { id: "letters", label: "Letters", glyph: "\u24B6" },
+  { id: "numbers", label: "Numbers", glyph: "\u2460" },
+  { id: "checks", label: "Checks", glyph: "\u2713" },
+  { id: "confirm", label: "Confirmations", glyph: "C" },
+  { id: "footing", label: "Footing", glyph: "^" },
+  { id: "other", label: "Other", glyph: "i" },
+  { id: "mine", label: "Mine", glyph: "\u2605" },
+];
+
 export interface TickmarkDef {
   id: string;
   /** "Agrees to General Ledger". */
@@ -32,6 +46,11 @@ export interface TickmarkDef {
   circle?: boolean;
   /** Counts up as it is placed: A, B, C... or 1, 2, 3... (drawn instead of `text`). */
   sequence?: "letters" | "numbers";
+  /** Any letter or number, picked when the tickmark is armed and the same at every click
+   * (drawn instead of `text`). Matching ones in a document link to each other. */
+  variable?: "letters" | "numbers";
+  /** Toolbar section; user tickmarks without one go under "Mine". */
+  section?: TickSection;
   /** An image tickmark (drawn instead of mark and text). */
   image?: TickmarkImage;
 }
@@ -40,28 +59,47 @@ const RED = "#D0021B";
 const t = (
   id: string,
   name: string,
-  look: Pick<TickmarkDef, "mark" | "text" | "circle" | "sequence">,
-): TickmarkDef => ({ id, name, meaning: name, color: RED, size: 14, ...look });
+  section: TickSection,
+  look: Pick<TickmarkDef, "mark" | "text" | "circle" | "sequence" | "variable">,
+): TickmarkDef => ({ id, name, meaning: name, color: RED, size: 14, section, ...look });
 
 /** The firm set (owner list, 2026-10-27). Drawn by us; reviewed at the stage 1 check. */
 export const BUILT_IN_TICKMARKS: readonly TickmarkDef[] = [
-  t("agrees", "Agrees to", { mark: "check" }),
-  t("agreesGL", "Agrees to General Ledger", { mark: "check", text: "GL" }),
-  t("agreesPY", "Agrees to Prior Year", { mark: "check", text: "PY" }),
-  t("calculated", "Calculated", { text: "c", circle: true }),
-  t("confirmed", "Confirmed", { text: "C" }),
-  t("confirmedEx", "Confirmed with exception", { text: "CX" }),
-  t("confirmedExCleared", "Confirmed with exception cleared", { mark: "check", text: "CX" }),
-  t("consistent", "Consistent & Comparable with Prior Year", { text: "CC" }),
-  t("crossFooted", "Cross-footed", { mark: "caretLeft" }),
-  t("footed", "Footed", { mark: "caretUp" }),
-  t("immaterial", "Immaterial", { text: "i", circle: true }),
-  t("noReply", "No Reply", { text: "NR" }),
-  t("recalculated", "Recalculated", { mark: "check", circle: true }),
-  t("unreconciled", "Unreconciled Difference", { text: "UD" }),
-  t("letters", "Letter (A, B, C...)", { sequence: "letters", circle: true }),
-  t("numbers", "Number (1, 2, 3...)", { sequence: "numbers", circle: true }),
+  t("agrees", "Agrees to", "checks", { mark: "check" }),
+  t("agreesGL", "Agrees to General Ledger", "checks", { mark: "check", text: "GL" }),
+  t("agreesPY", "Agrees to Prior Year", "checks", { mark: "check", text: "PY" }),
+  t("calculated", "Calculated", "footing", { text: "c", circle: true }),
+  t("confirmed", "Confirmed", "confirm", { text: "C" }),
+  t("confirmedEx", "Confirmed with exception", "confirm", { text: "CX" }),
+  t("confirmedExCleared", "Confirmed with exception cleared", "confirm", {
+    mark: "check",
+    text: "CX",
+  }),
+  t("consistent", "Consistent & Comparable with Prior Year", "other", { text: "CC" }),
+  t("crossFooted", "Cross-footed", "footing", { mark: "caretLeft" }),
+  t("footed", "Footed", "footing", { mark: "caretUp" }),
+  t("immaterial", "Immaterial", "other", { text: "i", circle: true }),
+  t("noReply", "No Reply", "confirm", { text: "NR" }),
+  t("recalculated", "Recalculated", "checks", { mark: "check", circle: true }),
+  t("unreconciled", "Unreconciled Difference", "other", { text: "UD" }),
+  t("letter", "Letter", "letters", { variable: "letters", circle: true }),
+  t("number", "Number", "numbers", { variable: "numbers", circle: true }),
+  t("letters", "Letters counting up (A, B, C...)", "letters", {
+    sequence: "letters",
+    circle: true,
+  }),
+  t("numbers", "Numbers counting up (1, 2, 3...)", "numbers", {
+    sequence: "numbers",
+    circle: true,
+  }),
 ];
+
+/** Letters or numbers the tickmark draws from its placed value, if any. */
+export const labelKind = (def: TickmarkDef) => def.sequence ?? def.variable;
+
+/** The values offered for a letter or number tickmark. */
+export const LETTER_VALUES = Array.from({ length: 26 }, (_, i) => String.fromCharCode(65 + i));
+export const NUMBER_VALUES = Array.from({ length: 99 }, (_, i) => String(i + 1));
 
 /** The n-th value of a sequence, from 1: A..Z, AA..; or 1, 2, 3. */
 export function sequenceLabel(kind: "letters" | "numbers", n: number): string {
@@ -136,7 +174,7 @@ async function drawInto(
     page.drawImage(img, box);
     return;
   }
-  const text = encodable(font, def.sequence ? (label ?? "?") : (def.text ?? ""));
+  const text = encodable(font, labelKind(def) ? (label ?? "?") : (def.text ?? ""));
   const mark = def.mark ? MARKS[def.mark] : null;
   const fontSize = h * 0.85;
   const textW = text ? font.widthOfTextAtSize(text, fontSize) : 0;
@@ -184,7 +222,7 @@ async function measure(def: TickmarkDef, label: string | undefined, font: PDFFon
       def.image.mime === "image/png" ? await doc.embedPng(bytes) : await doc.embedJpg(bytes);
     return { width: Math.max(4, (img.width / img.height) * h), height: h };
   }
-  const text = encodable(font, def.sequence ? (label ?? "?") : (def.text ?? ""));
+  const text = encodable(font, labelKind(def) ? (label ?? "?") : (def.text ?? ""));
   const markW = def.mark ? MARKS[def.mark].width * h : 0;
   const textW = text ? font.widthOfTextAtSize(text, h * 0.85) : 0;
   const gap = def.mark && text ? h * 0.1 : 0;

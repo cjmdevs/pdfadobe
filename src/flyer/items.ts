@@ -16,7 +16,9 @@ export type PwType =
   | "StatusStamp"
   | "Note"
   /** Calculator tape. */
-  | "Tape";
+  | "Tape"
+  /** The /Link over a letter/number tickmark to the next matching one (not listed). */
+  | "TickLink";
 
 const PW_TYPES: readonly PwType[] = [
   "Tickmark",
@@ -27,6 +29,7 @@ const PW_TYPES: readonly PwType[] = [
   "StatusStamp",
   "Note",
   "Tape",
+  "TickLink",
 ];
 
 /** How the Stamp Summary names each type. */
@@ -39,6 +42,7 @@ export const PW_TYPE_LABELS: Record<PwType, string> = {
   StatusStamp: "Status stamp",
   Note: "Note",
   Tape: "Calculator tape",
+  TickLink: "Tickmark link",
 };
 
 /** What we keep on a workpaper annotation. */
@@ -57,6 +61,12 @@ export interface PwData {
   pwPage?: number;
   /** User/status stamp template id. */
   pwStamp?: string;
+  /** Letter/number tickmark: links to the next one with the same value. */
+  pwLink?: boolean;
+  /** TickLink: the tickmark it covers, the one it goes to, and where that one was. */
+  pwOf?: string;
+  pwNext?: string;
+  pwAt?: string;
   /** Calculator tape lines, to open the tape in the calculator again. */
   pwTape?: { op: string; value: number; note?: string }[];
 }
@@ -146,7 +156,8 @@ export function summaryRows(annots: PdfAnnotationObject[]): SummaryRow[] {
   const rows: SummaryRow[] = [];
   for (const a of annots) {
     const d = pwData(a);
-    if (!d || d.pwType === "Note" || d.pwType === "ConnectorLink") continue;
+    if (!d || d.pwType === "Note" || d.pwType === "ConnectorLink" || d.pwType === "TickLink")
+      continue;
     const subject = (a as { subject?: string }).subject ?? "";
     rows.push({
       id: a.id,

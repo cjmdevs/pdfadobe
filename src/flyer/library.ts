@@ -5,7 +5,9 @@
 import {
   BUILT_IN_TICKMARKS,
   TICK_MARKS,
+  TICK_SECTIONS,
   type TickMark,
+  type TickSection,
   type TickmarkDef,
 } from "../engine/flyer/tickmarks";
 import { BUILT_IN_STAMPS, type StampTemplate } from "../engine/flyer/userStamps";
@@ -61,6 +63,8 @@ export function sanitizeTickmark(raw: unknown): TickmarkDef | null {
   if (text) def.text = text;
   if (r.circle === true) def.circle = true;
   if (r.sequence === "letters" || r.sequence === "numbers") def.sequence = r.sequence;
+  else if (r.variable === "letters" || r.variable === "numbers") def.variable = r.variable;
+  if (TICK_SECTIONS.some((x) => x.id === r.section)) def.section = r.section as TickSection;
   const img = r.image as Record<string, unknown> | undefined;
   if (
     img &&
@@ -71,7 +75,7 @@ export function sanitizeTickmark(raw: unknown): TickmarkDef | null {
   )
     def.image = { mime: img.mime, data: img.data };
   // Something must be drawn.
-  if (!def.mark && !def.text && !def.sequence && !def.image) return null;
+  if (!def.mark && !def.text && !def.sequence && !def.variable && !def.image) return null;
   return def;
 }
 
@@ -185,6 +189,17 @@ export function mergeStamps(
   for (const d of firm) put(d, "firm");
   for (const d of mine) put(d, "mine");
   return out;
+}
+
+/** A pick: a tickmark id, plus the letter or number for letter/number tickmarks
+ * ("letter:A"). Kept for the active tickmark, Recent and each section's last pick. */
+export function tickRef(id: string, label?: string): string {
+  return label ? `${id}:${label}` : id;
+}
+
+export function parseTickRef(ref: string): { id: string; label?: string } {
+  const i = ref.indexOf(":");
+  return i < 0 ? { id: ref } : { id: ref.slice(0, i), label: ref.slice(i + 1) };
 }
 
 export function pushRecent(recent: string[], id: string): string[] {

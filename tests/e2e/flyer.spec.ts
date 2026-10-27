@@ -275,3 +275,64 @@ test("calculator: keys, click amounts, foot with variance, tape on the page", as
   expect(tapes).toHaveLength(1);
   expect(tapes[0]!.contents?.endsWith("100.00 +")).toBe(true);
 });
+
+test("letter tickmarks: pick C, it stays C; matching Cs link across pages; Clear Recent", async ({
+  page,
+  mockfs,
+}) => {
+  await boot(page);
+  await openPaths(page, [P.wpA]);
+  await waitForPainted(page, 0);
+  await page.getByRole("button", { name: "Workpaper Tools", exact: true }).click();
+  const summary = page.getByTestId("stamp-summary");
+
+  // Letters section: the grid, then C, placed twice on page 1.
+  await page.getByRole("button", { name: "Letters: choose" }).click();
+  await page.getByRole("menuitemradio", { name: "C", exact: true }).click();
+  const p1 = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
+  for (const fy of [0.3, 0.4]) {
+    await page.mouse.move(p1.x + p1.width * 0.3, p1.y + p1.height * fy);
+    await page.mouse.click(p1.x + p1.width * 0.3, p1.y + p1.height * fy);
+  }
+  // And once on page 2.
+  await page.mouse.wheel(0, 700);
+  const second = page.locator('[data-testid=viewport] [data-page-index="1"]');
+  await expect(second).toBeInViewport({ ratio: 0.3 });
+  const p2 = (await second.boundingBox())!;
+  await page.mouse.move(p2.x + p2.width * 0.5, p2.y + 120);
+  await page.mouse.click(p2.x + p2.width * 0.5, p2.y + 120);
+  await page.keyboard.press("Escape");
+  await expect(summary.getByRole("button", { name: /^Letter \(C\)/ })).toHaveCount(3);
+
+  // Selecting the one on page 2 offers the next C, which is on page 1.
+  await summary.getByRole("button", { name: /^Letter \(C\) Page 2/ }).click();
+  await page.getByRole("button", { name: "Go to the next C (page 1)" }).click();
+
+  // The Letters button now places C again (its last pick).
+  await expect(page.getByRole("button", { name: "Letters tickmarks" })).toBeEnabled();
+
+  // Clear Recent stops placing and empties the list.
+  await page.getByRole("button", { name: "Letters tickmarks" }).click();
+  await tb(page, "Recent tickmarks").click();
+  await expect(page.getByRole("menuitemradio", { name: "Letter C" })).toBeVisible();
+  await page.getByRole("menuitemradio", { name: "Clear Recent Stamps" }).click();
+  await expect(page.getByText("Recent tickmarks cleared.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Letters tickmarks" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await tb(page, "Recent tickmarks").click();
+  await expect(page.getByRole("menuitemradio")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+
+  await page.keyboard.press("Control+s");
+  await idle(page);
+  const raw = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.wpA)));
+  expect(raw.filter((a) => a.subject === "Tickmark: Letter (C)")).toHaveLength(3);
+  expect(
+    raw
+      .filter((a) => a.subtype === "/Link")
+      .map((l) => l.page)
+      .sort(),
+  ).toEqual([0, 0, 1]);
+});

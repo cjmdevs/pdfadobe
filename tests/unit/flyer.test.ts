@@ -118,7 +118,7 @@ describe("tickmarks after save and reopen", () => {
     expect(rows.filter((r) => r.type === "Tickmark")).toHaveLength(placed.length);
     expect(rows.filter((r) => r.type === "Legend")).toHaveLength(1);
     expect(rows.map((r) => r.name)).toContain("Footed");
-    expect(rows.map((r) => r.name)).toContain("Letter (A, B, C...) (B)");
+    expect(rows.map((r) => r.name)).toContain("Letters counting up (A, B, C...) (B)");
     // Counting goes on where the last session stopped.
     expect(nextSequence(letters, annots)).toBe(3);
     const csv = summaryCsv(rows, (d) => d.toISOString());

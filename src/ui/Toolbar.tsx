@@ -19,14 +19,27 @@ import {
 import { useDocToolContext, useNoDocToolContext } from "../tools/useToolContext";
 import { Icon, type IconName } from "./Icon";
 
+/** An action's icon, or its symbol (tickmark sections) drawn in red. */
+function ActionIcon({ icon, glyph }: { icon: IconName; glyph?: string | undefined }) {
+  return glyph ? (
+    <span className="icon glyph" aria-hidden="true">
+      {glyph}
+    </span>
+  ) : (
+    <Icon name={icon} />
+  );
+}
+
 function ToolButton({
   icon,
+  glyph,
   label,
   onClick,
   pressed,
   disabled,
 }: {
   icon: IconName;
+  glyph?: string | undefined;
   label: string;
   onClick: () => void;
   pressed?: boolean;
@@ -42,7 +55,7 @@ function ToolButton({
       disabled={disabled}
       {...(pressed === undefined ? {} : { "aria-pressed": pressed })}
     >
-      <Icon name={icon} />
+      <ActionIcon icon={icon} glyph={glyph} />
     </button>
   );
 }
@@ -283,6 +296,7 @@ function QuickAction({
   const button = (
     <ToolButton
       icon={action.icon}
+      glyph={action.glyph}
       label={`${action.label}${target}`}
       disabled={!actionEnabled(tool, action, ctx)}
       onClick={() => action.run(ctx)}
@@ -354,7 +368,7 @@ function WithMenu({
           disabled={disabled}
           onClick={() => setOpen(!open)}
         >
-          <Icon name={a.icon} />
+          <ActionIcon icon={a.icon} glyph={a.glyph} />
           <span aria-hidden="true">{a.caption ?? a.label} ▾</span>
         </button>
       ) : (
@@ -376,17 +390,26 @@ function WithMenu({
       )}
       {open && (
         <ul
-          className="action-menu"
+          className={a.grid ? "action-menu grid" : "action-menu"}
           role="menu"
           aria-label={a.caption ?? a.label}
           style={{ left: at.left, top: at.top }}
         >
           {items.map((it) => (
-            <li key={it.id} className={it.separator ? "separator" : undefined} role="none">
+            <li
+              key={it.id}
+              className={
+                [it.separator ? "separator" : "", a.grid && it.label.length > 3 ? "wide" : ""]
+                  .filter(Boolean)
+                  .join(" ") || undefined
+              }
+              role="none"
+            >
               <button
                 type="button"
                 role="menuitemradio"
                 aria-checked={it.checked ?? false}
+                title={it.title ?? it.label}
                 onClick={() => {
                   setOpen(false);
                   it.run(ctx);
@@ -437,7 +460,7 @@ export function ToolToolbar({ documentId }: { documentId: string }) {
             aria-pressed={a.pressed ? a.pressed(ctx) : undefined}
             onClick={() => a.run(ctx)}
           >
-            <Icon name={a.icon} />
+            <ActionIcon icon={a.icon} glyph={a.glyph} />
             <span aria-hidden="true">{a.caption ?? a.label}</span>
           </button>
         );

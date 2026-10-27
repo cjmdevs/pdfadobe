@@ -5,11 +5,11 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 4 stage 3 (calculator tape, foot/cross-foot) built 2026-10-27**, waiting for
-  the owner check (`docs/testing/phase-04-stage3-test-guide.md`); stage 1 and 2 checks
-  also pending. `npm run check` (312 Vitest + 6 expected-fail, Rust, license-check),
-  121/121 Playwright. Stage 4 (PDFlyer marks) waits for a synthetic PDFlyer sample in
-  `tests/corpus/pdflyer/`; after it, tag `phase-04-done`.
+- **Phase 4 owner run 2026-10-27:** A, D-J passed. B and C fixed the same day (letter/
+  number tickmarks, sections, Clear Recent, Library tabs), waiting for the owner check
+  (`docs/testing/phase-04-fixes-test-guide.md`). `npm run check` (315 Vitest + 6
+  expected-fail), 122/122 Playwright. Stage 4 (PDFlyer marks) waits for a synthetic
+  PDFlyer sample in `tests/corpus/pdflyer/`; after it, tag `phase-04-done`.
 - **B3 Edit PDF, stage 1 done: owner check passed 2026-10-27** (all 11 steps of
   `docs/testing/b3-stage1-test-guide.md`, including the Acrobat check and firm fonts
   offline via `\\localhost`). On the build PC:
@@ -98,6 +98,18 @@ drawn by `src/engine/flyer/tape.ts` (Courier, ruled totals), `pwType: "Tape"`, l
 Deviations: Update tape makes a new annotation in the same corner (an appearance cannot be
 replaced in place; re-using the id after a delete drops it) and moves attached
 connectors to it. Standard mode has no operator precedence (like a desk calculator).
+
+## Phase 4 fixes after the owner run (2026-10-27)
+
+Letter (A-Z) and Number (1-99) tickmarks keep the picked value at every click (picks are
+refs like `letter:A`; counting up stays as its own pick). Matching ones (`pwLink`) get a
+/Link to the next one in page order (`src/flyer/tickLinks.ts`, kept in step by
+FlyerOverlay); links carry /IRT to their tickmark so EmbedPDF lets clicks through and
+deletes them with it (also used for cross-page connector links). Toolbar sections
+(`TickSection` on each tickmark, `src/flyer/sections.ts`): one button per section with a
+red symbol, last pick per section (`sectionLast`), letter/number grids. Clear Recent also
+stops placing and says so (owner's report not reproduced; this was the likely cause).
+Library in three tabs with "New…" forms, field help and a live preview.
 
 ## Dependency versions and licenses
 

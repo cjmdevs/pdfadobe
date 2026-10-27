@@ -6,7 +6,8 @@ import { useWorkbench } from "../../app/workbench";
 import { drawLegend, drawTickmark, type LegendEntry } from "../../engine/flyer/tickmarks";
 import { drawUserStamp, type StampTemplate } from "../../engine/flyer/userStamps";
 import { CONNECTOR_STYLES } from "../../flyer/connectors";
-import { mergeLibrary, mergeStamps } from "../../flyer/library";
+import { mergeLibrary, mergeStamps, parseTickRef, tickRef } from "../../flyer/library";
+import { pickLabel, sectionPicks, type TickPick } from "../../flyer/sections";
 import { pwData } from "../../flyer/items";
 import type { FlyerCommands } from "../../tools/registry";
 import { FLYER_MODE, flyerPlacement, usePendingItem } from "./flyerStore";
@@ -64,30 +65,70 @@ export function useFlyerCommands(documentId: string, enabled: boolean): FlyerCom
   return useMemo(() => {
     if (!enabled || !annots) return null;
     const find = (id: string) => library.find((e) => e.def.id === id)?.def ?? null;
-    const active = find(settings.activeTickmark) ?? library[0]?.def ?? null;
+    /** "letter:A" -> the Letter tickmark with A (letter/number tickmarks default to A / 1). */
+    const pick = (ref: string): TickPick | null => {
+      const { id, label } = parseTickRef(ref);
+      const def = find(id);
+      if (!def) return null;
+      const l = def.variable ? (label ?? (def.variable === "letters" ? "A" : "1")) : undefined;
+      return { ref: tickRef(def.id, l), def, ...(l ? { label: l } : {}) };
+    };
+    const activePick =
+      pick(settings.activeTickmark) ?? (library[0] ? pick(library[0].def.id) : null);
+    const active = activePick?.def ?? null;
     const fail = (e: unknown) =>
       wb.toast(`Tickmark failed: ${e instanceof Error ? e.message : String(e)}`, "error");
     return {
       library,
       active,
-      recent: settings.recentTickmarks.map(find).filter((d) => d !== null),
+      activeRef: activePick?.ref ?? null,
+      activeLabel: activePick?.label,
+      recent: settings.recentTickmarks.map(pick).filter((d) => d !== null),
+      sections: sectionPicks(library).map((sec) => ({
+        ...sec,
+        last:
+          (settings.sectionLast[sec.id] ? pick(settings.sectionLast[sec.id] ?? "") : null) ??
+          sec.picks[0] ??
+          null,
+      })),
       placing,
-      arm(id) {
-        const def = (id ? find(id) : null) ?? active;
-        if (!def) return;
-        if (def.id !== settings.activeTickmark) updateSettings({ activeTickmark: def.id });
-        void drawTickmark(def, def.sequence === "numbers" ? "1" : "A").then((art) => {
+      arm(ref) {
+        const p = (ref ? pick(ref) : null) ?? activePick;
+        if (!p) return;
+        const section = p.def.section ?? "mine";
+        if (p.ref !== settings.activeTickmark || settings.sectionLast[section] !== p.ref)
+          updateSettings({
+            activeTickmark: p.ref,
+            sectionLast: { ...settings.sectionLast, [section]: p.ref },
+          });
+        const def = p.def;
+        const label =
+          p.label ?? (def.sequence === "numbers" ? "1" : def.sequence ? "A" : undefined);
+        void drawTickmark(def, label).then((art) => {
           annots.setActiveTool(null);
           annots.deselectAnnotation();
-          flyerPlacement.set({ kind: "tickmark", def, width: art.width, height: art.height });
+          flyerPlacement.set({
+            kind: "tickmark",
+            def,
+            ...(p.label ? { label: p.label } : {}),
+            width: art.width,
+            height: art.height,
+          });
           im?.activate(FLYER_MODE);
+          if (p.label) wb.toast(`Placing ${pickLabel(p)}: click the page for each one, Esc stops.`);
         }, fail);
       },
       stop() {
         flyerPlacement.set(null);
         im?.activateDefaultMode();
       },
-      clearRecent: () => updateSettings({ recentTickmarks: [] }),
+      clearRecent() {
+        // Also stops placing: otherwise the next click puts a tickmark straight back.
+        flyerPlacement.set(null);
+        im?.activateDefaultMode();
+        updateSettings({ recentTickmarks: [] });
+        wb.toast("Recent tickmarks cleared.");
+      },
       stamps,
       placingStamp,
       pickStamp(id) {

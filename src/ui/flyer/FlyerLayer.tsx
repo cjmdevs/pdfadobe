@@ -39,7 +39,7 @@ import {
   route,
 } from "../../flyer/connectors";
 import { nextSequence, tickmarkSubject, type PwData } from "../../flyer/items";
-import { pushRecent } from "../../flyer/library";
+import { pushRecent, tickRef } from "../../flyer/library";
 import { foot, sendAmount, tapeText } from "../../flyer/calc";
 import { calcStore, useCalcView } from "./calcStore";
 import { numberAt, numbersIn, numbersOn, type ShownNumber } from "./pageNumbers";
@@ -159,6 +159,8 @@ async function placeConnector(
       pageIndex: e.at.pageIndex,
       rect: marker.rect,
       strokeWidth: 0,
+      // Belongs to the marker (/IRT): clicks go through to it; deleted with it.
+      inReplyToId: marker.id,
       target: {
         type: "destination",
         destination: {
@@ -380,14 +382,15 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
         }
 
         const def = p.def;
-        let label: string | undefined;
+        let label: string | undefined = def.variable ? p.label : undefined;
         if (def.sequence) {
           const key = `${documentId}:${def.id}`;
           const n = Math.max(nextSequence(def, annots), (lastSequence.get(key) ?? 0) + 1);
           lastSequence.set(key, n);
           label = sequenceLabel(def.sequence, n);
         }
-        w.updateSettings({ recentTickmarks: pushRecent(w.settings.recentTickmarks, def.id) });
+        const ref = tickRef(def.id, def.variable ? label : undefined);
+        w.updateSettings({ recentTickmarks: pushRecent(w.settings.recentTickmarks, ref) });
         drawTickmark(def, label)
           .then((art) =>
             placeArt(sc, w, pageIndex, size, pos, art, {
@@ -397,6 +400,8 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
                 pwType: "Tickmark",
                 pwTick: def.id,
                 ...(label ? { pwLabel: label } : {}),
+                // Matching letters/numbers link to each other (FlyerOverlay).
+                ...(def.variable ? { pwLink: true } : {}),
               },
             }),
           )

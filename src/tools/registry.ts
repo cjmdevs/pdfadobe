@@ -10,6 +10,8 @@ import { MARKUP_TOOLS } from "../markup/config";
 import { TEXT_STAMPS } from "../engine/stamps";
 import type { TickmarkDef } from "../engine/flyer/tickmarks";
 import type { LibraryEntry } from "../flyer/library";
+import { TICK_SECTIONS } from "../engine/flyer/tickmarks";
+import { pickLabel, type TickPick, type TickSectionPicks } from "../flyer/sections";
 import type { StampTemplate } from "../engine/flyer/userStamps";
 import type { ConnectorStyle } from "../flyer/connectors";
 /** File commands load the platform layer; imported on use so this list stays Node-safe. */
@@ -40,11 +42,16 @@ export interface FlyerCommands {
   library: LibraryEntry[];
   /** What the active-tickmark button places. */
   active: TickmarkDef | null;
-  recent: TickmarkDef[];
+  /** Its pick ("letter:A") and letter or number, if it has one. */
+  activeRef: string | null;
+  activeLabel: string | undefined;
+  recent: TickPick[];
+  /** Toolbar sections (Letters, Numbers, Checks...), each with its last pick. */
+  sections: (TickSectionPicks & { last: TickPick | null })[];
   /** A tickmark is armed: each click on a page places one, until Esc. */
   placing: boolean;
-  /** Makes `id` (or the active tickmark) active and arms it. */
-  arm(id?: string): void;
+  /** Makes a pick ("footed", "letter:A"; default: the active one) active and arms it. */
+  arm(ref?: string): void;
   stop(): void;
   clearRecent(): void;
   /** Arms a legend box of the tickmarks used in the document. */
@@ -125,6 +132,10 @@ export interface ToolAction {
   items?: MenuItem[] | ((ctx: ToolContext) => MenuItem[]);
   /** The button itself opens the dropdown (no separate arrow). */
   menuOnly?: boolean;
+  /** The dropdown is a grid of short items (letters, numbers). */
+  grid?: boolean;
+  /** Text drawn in place of the icon (a tickmark section's symbol), in red. */
+  glyph?: string;
   /** Short caption under the icon in the tool toolbar (defaults to label). */
   caption?: string;
 }
@@ -137,6 +148,8 @@ export interface MenuItem {
   checked?: boolean;
   /** A line above this item. */
   separator?: boolean;
+  /** Tooltip (grid items show only a letter or number). */
+  title?: string;
 }
 
 export function menuItems(a: ToolAction, ctx: ToolContext): MenuItem[] {
@@ -524,6 +537,39 @@ export const TOOLS: ToolDef[] = [
             run: (cc: ToolContext) => cc.flyer?.arm(e.def.id),
           })),
       },
+      // One button per section, like PDFlyer: places the section's last pick; the arrow
+      // lists the section (a grid of letters or numbers for those two).
+      ...TICK_SECTIONS.map((sec): ToolAction => ({
+        id: `sec-${sec.id}`,
+        label: `${sec.label} tickmarks`,
+        caption: sec.label,
+        icon: "tickmark",
+        glyph: sec.glyph,
+        grid: sec.id === "letters" || sec.id === "numbers",
+        run: (c) => {
+          const s = c.flyer?.sections.find((x) => x.id === sec.id);
+          if (!s?.last) return;
+          if (c.flyer?.placing && c.flyer.activeRef === s.last.ref) c.flyer.stop();
+          else c.flyer?.arm(s.last.ref);
+        },
+        pressed: (c) =>
+          (c.flyer?.placing ?? false) && (c.flyer?.active?.section ?? "mine") === sec.id,
+        enabled: (c) =>
+          hasDoc(c) &&
+          c.flyer !== null &&
+          (c.flyer.sections.find((x) => x.id === sec.id)?.picks.length ?? 0) > 0,
+        items: (c) =>
+          (c.flyer?.sections.find((x) => x.id === sec.id)?.picks ?? []).map((p) => ({
+            id: p.ref,
+            label:
+              sec.id === "letters" || sec.id === "numbers"
+                ? (p.label ?? pickLabel(p))
+                : pickLabel(p),
+            ...(p.label ? { title: pickLabel(p) } : {}),
+            checked: p.ref === c.flyer?.activeRef,
+            run: (cc: ToolContext) => cc.flyer?.arm(p.ref),
+          })),
+      })),
       {
         id: "recent",
         label: "Recent tickmarks",
@@ -533,10 +579,10 @@ export const TOOLS: ToolDef[] = [
         run: () => undefined,
         enabled: (c) => hasDoc(c) && c.flyer !== null,
         items: (c) => [
-          ...(c.flyer?.recent ?? []).map((d) => ({
-            id: d.id,
-            label: d.name,
-            run: (cc: ToolContext) => cc.flyer?.arm(d.id),
+          ...(c.flyer?.recent ?? []).map((p) => ({
+            id: p.ref,
+            label: pickLabel(p),
+            run: (cc: ToolContext) => cc.flyer?.arm(p.ref),
           })),
           {
             id: "clearRecent",

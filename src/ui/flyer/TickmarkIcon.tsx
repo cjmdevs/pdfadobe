@@ -9,13 +9,23 @@ const PATHS: Record<TickMark, { d: string; w: number }> = {
   caretLeft: { d: "M 0.75 0.1 L 0.1 0.5 L 0.75 0.9", w: 0.8 },
 };
 
-export function TickmarkIcon({ def, size = 20 }: { def: TickmarkDef; size?: number }) {
+export function TickmarkIcon({
+  def,
+  size = 20,
+  label,
+}: {
+  def: TickmarkDef;
+  size?: number;
+  /** The letter or number of a letter/number tickmark. */
+  label?: string | undefined;
+}) {
   const src = useMemo(
     () => (def.image ? `data:${def.image.mime};base64,${def.image.data}` : null),
     [def.image],
   );
   if (src) return <img src={src} alt="" style={{ height: size, maxWidth: size * 2 }} />;
-  const text = def.sequence ? (def.sequence === "letters" ? "A" : "1") : (def.text ?? "");
+  const kind = def.sequence ?? def.variable;
+  const text = kind ? (label ?? (kind === "letters" ? "A" : "1")) : (def.text ?? "");
   const mark = def.mark ? PATHS[def.mark] : null;
   // Units of the symbol height; text is roughly 0.6 wide per letter.
   const textW = text.length * 0.62;

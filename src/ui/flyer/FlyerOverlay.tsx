@@ -1,10 +1,13 @@
 // Per document (Phase 4): the floating tickmark palette, number keys 1-9 to switch the
 // armed tickmark, the Stamp Summary rows for the CSV export, connectors kept attached to
-// what they point at, and "go to the other end" for a selected cross-page connector.
+// what they point at, "go to the other end" for a selected cross-page connector, and links
+// between matching letter/number tickmarks ("go to the next A").
 import { useEffect, useMemo, useRef } from "react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
+import { useDocumentState } from "@embedpdf/core/react";
 import { reroutes } from "../../flyer/connectors";
+import { nextLinked, tickLinkChanges } from "../../flyer/tickLinks";
 import { pwData } from "../../flyer/items";
 import { useWorkbench } from "../../app/workbench";
 import { summaryRows } from "../../flyer/items";
@@ -19,6 +22,8 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
   const { provides: scope, state } = useAnnotation(documentId);
   const { provides: scroll } = useScroll(documentId);
+  const doc = useDocumentState(documentId);
+  const pages = doc?.document?.pages;
   const flyer = useDocToolContext(documentId).flyer;
   const rows = useMemo(
     () => summaryRows(Object.values(state.byUid).map((t) => t.object)),
@@ -42,17 +47,38 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
     for (const r of remove) scope.deleteAnnotation(r.pageIndex, r.id);
   }, [scope, state.byUid]);
 
+  // Matching letter/number tickmarks: each has a link to the next one with its value.
+  useEffect(() => {
+    if (!scope || !pages) return;
+    const links = tickLinkChanges(
+      Object.values(state.byUid).map((t) => t.object),
+      (i) => pages[i]?.size.height ?? 792,
+    );
+    for (const r of links.remove) scope.deleteAnnotation(r.pageIndex, r.id);
+    for (const l of links.create) scope.createAnnotation(l.pageIndex, l);
+  }, [scope, state.byUid, pages]);
+
   // A selected cross-page connector end: where its other end is.
   const [only, ...more] = state.selectedUids;
   const selected = only && !more.length ? state.byUid[only] : null;
   const sel = selected ? pwData(selected.object) : null;
+  const all = Object.values(state.byUid).map((t) => t.object);
+  // A letter/number tickmark (or the link over it, if that got the click): the next one.
+  const linked =
+    sel?.pwType === "TickLink"
+      ? all.find((a) => a.id === sel.pwOf)
+      : sel?.pwType === "Tickmark" && sel.pwLink
+        ? selected?.object
+        : undefined;
+  const linkedNext = linked ? nextLinked(all, linked) : null;
+  const linkedLabel = linked ? pwData(linked)?.pwLabel : undefined;
   const partner =
     sel?.pwType === "Connector" && sel.pwPair
-      ? Object.values(state.byUid).find((t) => {
-          const d = pwData(t.object);
+      ? all.find((a) => {
+          const d = pwData(a);
           return d?.pwType === "Connector" && d.pwPair === sel.pwPair && d.pwEnd !== sel.pwEnd;
-        })?.object
-      : undefined;
+        })
+      : (linkedNext ?? undefined);
 
   // While placing: 1-9 pick the n-th tickmark of the library (as numbered in the palette).
   const latest = useRef(flyer);
@@ -94,7 +120,9 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
         scope?.selectAnnotation(partner.pageIndex, partner.id);
       }}
     >
-      Go to the other end (page {partner.pageIndex + 1})
+      {linkedNext
+        ? `Go to the next ${linkedLabel ?? ""} (page ${partner.pageIndex + 1})`
+        : `Go to the other end (page ${partner.pageIndex + 1})`}
     </button>
   );
   // A selected calculator tape opens in the calculator for changes.

@@ -59,8 +59,10 @@ export interface Settings {
   firmTickmarksCache: TickmarkDef[] | null;
   /** Tickmark ids, most recent first. */
   recentTickmarks: string[];
-  /** The tickmark the active-tickmark button places. */
+  /** The tickmark the active-tickmark button places ("footed", or "letter:A"). */
   activeTickmark: string;
+  /** Each toolbar section's last pick (section id -> "letter:A"). */
+  sectionLast: Record<string, string>;
   /** Floating tickmark palette shown. */
   tickmarkPaletteOpen: boolean;
   /** The user's own stamp templates (Phase 4 stage 2). */
@@ -131,6 +133,7 @@ export const DEFAULT_SETTINGS: Settings = {
   firmTickmarksCache: null,
   recentTickmarks: [],
   activeTickmark: "agrees",
+  sectionLast: {},
   tickmarkPaletteOpen: false,
   stampTemplates: [],
   firmStampsCache: null,
@@ -216,6 +219,7 @@ export function sanitizeSettings(raw: unknown): Settings {
         : d.activeTickmark,
     tickmarkPaletteOpen:
       typeof r.tickmarkPaletteOpen === "boolean" ? r.tickmarkPaletteOpen : d.tickmarkPaletteOpen,
+    sectionLast: sectionLast(r.sectionLast),
     stampTemplates: sanitizeStampTemplates(r.stampTemplates),
     firmStampsCache: Array.isArray(r.firmStampsCache)
       ? sanitizeStampTemplates(r.firmStampsCache)
@@ -255,6 +259,15 @@ function toolDefaults(v: unknown): Settings["markupDefaults"] {
     }
     out[tool] = clean;
   }
+  return out;
+}
+
+/** Section id -> last pick; anything odd on disk is dropped. */
+function sectionLast(v: unknown): Record<string, string> {
+  if (!v || typeof v !== "object") return {};
+  const out: Record<string, string> = {};
+  for (const [k, val] of Object.entries(v as Record<string, unknown>))
+    if (/^[a-z]{1,20}$/.test(k) && typeof val === "string" && val.length <= 100) out[k] = val;
   return out;
 }
 

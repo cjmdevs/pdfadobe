@@ -11,7 +11,8 @@ import type { ConnectorStyle } from "../../flyer/connectors";
 export const FLYER_MODE = "workpaperPlace";
 
 export type PendingItem =
-  | { kind: "tickmark"; def: TickmarkDef; width: number; height: number }
+  /** `label`: the letter or number of a letter/number tickmark (same at every click). */
+  | { kind: "tickmark"; def: TickmarkDef; label?: string; width: number; height: number }
   | { kind: "legend"; art: StampDrawing; width: number; height: number }
   /** User/status stamp: reference and custom fields were asked for when it was picked;
    * name and time are filled in at each click. */
