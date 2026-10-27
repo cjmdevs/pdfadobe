@@ -1,6 +1,7 @@
 // B3 Edit PDF in the reader: outlines and selection (U1), in-place text editing with
 // commit on Escape / a click elsewhere / Ctrl+S, one undo step per edit, refusals, and
-// Add Text (U2), the Format panel and font picker (U3), images (U4). Saved files are read back with
+// Add Text (U2), the Format panel and font picker (U3), images (U4), overflow and box
+// width (U5). Saved files are read back with
 // pdf.js and qpdf (no PDFium code).
 import { readFileSync } from "node:fs";
 import { zlibSync } from "fflate";
@@ -660,6 +661,54 @@ test.describe("Edit PDF", () => {
       const pb = await pageBox(page);
       await page.mouse.click(pb.x + pb.width * 0.5, pb.y + pb.height * 0.5);
       await expect(page.getByTestId("edit-image")).toHaveCount(0);
+    });
+  });
+
+  test.describe("overflow and box width", () => {
+    test("an edit that runs into text below is flagged on the box and in the panel", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "Two invoices dated");
+      await page.mouse.click(x, y);
+      await page.keyboard.press("Control+End");
+      await page.keyboard.type(
+        " The client also agreed to review every credit memo issued in the first week of January before the year-end close.",
+      );
+      await page.keyboard.press("Escape");
+      await settled(page);
+      // Never pushed down: the list below stays where it was, and the clash is shown.
+      await expect(box(page, "Two invoices dated")).toHaveClass(/overflow/);
+      await expect(page.getByTestId("overflow-note")).toContainText(
+        'runs into the text "• Proposed adjustment',
+      );
+      await expect(page.locator(".toast")).toContainText("Drag the box's right edge");
+    });
+
+    test("the right-edge handle re-wraps the text at a new width (one undo step)", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await page.keyboard.press("Escape");
+      const before = (await box(page, "We selected sales").boundingBox())!;
+      const h = (await page.getByTestId("edit-width-handle").boundingBox())!;
+      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(h.x - 180, h.y + h.height / 2, { steps: 6 });
+      await expect(page.getByTestId("edit-width-preview")).toBeVisible();
+      await page.mouse.up();
+      await settled(page);
+      const after = (await box(page, "We selected sales").boundingBox())!;
+      expect(after.width).toBeLessThan(before.width - 150);
+      expect(after.height).toBeGreaterThan(before.height + 10);
+      expect(after.x).toBeCloseTo(before.x, -1);
+
+      await page.keyboard.press("Control+z");
+      await settled(page);
+      const undone = (await box(page, "We selected sales").boundingBox())!;
+      expect(undone.width).toBeCloseTo(before.width, -1);
     });
   });
 });

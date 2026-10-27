@@ -38,6 +38,8 @@ interface DocEditState {
   sessionFontKey: string | null;
   /** editPageInfo per page, as the layers last read it. */
   pages: ReadonlyMap<number, EditPageInfo>;
+  /** The box an edit left running into other text or a rule, and what it hits. */
+  overflow: { page: number; id: number; text: string } | null;
 }
 
 const EMPTY: DocEditState = {
@@ -47,6 +49,7 @@ const EMPTY: DocEditState = {
   sessionStyle: null,
   sessionFontKey: null,
   pages: new Map(),
+  overflow: null,
 };
 const states = new Map<string, DocEditState>();
 const listeners = new Set<() => void>();
@@ -115,7 +118,13 @@ export const addText = {
  * After an edit the tab reopens under a new document id, so where to select again is
  * kept per store document (the same across revisions).
  */
-type Reselect = { page: number; x: number; y: number };
+type Reselect = {
+  page: number;
+  x: number;
+  y: number;
+  /** The edit ran into this (shown in the panel once the box is selected again). */
+  overflow?: string;
+};
 const reselects = new Map<string, Reselect>();
 export const reselect = {
   take(storeId: string | undefined): Reselect | null {
@@ -172,6 +181,7 @@ export function resetEdit(documentId: string) {
     adding: false,
     sessionStyle: null,
     sessionFontKey: null,
+    overflow: null,
   });
 }
 
@@ -195,6 +205,15 @@ export function usePageInfo(documentId: string, page: number | null): EditPageIn
   return useSyncExternalStore(subscribe, () =>
     page === null ? null : (get(documentId).pages.get(page) ?? null),
   );
+}
+
+export const overflowNote = {
+  set: (documentId: string, note: DocEditState["overflow"]) =>
+    patch(documentId, { overflow: note }),
+};
+
+export function useOverflowNote(documentId: string) {
+  return useSyncExternalStore(subscribe, () => get(documentId).overflow);
 }
 
 export function useAddingText(documentId: string): boolean {

@@ -73,7 +73,8 @@ export const OPS = {
     ref: BoxRef,
     paragraphs: string[],
     styles: (Partial<PlainStyle> | undefined)[] = [],
-  ) => editBoxText(c.module, b, ref, paragraphs, { subset: await subsetter() }, styles),
+    width?: number,
+  ) => editBoxText(c.module, b, ref, paragraphs, { subset: await subsetter() }, styles, width),
   editImage: async (c: Ctx, b: Uint8Array, ref: ImageRef, op: ImageEdit) =>
     editImage(c.module, b, ref, op),
   addImage: async (c: Ctx, b: Uint8Array, page: number, data: Uint8Array, at: Placement) =>

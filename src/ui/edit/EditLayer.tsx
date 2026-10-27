@@ -21,15 +21,17 @@ import {
   pageInfos,
   reselect,
   useAddingText,
+  overflowNote,
   pendingImage,
   useEditSelection,
+  useOverflowNote,
   useEditSession,
   usePendingImage,
   type EditSelection,
 } from "./editStore";
 import { TextEditor } from "./TextEditor";
 import { dragPlacement, hitHandle, naturalSize, type Handle, type Pt } from "./imageDrag";
-import { addImageEdit, placeImageEdit } from "./editActions";
+import { addImageEdit, placeImageEdit, resizeTextBox } from "./editActions";
 
 /** Store bytes per loaded document object: one read serves every page of the tab. */
 const bytesFor = new WeakMap<object, Promise<Uint8Array | null>>();
@@ -84,13 +86,16 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     now: Placement;
   } | null>(null);
   const [ghost, setGhost] = useState<Pt | null>(null);
+  /** The selected text box's right edge being dragged: the new right edge (points). */
+  const [widthDrag, setWidthDrag] = useState<{ box: EditTextBox; right: number } | null>(null);
+  const overflow = useOverflowNote(documentId);
   const pending = usePendingImage(documentId);
   const selection = useEditSelection(documentId);
   const session = useEditSession(documentId);
   const adding = useAddingText(documentId);
-  const latest = useRef({ info, busy: wb.busy, drag, imgDrag, selection, scale, wb });
+  const latest = useRef({ info, busy: wb.busy, drag, imgDrag, widthDrag, selection, scale, wb });
   useEffect(() => {
-    latest.current = { info, busy: wb.busy, drag, imgDrag, selection, scale, wb };
+    latest.current = { info, busy: wb.busy, drag, imgDrag, widthDrag, selection, scale, wb };
   });
 
   useEffect(() => {
@@ -109,6 +114,12 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         else if (i && again) {
           const hit = hitTest(i, again.x, again.y);
           if (hit) editSelection.set(documentId, selectionOf(pageIndex, hit));
+          overflowNote.set(
+            documentId,
+            hit?.kind === "text" && again.overflow
+              ? { page: pageIndex, id: hit.id, text: again.overflow }
+              : null,
+          );
         }
       })
       .catch(() => live && setInfo(null));
@@ -134,7 +145,9 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
       onPointerMove: (pos, evt) => {
         const d = latest.current.drag;
         const g = latest.current.imgDrag;
-        if (g)
+        const w = latest.current.widthDrag;
+        if (w) setWidthDrag({ ...w, right: Math.max((w.box.lines[0]?.l ?? 0) + 13, pos.x) });
+        else if (g)
           setImgDrag({
             ...g,
             now: dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), evt.shiftKey),
@@ -159,6 +172,17 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         }
         const i = latest.current.info;
         const sel = latest.current.selection;
+        // The selected text box's width handle (middle of its right edge).
+        const selBox = sel?.kind === "text" && sel.page === pageIndex ? i?.boxes[sel.id] : null;
+        if (selBox && i) {
+          const mid = (selBox.rect.b + selBox.rect.t) / 2;
+          const p = pdf(pos);
+          if (Math.hypot(p.x - selBox.rect.r, p.y - mid) <= px(HANDLE)) {
+            evt.setPointerCapture?.();
+            setWidthDrag({ box: selBox, right: selBox.rect.r });
+            return;
+          }
+        }
         // The selected image's handles come first (they reach outside the image).
         const selected =
           sel?.kind === "image" && sel.page === pageIndex ? (i?.images[sel.id] ?? null) : null;
@@ -176,6 +200,17 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         }
       },
       onPointerUp: (pos, evt) => {
+        const w = latest.current.widthDrag;
+        if (w) {
+          evt.releasePointerCapture?.();
+          setWidthDrag(null);
+          const left = w.box.lines[0]?.l ?? w.box.rect.l + 1;
+          // The box's rect has a point of air on each side.
+          const width = Math.max(12, pos.x - 1 - left);
+          if (Math.abs(pos.x - w.box.rect.r) > 1)
+            void resizeTextBox(latest.current.wb, documentId, pageIndex, w.box, width);
+          return;
+        }
         const g = latest.current.imgDrag;
         const i = latest.current.info;
         if (g) {
@@ -250,6 +285,8 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
   const selectedImage =
     selection?.kind === "image" && selection.page === pageIndex ? info.images[selection.id] : null;
   const framed = imgDrag?.now ?? selectedImage?.placement ?? null;
+  const selectedBox =
+    selection?.kind === "text" && selection.page === pageIndex ? info.boxes[selection.id] : null;
   const ghostSize = pending ? naturalSize(pending.px, info.width) : null;
   return (
     <div className={`edit-layer${adding ? " adding" : ""}`} data-testid="edit-layer">
@@ -266,13 +303,36 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         editingHere?.kind === "box" && editingHere.box.id === b.id ? null : (
           <div
             key={`t${b.id}`}
-            className={`edit-item edit-box${state(b)}`}
+            className={`edit-item edit-box${state(b)}${
+              overflow?.page === pageIndex && overflow.id === b.id ? " overflow" : ""
+            }`}
             data-testid="edit-box"
             data-text={b.preview}
             aria-hidden="true"
             style={css(b.rect)}
           />
         ),
+      )}
+      {selectedBox && !editingHere && (
+        <>
+          {widthDrag && (
+            <div
+              className="edit-item edit-new"
+              data-testid="edit-width-preview"
+              aria-hidden="true"
+              style={css({ ...selectedBox.rect, r: widthDrag.right })}
+            />
+          )}
+          <span
+            className="edit-handle width"
+            data-testid="edit-width-handle"
+            aria-hidden="true"
+            style={{
+              left: (widthDrag?.right ?? selectedBox.rect.r) * scale,
+              top: (info.height - (selectedBox.rect.b + selectedBox.rect.t) / 2) * scale,
+            }}
+          />
+        </>
       )}
       {framed && (
         <div

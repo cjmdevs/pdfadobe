@@ -20,18 +20,18 @@ import { fontOptions, resolveFont, type Section, type Warning } from "./fontChoi
 import {
   editSession,
   newTextStyle,
-  reselect,
   useAddingText,
   useEditSelection,
   useEditSession,
   useNewTextStyle,
   usePageInfo,
+  useOverflowNote,
   usePendingImage,
   useSessionFontKey,
   useSessionStyle,
 } from "./editStore";
 import { NEW_TEXT_STYLE } from "./TextEditor";
-import { deleteSelection, placeImageEdit, replaceImageEdit } from "./editActions";
+import { afterTextEdit, deleteSelection, placeImageEdit, replaceImageEdit } from "./editActions";
 
 const SECTION_LABEL: Record<Section, string> = {
   document: "In this document",
@@ -74,6 +74,7 @@ export default function EditPanel({ documentId }: { documentId: string }) {
   const session = useEditSession(documentId);
   const adding = useAddingText(documentId);
   const placing = usePendingImage(documentId);
+  const overflow = useOverflowNote(documentId);
   const sessionStyle = useSessionStyle(documentId);
   const sessionFontKey = useSessionFontKey(documentId);
   const newText = useNewTextStyle();
@@ -240,7 +241,7 @@ export default function EditPanel({ documentId }: { documentId: string }) {
     const b = target.box;
     const page = target.page;
     setWorking(true);
-    let overflow = 0;
+    let hit: string | null = null;
     await wb.edit(
       documentId,
       "Change text style",
@@ -252,21 +253,16 @@ export default function EditPanel({ documentId }: { documentId: string }) {
           b.paragraphs,
           b.paragraphs.map(() => override),
         );
-        const first = r.result?.lines[0];
-        overflow = r.result?.overflow.length ?? 0;
-        if (first)
-          reselect.set(wb.meta[documentId]?.storeId, {
-            page,
-            x: (first.l + first.r) / 2,
-            y: (first.b + first.t) / 2,
-          });
+        hit = afterTextEdit(wb, documentId, page, r.result);
         return r.bytes;
       },
       { page },
     );
     setWorking(false);
-    if (overflow)
-      wb.toast("The text now runs into something on the page. Make the box wider, or undo.");
+    if (hit)
+      wb.toast(
+        `The text now runs into ${hit as string}. Drag the box's right edge to change its width, or undo.`,
+      );
   }
 
   const disabled = working || wb.busy !== null;
@@ -390,6 +386,12 @@ export default function EditPanel({ documentId }: { documentId: string }) {
         />
       </label>
 
+      {target.kind === "box" && overflow?.page === target.page && overflow.id === target.box.id && (
+        <p className="format-overflow" role="alert" data-testid="overflow-note">
+          This text runs into {overflow.text}. Drag the handle on the box&apos;s right edge to
+          change its width (the text wraps to fit), shorten the text, or undo (Ctrl+Z).
+        </p>
+      )}
       {warnings.length > 0 && (
         <ul className="format-warnings" data-testid="font-warnings">
           {warnings.map((w) => (

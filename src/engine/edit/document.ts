@@ -59,6 +59,8 @@ export function editBoxText(
   paragraphs: string[],
   deps: RetypesetDeps,
   styles: (Partial<PlainStyle> | undefined)[] = [],
+  /** New box width in points (the right-edge handle): the text wraps at it. */
+  width?: number,
 ): EditOutcome {
   const doc = RawDoc.open(m, bytes);
   try {
@@ -93,7 +95,14 @@ export function editBoxText(
           m,
           doc.ptr,
           page,
-          { kind: "box", box, chars, rules, others: boxes },
+          {
+            kind: "box",
+            box,
+            chars,
+            rules,
+            others: boxes,
+            ...(width === undefined ? {} : { width: Math.max(12, width) }),
+          },
           paras,
           deps,
         );

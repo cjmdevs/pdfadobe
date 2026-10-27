@@ -68,7 +68,15 @@ export interface EditParagraph {
 
 export type EditTarget =
   /** Replace a grouped box (from `groupPage` on this page). */
-  | { kind: "box"; box: TextBox; chars: PageChar[]; rules: Rules; others: TextBox[] }
+  | {
+      kind: "box";
+      box: TextBox;
+      chars: PageChar[];
+      rules: Rules;
+      others: TextBox[];
+      /** New width (points from the box's left edge): the text wraps at it. */
+      width?: number;
+    }
   /** Add a new box: first baseline at (x, y); `width` wraps, null grows. */
   | { kind: "new"; x: number; y: number; width: number | null; others: TextBox[]; rules: Rules };
 
@@ -116,16 +124,20 @@ export function retypeset(
   // Layout first (refusals here leave the page untouched).
   const box = target.kind === "box" ? target.box : null;
   const left = box ? (box.lines[0]?.chars[0]?.x ?? box.l) : target.kind === "new" ? target.x : 0;
+  const newWidth = target.kind === "box" ? target.width : undefined;
   const right =
     box !== null
-      ? box.r
+      ? newWidth !== undefined
+        ? left + newWidth
+        : box.r
       : target.kind === "new" && target.width !== null
         ? target.x + target.width
         : left;
   // A box of one-line paragraphs (labels, cells, amounts, address blocks) grows
   // instead of wrapping; new text wraps only when given a width.
+  // A width the user set always wraps.
   const wrap = box
-    ? box.paragraphs.some((p) => p.lines.length > 1)
+    ? newWidth !== undefined || box.paragraphs.some((p) => p.lines.length > 1)
     : target.kind === "new" && target.width !== null;
   let baseline = box ? (box.lines[0]?.y ?? 0) : target.kind === "new" ? target.y : 0;
   const placed: { para: EditParagraph; lines: PlacedLine[]; font: LoadedFont }[] = [];

@@ -1,7 +1,7 @@
 // Edit PDF (B3): edits started from the page, the panel and the keyboard. Each one runs
 // in the page worker through Workbench.edit (one undo step) and selects the result
 // again once the tab has reloaded.
-import type { EditImage, EditTextBox, Placement } from "../../engine/edit";
+import type { EditImage, EditTextBox, Placement, RetypesetResult } from "../../engine/edit";
 import { imageFileSize } from "../../engine/edit/images";
 import { pageOp } from "../../app/pages";
 import type { WorkbenchApi } from "../../app/workbench";
@@ -9,6 +9,65 @@ import { platform } from "../../platform";
 import { pageInfos, pendingImage, reselect, type EditSelection } from "./editStore";
 
 const imageRef = (page: number, img: EditImage) => ({ page, id: img.id, rect: img.rect });
+
+/** What the edit ran into, in words, or null. */
+export function overflowText(r: RetypesetResult | null): string | null {
+  if (!r?.overflow.length) return null;
+  const hit = r.overflow.find((o) => o.kind === "text");
+  return hit ? `the text "${hit.text}"` : "a line on the page";
+}
+
+/**
+ * After a text edit, before the tab reloads: select the box again, and remember what it
+ * runs into so the panel can say so. Returns that, or null.
+ */
+export function afterTextEdit(
+  wb: WorkbenchApi,
+  documentId: string,
+  page: number,
+  r: RetypesetResult | null,
+): string | null {
+  const first = r?.lines[0];
+  const hit = overflowText(r);
+  if (first)
+    reselect.set(wb.meta[documentId]?.storeId, {
+      page,
+      x: (first.l + first.r) / 2,
+      y: (first.b + first.t) / 2,
+      ...(hit ? { overflow: hit } : {}),
+    });
+  return hit;
+}
+
+/** The right-edge handle: re-wraps the box's text at `width` points (one undo step). */
+export async function resizeTextBox(
+  wb: WorkbenchApi,
+  documentId: string,
+  page: number,
+  box: EditTextBox,
+  width: number,
+) {
+  let hit: string | null = null;
+  const ok = await wb.edit(
+    documentId,
+    "Resize text box",
+    async (bytes) => {
+      const r = await pageOp(
+        "editText",
+        bytes,
+        { page, id: box.id, preview: box.preview },
+        box.paragraphs,
+        [],
+        width,
+      );
+      hit = afterTextEdit(wb, documentId, page, r.result);
+      return r.bytes;
+    },
+    { page },
+  );
+  if (ok && hit) wb.toast(`The text still runs into ${hit as string}.`);
+  return ok;
+}
 
 function selectAfter(wb: WorkbenchApi, documentId: string, page: number, x: number, y: number) {
   reselect.set(wb.meta[documentId]?.storeId, { page, x, y });

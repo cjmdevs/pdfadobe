@@ -7,6 +7,7 @@ import type { EditOutcome, PlainStyle } from "../../engine/edit";
 import { pageOp } from "../../app/pages";
 import { useWorkbench } from "../../app/workbench";
 import { cssFont } from "./cssFont";
+import { afterTextEdit, overflowText } from "./editActions";
 import {
   editSession,
   newTextStyle,
@@ -90,13 +91,7 @@ export function TextEditor({
                 );
           outcome = r.result;
           // Select the edited box again once the tab reloads (set before it does).
-          const first = r.result?.lines[0];
-          if (first)
-            reselect.set(wb.meta[documentId]?.storeId, {
-              page,
-              x: (first.l + first.r) / 2,
-              y: (first.b + first.t) / 2,
-            });
+          afterTextEdit(wb, documentId, page, r.result);
           return r.bytes;
         },
         { page },
@@ -105,14 +100,11 @@ export function TextEditor({
         const r = outcome as EditOutcome["result"];
         if (!ok) reselect.set(wb.meta[documentId]?.storeId, null);
         if (!ok || !r) return;
-        if (r.overflow.length) {
-          const hit = r.overflow.find((o) => o.kind === "text");
+        const hit = overflowText(r);
+        if (hit)
           wb.toast(
-            hit
-              ? `The text now runs into "${hit.text}". Shorten it, or make the box wider.`
-              : "The text now runs across a line on the page. Shorten it, or make the box wider.",
+            `The text now runs into ${hit}. Drag the box's right edge to change its width, or undo.`,
           );
-        }
       });
   };
 
