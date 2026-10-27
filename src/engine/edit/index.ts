@@ -22,6 +22,18 @@ export type {
   WrittenFont,
 } from "./retypeset";
 export { layoutParagraph, wrapWords, type Align } from "./typeset";
+export {
+  addImage,
+  deleteImage,
+  imageFileSize,
+  matrixToPlacement,
+  pageImages,
+  placeImage,
+  placementToMatrix,
+  replaceImage,
+  type PageImage,
+  type Placement,
+} from "./images";
 
 /** Text boxes of a loaded page. Object handles in them are valid while `page` is. */
 export function groupPage(
