@@ -5,6 +5,10 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
+- **Phase 4 stage 1 (tickmarks) built 2026-10-27, waiting for the owner check**
+  (`docs/testing/phase-04-stage1-test-guide.md`). `npm run check` (300 Vitest + 6
+  expected-fail, Rust, license-check), 118/118 Playwright. Stages 2-4 not started; stage 4
+  (PDFlyer marks) waits for a synthetic PDFlyer sample in `tests/corpus/pdflyer/`.
 - **B3 Edit PDF, stage 1 done: owner check passed 2026-10-27** (all 11 steps of
   `docs/testing/b3-stage1-test-guide.md`, including the Acrobat check and firm fonts
   offline via `\\localhost`). On the build PC:
@@ -73,12 +77,35 @@ Deviations: a fourth font group "Standard PDF fonts (not embedded)" (default for
 text; common in tax output). Line spacing is set in points (no presets). Corner resize
 keeps proportions by default (Shift: free). Text over an image wins the click.
 
+## Phase 4 stage 1: tickmarks (2026-10-27)
+
+Spec and owner decisions: `docs/phases/phase-04.md`. Engine `src/engine/flyer/tickmarks.ts`
+(Node-safe): 14 firm tickmarks + counting letters/numbers drawn with pdf-lib as one-page
+PDFs that become /Stamp appearances; image tickmarks; legend box. `src/flyer/library.ts`:
+built-in < firm file < personal (same id replaces), workpaper settings JSON
+(`format: "pdf-workbench-workpaper"`), Recent. `src/flyer/items.ts`: tags, Stamp Summary
+rows, CSV (formula-safe, UTF-8 BOM). UI `src/ui/flyer/`: registry tool `flyer` (Tickmark
+
+- library dropdown, Recent with Clear Recent Stamps, Palette, Legend, Library dialog,
+  Export CSV), page layer in mode `workpaperPlace` (place until Esc; 1-9 pick from the
+  palette), Stamp Summary as the tool's panel. Shell: toolbar actions can now have dropdowns
+  (`items`, `menuOnly`), also on the quick toolbar. Settings: `tickmarks`,
+  `firmTickmarksPath`/`Cache` (read at start like the firm layout), `recentTickmarks`,
+  `activeTickmark`, `tickmarkPaletteOpen`. File dialogs gained JSON/CSV filters.
+
+Deviations: our tag is not a `/PWType` name key: EmbedPDF can only write its custom data,
+stored as the string `/EPDFCustom` = `{"pwType":"Tickmark","pwTick":"footed",...}`; Subject
+is `Tickmark: Footed`, Contents the meaning. Counting tickmarks continue from the highest
+value already in the document (no separate counter). Legend is a box, not a page. The 14
+symbols are our own guesses from the names (owner reviews at the check).
+
 ## Dependency versions and licenses
 
 Earlier phases: `docs/spike-report.md` and git history of this file. Phase 3: EmbedPDF
 annotation/history 2.15.1 (MIT), pdf-lib 1.17.1 runtime (MIT), fast-xml-parser 5.11.2
 (MIT). **B3: harfbuzzjs 1.6.4 runtime (MIT; HarfBuzz "Old MIT", owner-approved
 2026-10-26)**; dev-only @pdf-lib/fontkit 1.1.1 (MIT) for spike samples. No new crates.
+Phase 4 stage 1: no new dependencies (four more Fluent icons from the existing package).
 
 ## Known gaps / notes for later phases
 

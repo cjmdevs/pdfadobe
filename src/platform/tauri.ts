@@ -150,19 +150,21 @@ export const tauriPlatform: Platform = {
 
   async pickFiles(opts) {
     const picked = await open({
-      multiple: !opts?.pictures,
+      multiple: !opts?.pictures && !opts?.json,
       directory: false,
-      filters: opts?.xfdf
-        ? [{ name: "Comments (XFDF)", extensions: ["xfdf"] }]
-        : opts?.pictures
-          ? [{ name: "Images (JPEG, PNG)", extensions: ["jpg", "jpeg", "png"] }]
-          : opts?.images
-            ? [
-                { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
-                { name: "PDF files", extensions: ["pdf"] },
-                { name: "Images", extensions: IMAGE_EXTENSIONS },
-              ]
-            : [{ name: "PDF files", extensions: ["pdf"] }],
+      filters: opts?.json
+        ? [{ name: "Workpaper settings (JSON)", extensions: ["json"] }]
+        : opts?.xfdf
+          ? [{ name: "Comments (XFDF)", extensions: ["xfdf"] }]
+          : opts?.pictures
+            ? [{ name: "Images (JPEG, PNG)", extensions: ["jpg", "jpeg", "png"] }]
+            : opts?.images
+              ? [
+                  { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
+                  { name: "PDF files", extensions: ["pdf"] },
+                  { name: "Images", extensions: IMAGE_EXTENSIONS },
+                ]
+              : [{ name: "PDF files", extensions: ["pdf"] }],
     });
     if (!picked) return [];
     const paths = Array.isArray(picked) ? picked : [picked];
@@ -228,7 +230,11 @@ export const tauriPlatform: Platform = {
     const filter =
       kind === "xfdf"
         ? { name: "Comments (XFDF)", extensions: ["xfdf"] }
-        : { name: "PDF files", extensions: ["pdf"] };
+        : kind === "json"
+          ? { name: "Workpaper settings (JSON)", extensions: ["json"] }
+          : kind === "csv"
+            ? { name: "CSV (Excel)", extensions: ["csv"] }
+            : { name: "PDF files", extensions: ["pdf"] };
     return save({ defaultPath: suggested, filters: [filter] });
   },
 

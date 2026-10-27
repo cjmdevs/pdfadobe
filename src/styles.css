@@ -1480,3 +1480,161 @@ button.primary.danger-fill {
   border-left: 3px solid #c5221f;
   font-size: 12px;
 }
+
+/* Dropdown actions (tool toolbar, quick toolbar) */
+.with-menu {
+  display: inline-flex;
+  align-items: stretch;
+}
+.tool.menu-arrow {
+  min-width: 16px;
+  padding: 0 2px;
+}
+.action-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 220px;
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.action-menu li.separator {
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+.action-menu li.muted {
+  padding: 4px 12px;
+  color: var(--fg-muted);
+}
+.action-menu button {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 12px 4px 6px;
+  border: 0;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.action-menu button:hover {
+  background: var(--bg-hover);
+}
+.action-menu .tick {
+  width: 14px;
+}
+
+/* Workpaper Tools (Phase 4) */
+.tick-palette {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  width: 236px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.tick-palette header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 2px 4px 2px 8px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+}
+.tick-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  padding: 4px;
+}
+.tick-grid button {
+  position: relative;
+  height: 34px;
+  border: 1px solid transparent;
+  background: #fff;
+}
+.tick-grid button[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--bg-active);
+}
+.tick-grid small {
+  position: absolute;
+  top: 0;
+  left: 2px;
+  font-size: 9px;
+  color: #555;
+}
+.tick-library {
+  min-width: 460px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+.tick-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.tick-list li {
+  display: grid;
+  grid-template-columns: 56px 1fr auto auto;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+}
+.tick-list svg,
+.tick-preview svg {
+  background: #fff;
+}
+.tick-library fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+.tick-library .row {
+  display: flex;
+  gap: 8px;
+}
+.stamp-summary {
+  padding: 8px;
+}
+.stamp-summary h3 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.stamp-summary .filters {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.stamp-summary ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 8px;
+}
+.stamp-summary li button {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 4px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.stamp-summary li button:hover {
+  background: var(--bg-hover);
+}
+.stamp-summary .meta {
+  font-size: 11px;
+  color: var(--fg-muted);
+}

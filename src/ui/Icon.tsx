@@ -58,6 +58,10 @@ import ocr from "@fluentui/svg-icons/icons/scan_text_20_regular.svg?raw";
 import protect from "@fluentui/svg-icons/icons/document_lock_20_regular.svg?raw";
 import tickmark from "@fluentui/svg-icons/icons/checkmark_circle_20_regular.svg?raw";
 import calculator from "@fluentui/svg-icons/icons/calculator_20_regular.svg?raw";
+import history from "@fluentui/svg-icons/icons/history_20_regular.svg?raw";
+import palette from "@fluentui/svg-icons/icons/apps_20_regular.svg?raw";
+import legend from "@fluentui/svg-icons/icons/table_simple_20_regular.svg?raw";
+import library from "@fluentui/svg-icons/icons/library_20_regular.svg?raw";
 import highlight from "@fluentui/svg-icons/icons/highlight_20_regular.svg?raw";
 import text from "@fluentui/svg-icons/icons/text_t_20_regular.svg?raw";
 import shape from "@fluentui/svg-icons/icons/rectangle_landscape_20_regular.svg?raw";
@@ -155,6 +159,10 @@ const SVG = {
   protect,
   tickmark,
   calculator,
+  history,
+  palette,
+  legend,
+  library,
   highlight,
   text,
   shape,

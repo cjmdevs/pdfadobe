@@ -9,6 +9,8 @@ import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
 import { EraserLayer } from "./markup/EraserLayer";
 import { StampLayer } from "./markup/StampLayer";
 import { EditLayer } from "./edit/EditLayer";
+import { FlyerLayer } from "./flyer/FlyerLayer";
+import { FlyerOverlay } from "./flyer/FlyerOverlay";
 import {
   GlobalPointerProvider,
   PagePointerProvider,
@@ -204,6 +206,7 @@ function Viewer({ documentId }: { documentId: string }) {
           />
         )}
       </Viewport>
+      <FlyerOverlay documentId={documentId} />
     </GlobalPointerProvider>
   );
 }
@@ -260,6 +263,7 @@ function PageLayers({
         <EraserLayer documentId={documentId} pageIndex={pageIndex} />
         <StampLayer documentId={documentId} pageIndex={pageIndex} />
         <EditLayer documentId={documentId} pageIndex={pageIndex} />
+        <FlyerLayer documentId={documentId} pageIndex={pageIndex} />
       </PagePointerProvider>
     </Rotate>
   );

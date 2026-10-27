@@ -1,0 +1,124 @@
+// Tickmark library (Phase 4): the built-in firm set, the firm file on the share (read-only
+// in the app) and the user's own tickmarks, plus the one JSON file that carries a
+// firm's or a user's workpaper settings. Node-safe, no React.
+
+import {
+  BUILT_IN_TICKMARKS,
+  TICK_MARKS,
+  type TickMark,
+  type TickmarkDef,
+} from "../engine/flyer/tickmarks";
+
+export const SETTINGS_FORMAT = "pdf-workbench-workpaper";
+
+/** The export/import file (firm standard or one user's). Stamps and calculator settings
+ * join it in later stages. */
+export interface WorkpaperFile {
+  format: typeof SETTINGS_FORMAT;
+  version: 1;
+  tickmarks: TickmarkDef[];
+}
+
+export type TickmarkSource = "built-in" | "firm" | "mine";
+
+export interface LibraryEntry {
+  def: TickmarkDef;
+  source: TickmarkSource;
+}
+
+/** Recent list length. */
+export const MAX_RECENT_TICKMARKS = 8;
+const MAX_IMAGE_B64 = 400_000;
+
+const isColor = (v: unknown): v is string => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);
+const str = (v: unknown, max: number) =>
+  typeof v === "string" && v.trim() ? v.trim().slice(0, max) : null;
+
+/** A tickmark from a file or settings, or null when it is not usable. */
+export function sanitizeTickmark(raw: unknown): TickmarkDef | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const id = str(r.id, 80);
+  const name = str(r.name, 80);
+  if (!id || !/^[\w.-]+$/.test(id) || !name) return null;
+  const def: TickmarkDef = {
+    id,
+    name,
+    meaning: str(r.meaning, 200) ?? name,
+    color: isColor(r.color) ? r.color : "#D0021B",
+    size:
+      typeof r.size === "number" && Number.isFinite(r.size)
+        ? Math.min(72, Math.max(6, r.size))
+        : 14,
+  };
+  if (TICK_MARKS.includes(r.mark as TickMark)) def.mark = r.mark as TickMark;
+  const text = str(r.text, 6);
+  if (text) def.text = text;
+  if (r.circle === true) def.circle = true;
+  if (r.sequence === "letters" || r.sequence === "numbers") def.sequence = r.sequence;
+  const img = r.image as Record<string, unknown> | undefined;
+  if (
+    img &&
+    (img.mime === "image/png" || img.mime === "image/jpeg") &&
+    typeof img.data === "string" &&
+    img.data.length <= MAX_IMAGE_B64 &&
+    /^[A-Za-z0-9+/=]+$/.test(img.data)
+  )
+    def.image = { mime: img.mime, data: img.data };
+  // Something must be drawn.
+  if (!def.mark && !def.text && !def.sequence && !def.image) return null;
+  return def;
+}
+
+export function sanitizeTickmarks(v: unknown, max = 200): TickmarkDef[] {
+  if (!Array.isArray(v)) return [];
+  const out: TickmarkDef[] = [];
+  for (const x of v) {
+    const d = sanitizeTickmark(x);
+    if (d && !out.some((o) => o.id === d.id)) out.push(d);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+export function makeWorkpaperFile(tickmarks: TickmarkDef[]): WorkpaperFile {
+  return { format: SETTINGS_FORMAT, version: 1, tickmarks };
+}
+
+/** Reads an exported file; throws a readable error when it is not one. */
+export function parseWorkpaperFile(text: string): WorkpaperFile {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    throw new Error("The file is not valid JSON.");
+  }
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  if (r.format !== SETTINGS_FORMAT)
+    throw new Error("This is not a PDF Workbench workpaper settings file.");
+  return makeWorkpaperFile(sanitizeTickmarks(r.tickmarks));
+}
+
+/** Built-in first, then the firm file, then the user's own. A firm or personal tickmark
+ * with a built-in's id replaces it (the firm can redraw the standard set). */
+export function mergeLibrary(firm: TickmarkDef[], mine: TickmarkDef[]): LibraryEntry[] {
+  const out: LibraryEntry[] = BUILT_IN_TICKMARKS.map((def) => ({ def, source: "built-in" }));
+  const put = (def: TickmarkDef, source: TickmarkSource) => {
+    const i = out.findIndex((e) => e.def.id === def.id);
+    if (i >= 0) out[i] = { def, source };
+    else out.push({ def, source });
+  };
+  for (const d of firm) put(d, "firm");
+  for (const d of mine) put(d, "mine");
+  return out;
+}
+
+export function pushRecent(recent: string[], id: string): string[] {
+  return [id, ...recent.filter((r) => r !== id)].slice(0, MAX_RECENT_TICKMARKS);
+}
+
+/** Adds or replaces imported tickmarks in the user's own list. */
+export function importTickmarks(mine: TickmarkDef[], incoming: TickmarkDef[]): TickmarkDef[] {
+  const out = mine.filter((m) => !incoming.some((i) => i.id === m.id));
+  return [...out, ...incoming];
+}

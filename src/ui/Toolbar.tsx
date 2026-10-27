@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import type { Theme, ViewMode } from "../app/settings";
@@ -9,6 +9,7 @@ import {
   DEFAULT_QUICK_TOOLBAR,
   actionEnabled,
   cleanQuickToolbar,
+  menuItems,
   resolveAction,
   tool,
   type ToolAction,
@@ -279,7 +280,7 @@ function QuickAction({
       : ctx.pages.length === 1
         ? `: page ${(ctx.pages[0] ?? 0) + 1}`
         : `: ${ctx.pages.length} selected pages`;
-  return (
+  const button = (
     <ToolButton
       icon={action.icon}
       label={`${action.label}${target}`}
@@ -287,6 +288,125 @@ function QuickAction({
       onClick={() => action.run(ctx)}
       {...(action.pressed ? { pressed: action.pressed(ctx) } : {})}
     />
+  );
+  return action.items ? (
+    <WithMenu tool={tool} action={action} ctx={ctx}>
+      {button}
+    </WithMenu>
+  ) : (
+    button
+  );
+}
+
+/**
+ * An action with a dropdown (tickmark library, Recent): the arrow opens the list, or the
+ * whole button for `menuOnly` actions. Esc or a click elsewhere closes it.
+ */
+function WithMenu({
+  tool: t,
+  action: a,
+  ctx,
+  children,
+}: {
+  tool: ToolDef;
+  action: ToolAction;
+  ctx: ToolContext;
+  children: ReactNode;
+}) {
+  // Fixed position: the tool toolbar scrolls sideways and would clip the list.
+  const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  const open = at !== null;
+  const setOpen = (on: boolean) => {
+    const r = ref.current?.getBoundingClientRect();
+    setAt(on && r ? { left: r.left, top: r.bottom + 2 } : null);
+  };
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => {
+      if (!ref.current?.contains(e.target as Node)) setAt(null);
+    };
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setAt(null);
+      }
+    };
+    document.addEventListener("pointerdown", away);
+    document.addEventListener("keydown", esc, true);
+    return () => {
+      document.removeEventListener("pointerdown", away);
+      document.removeEventListener("keydown", esc, true);
+    };
+  }, [open]);
+  const disabled = !actionEnabled(t, a, ctx);
+  const items = open ? menuItems(a, ctx) : [];
+  return (
+    <span className="with-menu" ref={ref}>
+      {a.menuOnly ? (
+        <button
+          type="button"
+          className="tool labeled"
+          aria-label={a.label}
+          title={a.label}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          disabled={disabled}
+          onClick={() => setOpen(!open)}
+        >
+          <Icon name={a.icon} />
+          <span aria-hidden="true">{a.caption ?? a.label} ▾</span>
+        </button>
+      ) : (
+        <>
+          {children}
+          <button
+            type="button"
+            className="tool menu-arrow"
+            aria-label={`${a.caption ?? a.label}: choose`}
+            title="Choose"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            disabled={disabled}
+            onClick={() => setOpen(!open)}
+          >
+            <Icon name="chevronDown" size={12} />
+          </button>
+        </>
+      )}
+      {open && (
+        <ul
+          className="action-menu"
+          role="menu"
+          aria-label={a.caption ?? a.label}
+          style={{ left: at.left, top: at.top }}
+        >
+          {items.map((it) => (
+            <li key={it.id} className={it.separator ? "separator" : undefined} role="none">
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={it.checked ?? false}
+                onClick={() => {
+                  setOpen(false);
+                  it.run(ctx);
+                }}
+              >
+                <span className="tick" aria-hidden="true">
+                  {it.checked ? "✓" : ""}
+                </span>
+                {it.label}
+              </button>
+            </li>
+          ))}
+          {items.length === 0 && (
+            <li className="muted" role="none">
+              Nothing here yet
+            </li>
+          )}
+        </ul>
+      )}
+    </span>
   );
 }
 
@@ -305,21 +425,30 @@ export function ToolToolbar({ documentId }: { documentId: string }) {
         {t.name}
       </span>
       <span className="sep" />
-      {t.toolbar.map((a) => (
-        <button
-          key={a.id}
-          type="button"
-          className="tool labeled"
-          aria-label={a.label}
-          title={a.label}
-          disabled={!actionEnabled(t, a, ctx)}
-          aria-pressed={a.pressed ? a.pressed(ctx) : undefined}
-          onClick={() => a.run(ctx)}
-        >
-          <Icon name={a.icon} />
-          <span aria-hidden="true">{a.caption ?? a.label}</span>
-        </button>
-      ))}
+      {t.toolbar.map((a) => {
+        const button = (
+          <button
+            key={a.id}
+            type="button"
+            className="tool labeled"
+            aria-label={a.label}
+            title={a.label}
+            disabled={!actionEnabled(t, a, ctx)}
+            aria-pressed={a.pressed ? a.pressed(ctx) : undefined}
+            onClick={() => a.run(ctx)}
+          >
+            <Icon name={a.icon} />
+            <span aria-hidden="true">{a.caption ?? a.label}</span>
+          </button>
+        );
+        return a.items ? (
+          <WithMenu key={a.id} tool={t} action={a} ctx={ctx}>
+            {button}
+          </WithMenu>
+        ) : (
+          button
+        );
+      })}
       <span className="grow" />
       <button type="button" onClick={() => wb.setActiveTool(documentId, null, ctx.pages[0])}>
         Close {t.name}

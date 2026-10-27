@@ -19,6 +19,7 @@ import { ERASER_MODE, STAMP_MODE } from "../markup/config";
 import { EDIT_MODE, addText, editSelection, editSession, pendingImage } from "../ui/edit/editStore";
 import { deleteSelection } from "../ui/edit/editActions";
 import { stampPlacement } from "../ui/markup/stampPlacement";
+import { FLYER_MODE, flyerPlacement } from "../ui/flyer/flyerStore";
 import { Guard } from "../ui/Guard";
 import { matchShortcut, type Command } from "./shortcuts";
 import { useNav } from "./useNav";
@@ -171,7 +172,10 @@ function DocCommands({
   const { provides: viewport } = useViewportCapability();
   const { provides: annots, state: annotState } = useAnnotation(documentId);
   const { provides: im, state: imState } = useInteractionManager(documentId);
-  const eraserOn = imState.activeMode === ERASER_MODE || imState.activeMode === STAMP_MODE;
+  const eraserOn =
+    imState.activeMode === ERASER_MODE ||
+    imState.activeMode === STAMP_MODE ||
+    imState.activeMode === FLYER_MODE;
   const doc = useDocumentState(documentId)?.document ?? null;
   /** Resolves when the last Ctrl+A selection is in place. */
   const pendingSelect = useRef<Promise<unknown>>(Promise.resolve());
@@ -200,6 +204,7 @@ function DocCommands({
         // Markup: a tool (or the eraser) that is on goes off first, then the selection.
         if (eraserOn) {
           stampPlacement.set(null);
+          flyerPlacement.set(null);
           im?.activateDefaultMode();
         } else if (annotState.activeToolId) annots?.setActiveTool(null);
         else if (annotState.selectedUids.length) annots?.deselectAnnotation();

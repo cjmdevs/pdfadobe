@@ -8,8 +8,11 @@ import type { PageOpDialog, WorkbenchApi } from "../app/workbench";
 import type { IconName } from "../ui/Icon";
 import { MARKUP_TOOLS } from "../markup/config";
 import { TEXT_STAMPS } from "../engine/stamps";
+import type { TickmarkDef } from "../engine/flyer/tickmarks";
+import type { LibraryEntry } from "../flyer/library";
 /** File commands load the platform layer; imported on use so this list stays Node-safe. */
 const markupFiles = () => import("../ui/markup/markupFiles");
+const flyerFiles = () => import("../ui/flyer/flyerFiles");
 
 /** What an action works on. */
 export interface ToolContext {
@@ -26,6 +29,24 @@ export interface ToolContext {
   markup: MarkupCommands | null;
   /** Edit PDF mode (backlog B3); null without an editable document. */
   edit: EditCommands | null;
+  /** Workpaper Tools (Phase 4); null without a document that takes markup. */
+  flyer: FlyerCommands | null;
+}
+
+export interface FlyerCommands {
+  /** Built-in, firm and personal tickmarks, in that order. */
+  library: LibraryEntry[];
+  /** What the active-tickmark button places. */
+  active: TickmarkDef | null;
+  recent: TickmarkDef[];
+  /** A tickmark is armed: each click on a page places one, until Esc. */
+  placing: boolean;
+  /** Makes `id` (or the active tickmark) active and arms it. */
+  arm(id?: string): void;
+  stop(): void;
+  clearRecent(): void;
+  /** Arms a legend box of the tickmarks used in the document. */
+  insertLegend(): void;
 }
 
 export interface EditCommands {
@@ -84,9 +105,25 @@ export interface ToolAction {
   /** Disabled when false. Default: needs an open, editable document. */
   enabled?(ctx: ToolContext): boolean;
   /** Dropdown actions (stamps, tickmarks): the arrow opens these. */
-  items?: { id: string; label: string; run(ctx: ToolContext): void }[];
+  items?: MenuItem[] | ((ctx: ToolContext) => MenuItem[]);
+  /** The button itself opens the dropdown (no separate arrow). */
+  menuOnly?: boolean;
   /** Short caption under the icon in the tool toolbar (defaults to label). */
   caption?: string;
+}
+
+export interface MenuItem {
+  id: string;
+  label: string;
+  run(ctx: ToolContext): void;
+  /** Shown with a tick (the active choice). */
+  checked?: boolean;
+  /** A line above this item. */
+  separator?: boolean;
+}
+
+export function menuItems(a: ToolAction, ctx: ToolContext): MenuItem[] {
+  return typeof a.items === "function" ? a.items(ctx) : (a.items ?? []);
 }
 
 export interface ToolDef {
@@ -444,17 +481,93 @@ export const TOOLS: ToolDef[] = [
     ],
   },
   // ---- Not built yet: hidden unless "Show tools that are coming later" is on. ----
-  planned(
-    "flyer",
-    "Workpaper Tools",
-    "tickmark",
-    "#e3a400",
-    "Tickmarks, connectors, calculator tape (PDFlyer-style)",
-    [
-      { id: "tickmarks", label: "Tickmarks", icon: "tickmark", dropdown: true },
-      { id: "calculator", label: "Calculator", icon: "calculator" },
+  {
+    id: "flyer",
+    name: "Workpaper Tools",
+    icon: "tickmark",
+    color: "#e3a400",
+    description: "Tickmarks, tickmark legend and the Stamp Summary (PDFlyer-style)",
+    comingIn: null,
+    open: "toolbar",
+    panel: () => import("../ui/flyer/StampSummaryPanel"),
+    toolbar: [
+      {
+        id: "tickmark",
+        label: "Place the active tickmark (click the page for each one, Esc stops)",
+        caption: "Tickmark",
+        icon: "tickmark",
+        run: (c) => (c.flyer?.placing ? c.flyer.stop() : c.flyer?.arm()),
+        pressed: (c) => c.flyer?.placing ?? false,
+        enabled: (c) => hasDoc(c) && c.flyer !== null,
+        items: (c) =>
+          (c.flyer?.library ?? []).map((e) => ({
+            id: e.def.id,
+            label: e.source === "built-in" ? e.def.name : `${e.def.name} (${e.source})`,
+            checked: e.def.id === c.flyer?.active?.id,
+            run: (cc: ToolContext) => cc.flyer?.arm(e.def.id),
+          })),
+      },
+      {
+        id: "recent",
+        label: "Recent tickmarks",
+        caption: "Recent",
+        icon: "history",
+        menuOnly: true,
+        run: () => undefined,
+        enabled: (c) => hasDoc(c) && c.flyer !== null,
+        items: (c) => [
+          ...(c.flyer?.recent ?? []).map((d) => ({
+            id: d.id,
+            label: d.name,
+            run: (cc: ToolContext) => cc.flyer?.arm(d.id),
+          })),
+          {
+            id: "clearRecent",
+            label: "Clear Recent Stamps",
+            separator: true,
+            run: (cc: ToolContext) => cc.flyer?.clearRecent(),
+          },
+        ],
+      },
+      {
+        id: "palette",
+        label: "Tickmark palette (number keys pick a tickmark while placing)",
+        caption: "Palette",
+        icon: "palette",
+        run: (c) =>
+          c.wb.updateSettings({ tickmarkPaletteOpen: !c.wb.settings.tickmarkPaletteOpen }),
+        pressed: (c) => c.wb.settings.tickmarkPaletteOpen,
+        enabled: (c) => c.documentId !== null,
+      },
+      {
+        id: "legend",
+        label: "Insert a legend of the tickmarks used in this document",
+        caption: "Legend",
+        icon: "legend",
+        run: (c) => c.flyer?.insertLegend(),
+        enabled: (c) => hasDoc(c) && c.flyer !== null,
+      },
+      {
+        id: "library",
+        label: "Tickmark library and workpaper settings…",
+        caption: "Library",
+        icon: "library",
+        run: (c) => c.wb.setDialog({ kind: "tickmarks" }),
+        enabled: () => true,
+      },
+      {
+        id: "summaryCsv",
+        label: "Export the Stamp Summary to CSV…",
+        caption: "Export CSV",
+        icon: "exportFile",
+        run: (c) => {
+          const id = c.documentId;
+          if (id) void flyerFiles().then((m) => m.exportSummaryCsv(c.wb, id));
+        },
+        enabled: (c) => c.documentId !== null && c.flyer !== null,
+      },
     ],
-  ),
+  },
   planned("redact", "Redact", "redact", "#d0336c", "Permanently remove sensitive content", []),
   planned("forms", "Fill Forms", "form", "#8a4fd8", "Fill and create form fields", []),
   planned("ocr", "Scan & OCR", "ocr", "#2e9e44", "Make scanned pages searchable", []),

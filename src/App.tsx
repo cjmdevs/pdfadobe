@@ -44,6 +44,7 @@ import { EditBridge } from "./ui/edit/EditBridge";
 import { CommentsPanel } from "./ui/markup/CommentsPanel";
 
 import { markupConfig } from "./markup/config";
+import { readFirmTickmarks } from "./ui/flyer/flyerFiles";
 
 function plugins(settings: Settings) {
   const zoom =
@@ -156,6 +157,20 @@ function Shell({ ready }: { ready: boolean }) {
             wb.settings.firmLayoutCache
               ? "The firm toolbar layout could not be read; using the last copy."
               : "The firm toolbar layout could not be read; using the built-in toolbar.",
+          );
+        }
+      }
+      // Firm tickmarks (Phase 4), the same way.
+      const tickPath = wb.settings.firmTickmarksPath;
+      if (tickPath) {
+        try {
+          const firm = await readFirmTickmarks(tickPath);
+          wb.updateSettings({ firmTickmarksCache: firm.tickmarks });
+        } catch {
+          wb.toast(
+            wb.settings.firmTickmarksCache
+              ? "The firm tickmarks could not be read; using the last copy."
+              : "The firm tickmarks could not be read.",
           );
         }
       }

@@ -9,6 +9,7 @@ import { useNav } from "../app/useNav";
 import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workbench";
 import { CustomizeDialog } from "./CustomizeDialog";
 import { StampPicker } from "./markup/StampPicker";
+import { TickmarkLibrary } from "./flyer/TickmarkLibrary";
 import { SettingsBody } from "./SettingsDialog";
 import { FlattenBody } from "./markup/FlattenDialog";
 import {
@@ -98,6 +99,12 @@ function MainDialog() {
       return (
         <Modal title="Stamps" onClose={close}>
           <StampPicker documentId={dialog.documentId} onClose={close} />
+        </Modal>
+      );
+    case "tickmarks":
+      return (
+        <Modal title="Tickmark library" onClose={close}>
+          <TickmarkLibrary />
         </Modal>
       );
     case "openError":

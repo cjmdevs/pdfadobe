@@ -103,6 +103,8 @@ export type Dialog =
   | { kind: "flatten"; documentId: string; page: number; selectedIds: string[] }
   /** Stamps picker (Phase 3). */
   | { kind: "stamps"; documentId: string }
+  /** Tickmark library and workpaper settings file (Phase 4). */
+  | { kind: "tickmarks" }
   | null;
 
 /** Dialog-driven page operations (src/ui/PageOpsDialogs.tsx). */

@@ -13,6 +13,7 @@ import { useWorkbench } from "../../app/workbench";
 import { CLOUD_INTENSITY } from "../../markup/properties";
 import { CLOUD_TOOL, ERASER_MODE, STAMP_MODE, toolDefaults } from "../../markup/config";
 import { EDIT_MODE } from "../edit/editStore";
+import { FLYER_MODE } from "../flyer/flyerStore";
 
 /** Stand-in pointer event for the cancel call (handlers release capture on it). */
 const NO_EVENT = {
@@ -102,6 +103,8 @@ export function MarkupBridge({ author }: { author: string }) {
   useEffect(() => {
     im?.registerMode({ id: ERASER_MODE, scope: "page", exclusive: true, cursor: "cell" });
     im?.registerMode({ id: STAMP_MODE, scope: "page", exclusive: true, cursor: "copy" });
+    // Workpaper Tools (Phase 4): tickmarks and legend boxes (FlyerLayer).
+    im?.registerMode({ id: FLYER_MODE, scope: "page", exclusive: true, cursor: "copy" });
     // Edit PDF (B3): EditLayer handles the pointer while the Edit tool is open.
     im?.registerMode({ id: EDIT_MODE, scope: "page", exclusive: true, cursor: "default" });
   }, [im]);

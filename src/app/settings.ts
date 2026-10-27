@@ -2,6 +2,8 @@
 // No DOM or React here so it can be unit-tested in Node.
 
 import type { Scaling } from "../platform/types";
+import type { TickmarkDef } from "../engine/flyer/tickmarks";
+import { sanitizeTickmarks } from "../flyer/library";
 
 export type Theme = "system" | "light" | "dark";
 export type ViewMode = "continuous" | "single" | "twoUp";
@@ -47,6 +49,18 @@ export interface Settings {
   markupColors: string[];
   /** "Make default" per markup tool: style properties only (color, width, font...). */
   markupDefaults: Record<string, Record<string, string | number | boolean>>;
+  /** The user's own tickmarks (Phase 4). */
+  tickmarks: TickmarkDef[];
+  /** Firm tickmark file on the network share (workpaper settings JSON), or null. */
+  firmTickmarksPath: string | null;
+  /** Last firm tickmarks read from that file, used when the share is unreachable. */
+  firmTickmarksCache: TickmarkDef[] | null;
+  /** Tickmark ids, most recent first. */
+  recentTickmarks: string[];
+  /** The tickmark the active-tickmark button places. */
+  activeTickmark: string;
+  /** Floating tickmark palette shown. */
+  tickmarkPaletteOpen: boolean;
 }
 
 export const MAX_RECENT = 15;
@@ -98,6 +112,12 @@ export const DEFAULT_SETTINGS: Settings = {
     "#FFFFFF",
   ],
   markupDefaults: {},
+  tickmarks: [],
+  firmTickmarksPath: null,
+  firmTickmarksCache: null,
+  recentTickmarks: [],
+  activeTickmark: "agrees",
+  tickmarkPaletteOpen: false,
 };
 
 const oneOf =
@@ -161,6 +181,21 @@ export function sanitizeSettings(raw: unknown): Settings {
         : null,
     markupColors: colorList(r.markupColors) ?? d.markupColors,
     markupDefaults: toolDefaults(r.markupDefaults),
+    tickmarks: sanitizeTickmarks(r.tickmarks),
+    firmTickmarksPath:
+      typeof r.firmTickmarksPath === "string" && r.firmTickmarksPath.trim()
+        ? r.firmTickmarksPath
+        : null,
+    firmTickmarksCache: Array.isArray(r.firmTickmarksCache)
+      ? sanitizeTickmarks(r.firmTickmarksCache)
+      : null,
+    recentTickmarks: (stringList(r.recentTickmarks) ?? []).slice(0, 8),
+    activeTickmark:
+      typeof r.activeTickmark === "string" && r.activeTickmark
+        ? r.activeTickmark.slice(0, 80)
+        : d.activeTickmark,
+    tickmarkPaletteOpen:
+      typeof r.tickmarkPaletteOpen === "boolean" ? r.tickmarkPaletteOpen : d.tickmarkPaletteOpen,
   };
 }
 

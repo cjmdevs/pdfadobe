@@ -44,7 +44,7 @@ test.describe("workspace", () => {
     const redact = tools.getByRole("button", { name: "Redact" });
     await expect(redact).toBeDisabled();
     await expect(redact).toContainText("Coming in a later phase");
-    await expect(tools.getByRole("button", { name: "Workpaper Tools" })).toBeDisabled();
+    await expect(tools.getByRole("button", { name: "Fill Forms" })).toBeDisabled();
   });
 
   test("a tool opens its own toolbar above the page and closes again", async ({ page }) => {

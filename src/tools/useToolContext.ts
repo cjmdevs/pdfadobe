@@ -17,6 +17,7 @@ import { pickImageToAdd } from "../ui/edit/editActions";
 import { TEXT_STAMPS } from "../engine/stamps";
 import { stampPlacement, textStamp } from "../ui/markup/stampPlacement";
 import { importXfdf } from "../ui/markup/importXfdf";
+import { useFlyerCommands } from "../ui/flyer/useFlyer";
 import { usePageActions } from "../app/pageActions";
 import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
@@ -43,6 +44,8 @@ export function useDocToolContext(documentId: string): ToolContext {
   const m = wb.meta[documentId];
   const organizing = m?.activeTool === "organize";
   const stored = m?.pageSelection;
+  // Tickmarks are markup: same rule (encrypted documents have no bytes to save).
+  const flyer = useFlyerCommands(documentId, !encrypted);
   return useMemo(
     () => ({
       wb,
@@ -108,8 +111,10 @@ export function useDocToolContext(documentId: string): ToolContext {
               void pickImageToAdd(wb, documentId);
             },
           },
+      flyer,
     }),
     [
+      flyer,
       wb,
       documentId,
       organizing,
@@ -145,6 +150,7 @@ export function useNoDocToolContext(): ToolContext {
       view: null,
       markup: null,
       edit: null,
+      flyer: null,
     }),
     [wb],
   );
