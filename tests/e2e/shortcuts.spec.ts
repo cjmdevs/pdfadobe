@@ -4,11 +4,33 @@ import {
   boot,
   currentPageNumber,
   expect,
+  idle,
   openPaths,
   test,
   waitForPainted,
   type Page,
 } from "./fixtures";
+
+/**
+ * The page number updates as soon as a jump starts, but the viewport scrolls a frame or
+ * two later. Waits for both, so the next key starts from where the last one landed.
+ */
+async function onPage(page: Page, n: number) {
+  await expect.poll(() => currentPageNumber(page)).toBe(n);
+  let last = -1;
+  await expect
+    .poll(
+      async () => {
+        const top = await page.getByTestId("viewport").evaluate((el) => el.scrollTop);
+        const still = top === last;
+        last = top;
+        return still;
+      },
+      { intervals: [50] },
+    )
+    .toBe(true);
+  expect(await currentPageNumber(page)).toBe(n);
+}
 
 async function zoomPercent(page: Page) {
   return Number((await page.getByLabel("Zoom percentage").inputValue()).replace("%", ""));
@@ -19,23 +41,26 @@ test.describe("keyboard shortcuts", () => {
     await boot(page);
     await openPaths(page, [P.long200]);
     await waitForPainted(page, 0);
+    // The zoom plugin re-fits 150 ms after the viewport gets its scrollbar and scrolls
+    // back to where it was; a key pressed before that has its page jump undone.
+    await idle(page);
   });
 
   test("page navigation keys", async ({ page }) => {
     await page.keyboard.press("ArrowRight");
-    await expect.poll(() => currentPageNumber(page)).toBe(2);
+    await onPage(page, 2);
     await page.keyboard.press("Control+PageDown");
-    await expect.poll(() => currentPageNumber(page)).toBe(3);
+    await onPage(page, 3);
     await page.keyboard.press("ArrowLeft");
-    await expect.poll(() => currentPageNumber(page)).toBe(2);
+    await onPage(page, 2);
     await page.keyboard.press("End");
-    await expect.poll(() => currentPageNumber(page)).toBe(200);
+    await onPage(page, 200);
     await page.keyboard.press("Home");
-    await expect.poll(() => currentPageNumber(page)).toBe(1);
+    await onPage(page, 1);
     await page.keyboard.press("Control+Shift+ArrowDown");
-    await expect.poll(() => currentPageNumber(page)).toBe(200);
+    await onPage(page, 200);
     await page.keyboard.press("Control+Shift+PageUp");
-    await expect.poll(() => currentPageNumber(page)).toBe(1);
+    await onPage(page, 1);
     await page.keyboard.press("PageDown");
     await expect
       .poll(() => page.getByTestId("viewport").evaluate((el) => el.scrollTop))
