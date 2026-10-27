@@ -1,0 +1,82 @@
+[
+  {
+    "kind": "cell",
+    "text": "PRIZE FROM SAMPLE RADIO CONTEST REPORTED ON FORM 1099-MISC, BOX 3",
+    "lines": 2
+  },
+  {
+    "kind": "line",
+    "text": "2024",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "FEDERAL STATEMENTS",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "SAMPLE A TESTPAYER",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "XXX-XX-0000",
+    "lines": 1
+  },
+  {
+    "kind": "heading",
+    "text": "STATEMENT 1",
+    "lines": 1
+  },
+  {
+    "kind": "heading",
+    "text": "FORM 9999, LINE 2B - TAXABLE INTEREST",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "FIRST SAMPLE BANK",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "812.",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "SECOND SAMPLE CREDIT UNION",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "422.",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "TOTAL TO FORM 9999, LINE 2B",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "$ 1,234.",
+    "lines": 1
+  },
+  {
+    "kind": "heading",
+    "text": "STATEMENT 2",
+    "lines": 1
+  },
+  {
+    "kind": "heading",
+    "text": "FORM 9999, LINE 8 - OTHER INCOME",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "800.",
+    "lines": 1
+  }
+]

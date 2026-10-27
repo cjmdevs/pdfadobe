@@ -171,6 +171,7 @@ export function pageChars(m, page, textPage) {
   const box = mem.alloc(16);
   const fontBuf = mem.alloc(256);
   const flags = mem.alloc(4);
+  const mtx = mem.alloc(24);
   const out = [];
   const n = m.FPDFText_CountChars(textPage);
   for (let i = 0; i < n; i++) {
@@ -178,6 +179,13 @@ export function pageChars(m, page, textPage) {
     m.FPDFText_GetCharOrigin(textPage, i, o, o + 8);
     m.FPDFText_GetLooseCharBox(textPage, i, box);
     m.FPDFText_GetFontInfo(textPage, i, fontBuf, 256, flags);
+    // FPDFText_GetFontSize is the Tf size only. Print drivers write "Tf 1" and put the
+    // size in the text matrix, so scale by the char's matrix (text matrix x CTM).
+    let scale = 1;
+    if (m.FPDFText_GetMatrix(textPage, i, mtx)) {
+      const [a, b, c, d] = [0, 1, 2, 3].map((k) => mem.f32(mtx, k));
+      scale = Math.sqrt(Math.abs(a * d - b * c)) || 1;
+    }
     out.push({
       i,
       ch: String.fromCharCode(code),
@@ -189,7 +197,7 @@ export function pageChars(m, page, textPage) {
       t: mem.f32(box, 1),
       r: mem.f32(box, 2),
       b: mem.f32(box, 3),
-      size: m.FPDFText_GetFontSize(textPage, i),
+      size: m.FPDFText_GetFontSize(textPage, i) * scale,
       font: mem.readAscii(fontBuf, 256),
       obj: m.FPDFText_GetTextObject(textPage, i),
     });

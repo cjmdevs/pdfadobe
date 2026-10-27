@@ -1,0 +1,62 @@
+[
+  {
+    "kind": "heading",
+    "text": "Schedule K-1 (Form 9965) Supplemental Information",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Sample Holdings LP",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Partner: Sample A. Testpayer",
+    "lines": 1
+  },
+  {
+    "kind": "paragraph",
+    "text": "Box 1 - Ordinary business income (loss). The amount shown is your share of the partnership's trade or business income. Report it on Schedule E, Part II. Passive activity rules may limit the loss you can deduct this year.",
+    "lines": 2
+  },
+  {
+    "kind": "paragraph",
+    "text": "Box 20, Code Z - Section 199A information. The partnership's qualified business income, W-2 wages and unadjusted basis of qualified property are shown in the table below. These amounts are needed to figure your qualified business income deduction.",
+    "lines": 2
+  },
+  {
+    "kind": "paragraph",
+    "text": "Box 21 - Foreign taxes paid or accrued. No foreign taxes were paid by the partnership for the year. This line is shown for completeness only.",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Qualified business income",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "12,345",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "W-2 wages",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "4,500",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Unadjusted basis of qualified property",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "60,000",
+    "lines": 1
+  }
+]

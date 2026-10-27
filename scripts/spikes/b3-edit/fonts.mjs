@@ -190,6 +190,17 @@ export function matchFont(index, pdfName, metrics = null, needs = null) {
         f.italic === want.italic,
     );
   if (exact) return { exact, proposals: [] };
+  // The standard 14 fonts are usually not embedded (tax software output). A metric-
+  // compatible twin has the same advance widths, so every line break stays put.
+  for (const twin of METRIC_TWINS[squash(want.family)] ?? []) {
+    const face = index.find(
+      (f) =>
+        squash(f.family) === squash(twin) &&
+        f.weight >= 600 === want.bold &&
+        f.italic === want.italic,
+    );
+    if (face) return { exact: face, twin: true, proposals: [] };
+  }
   const wantSerif = metrics?.serif ?? guessSerif(want.family);
   const score = (f) => {
     let s = 0;
@@ -237,6 +248,12 @@ export function matchFont(index, pdfName, metrics = null, needs = null) {
   };
 }
 
+const METRIC_TWINS = {
+  helvetica: ["Arial", "Liberation Sans"],
+  times: ["Times New Roman", "Liberation Serif"],
+  timesroman: ["Times New Roman", "Liberation Serif"],
+  courier: ["Courier New", "Liberation Mono"],
+};
 const SERIF = /times|georgia|garamond|cambria|book|serif|roman|palatino|century|minion/i;
 const SANS =
   /sans|arial|helvetica|calibri|verdana|tahoma|segoe|gothic|univers|futura|myriad|aptos/i;

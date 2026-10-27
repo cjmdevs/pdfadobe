@@ -130,7 +130,11 @@ export async function retypeset(m, doc, page, textPage, box, text, choice) {
   const pageObjs = new Set(Array.from({ length: n }, (_, i) => m.FPDFPage_GetObject(page, i)));
   info.removedObjects = objs.length;
 
-  const boxWidth = box.r - box.l;
+  // A box of one-line paragraphs (form label, cell value, heading, address block, rows
+  // of a typed statement) grows to the right instead of wrapping at its own width;
+  // running into what follows is reported as overflow.
+  const oneLine = box.paragraphs.every((p) => p.lines.length === 1);
+  const boxWidth = oneLine ? Infinity : box.r - box.l;
   const leading = box.leading ?? size * 1.2;
   const paragraphs = text.split("\n");
   let y = box.lines[0].y;
@@ -155,6 +159,28 @@ export async function retypeset(m, doc, page, textPage, box, text, choice) {
       y -= leading;
     });
   }
+  // Read every letter back: FPDFText_SetText reports success for letters the font
+  // lacks and writes .notdef boxes. Nothing is removed until the new text reads back.
+  const tp = m.FPDFText_LoadPage(page);
+  const wrote = created.map((o) => textObjText(m, tp, o)).join("");
+  m.FPDFText_ClosePage(tp);
+  const want = text.replace(/\s+/g, "");
+  if (wrote.replace(/\s+/g, "") !== want) {
+    for (const o of created) {
+      m.FPDFPage_RemoveObject(page, o);
+      m.FPDFPageObj_Destroy(o);
+    }
+    const got = new Set([...wrote]);
+    info.missing = [...new Set([...want])].filter((c) => !got.has(c));
+    return { ...info, refused: `letters the font cannot show: ${info.missing.join(" ")}` };
+  }
+  const bounds = created.map((o) => objBounds(m, o)).filter(Boolean);
+  info.newBounds = {
+    l: Math.min(...bounds.map((b) => b.l)),
+    r: Math.max(...bounds.map((b) => b.r)),
+    t: Math.max(...bounds.map((b) => b.t)),
+    b: Math.min(...bounds.map((b) => b.b)),
+  };
   for (const o of objs) {
     if (!pageObjs.has(o)) continue;
     m.FPDFPage_RemoveObject(page, o);

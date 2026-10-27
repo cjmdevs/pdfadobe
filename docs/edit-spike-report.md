@@ -262,6 +262,84 @@ grouping (2) and mixed styles (6). Not covered:
 - Grouping is the risky part. Plan time to collect real staff PDFs (tested locally, not
   committed) before building UI on it.
 
+## Stage 1, step 0: real-format samples (2026-10-26)
+
+There are no real staff PDFs yet, so `tests/corpus/edit/real-format/generate.mjs` writes
+6 synthetic pages the way tax software writes them. Fonts are the standard 14
+(Helvetica, Times, Courier), **not embedded**. Content streams are written by hand:
+`Tf 1` plus a scaling `Tm`, TL/T\* blocks, Tw justification, TJ kerning, Tc/Tz, one Tj
+per glyph with no spaces, space-padded Courier columns, and form data overlaid after
+the form. Expectations can now say "one box with these lines" (`box: true`) for address
+blocks.
+
+| File                    | What it tests                                                | Grouping | Re-typeset                       |
+| ----------------------- | ------------------------------------------------------------ | -------- | -------------------------------- |
+| `form-9999`             | form page, `Tf 1` + Tm, dot leaders, Courier overlay         | 35/35    | label: clash (leaders), data: ok |
+| `statement-courier`     | Courier statement, one Tj holds description + amount         | 16/16    | **fail: shared objects**         |
+| `transmittal-letter`    | Times, TL/T\* blocks, Tw justify, TJ kerning, address blocks | 12/12    | ok (clash for wider fonts)       |
+| `filing-instructions`   | Tm everywhere, ruled 2-column table, bullets with Tz 95      | 18/18    | ok                               |
+| `k1-supplemental`       | 7 pt, bold run-in heads, Tc 0.15, Tz 92                      | 12/12    | ok (whole note turns bold)       |
+| `print-driver-per-char` | one Tj per glyph, no space characters                        | 7/7      | ok                               |
+
+Spike samples (committed + local Windows fonts) still pass 10/10 for grouping and 50/50 for edits.
+Re-typeset on real-format: 56 cases, 19 ok, 11 clash, 21 correct refusals, **5 fail** (all
+the statement row, see below).
+
+**Grouping changes (in `group.mjs`/`pdfium.mjs`):**
+
+1. **Font size from the matrix.** `FPDFText_GetFontSize` returns the `Tf` size only, so
+   `Tf 1` + Tm text came out as 1 pt and every threshold broke. The size is now scaled by
+   the char matrix (`FPDFText_GetMatrix`). This alone was most of the misses: before it,
+   form 12/35 and filing instructions 2/18.
+2. **Dot leaders** (4+ periods) start their own segment, so labels stay editable alone.
+3. **Typed rules** (`-----`, `=====`, 5+ chars) never join a box and separate the boxes
+   above and below them, like a drawn rule.
+4. **Amount lines** (`1,234.`, `$ 812`, `(45)`) are always their own paragraph, so a
+   column of numbers never reflows into one paragraph.
+
+**Re-typeset changes (in `retypeset.mjs`):**
+
+5. **Read back every letter for every font**, not only the PDF's own. The spike never
+   checked firm/Windows fonts. Noto Sans has no `≥ → ≠ ≤`, and those edits were written
+   as blank boxes. Now nothing is removed until the new text reads back, otherwise it
+   refuses (6 cases, each confirmed against HarfBuzz coverage).
+6. **One-line paragraphs grow to the right instead of wrapping** at their own width. A
+   form label wrapped one word per line before. This also fixed the spike's `irs-header`
+   clash. _I think Acrobat does the same; needs your Acrobat check._
+7. **Metric twins for the standard 14**: Helvetica → Arial / Liberation Sans, Times →
+   Times New Roman / Liberation Serif, Courier → Courier New / Liberation Mono, ahead of
+   proposals (`fonts.mjs`).
+8. The check now uses the bounds of what was written when the text no longer groups on
+   its own (it ran into leaders), so that counts as a clash, not a failed edit.
+
+**Findings:**
+
+- **Shared text objects are real in tax output.** In Courier statements one Tj holds the
+  description _and_ the amount. Editing "SECOND SAMPLE CREDIT UNION" deletes `812.` and
+  `422.` (410 px outside the box, all 5 font cases). This is the stage 1 "split shared
+  objects" item; the statement stays a failing check until the engine does it.
+- **Standard 14 fonts, keep the original font:** works for any WinAnsi letter, and the
+  font stays not embedded (as in the original). Letters outside WinAnsi (`Ł`, `≥`, `→`)
+  are refused, and B/C switch to the metric twin, embedded as a subset.
+- **Proposals without the twin:** Helvetica → Tahoma / Segoe UI (x0.97-0.99), Courier →
+  DejaVu Sans Mono / Lucida Console (x1.00), Times → Cambria / Georgia (x1.06-1.09: no
+  close serif on Windows without Liberation Serif). Worth putting Liberation Serif/Mono
+  (OFL) in the firm font folder.
+- **One style per paragraph** takes the first letter's style, so a K-1 note with a bold
+  run-in head becomes all bold. For stage 1 I'd use the most common style instead; the
+  head itself needs mixed styles (stage 2).
+- **Bullets and Tz:** a re-typeset bullet item loses its hanging indent, and Tz 95/92 text
+  is rewritten at 100% (wider). Both are engine work (keep the indent; PDFium has no Tz
+  setter, so scale the object's matrix).
+- **Overlap false positive:** the statement's B cases flag the dash line above because
+  Courier New's loose box is taller. The engine should test overlap with tight bounds.
+- **Generator note:** pdf-lib's `widthOfTextAtSize` adds AFM kerning, which `Tj` never
+  applies. The real-format generator sums per-letter widths instead.
+
+Run: `npm run corpus:edit`, then `npm run spike:edit` (now includes real-format and the
+grouping report). Grouping alone:
+`node scripts/spikes/b3-edit/group-report.mjs tests/corpus/edit/real-format`.
+
 ## Files
 
 - `scripts/spikes/b3-edit/`: `pdfium.mjs` (raw PDFium helpers), `group.mjs`,

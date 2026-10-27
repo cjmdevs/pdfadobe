@@ -1,0 +1,64 @@
+[
+  {
+    "kind": "heading",
+    "text": "SAMPLE & PARTNERS CPAS",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "100 Example Street, Suite 200, Anytown, ST 00000",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "February 14, 2025",
+    "lines": 1
+  },
+  {
+    "kind": "address",
+    "text": "Sample A. Testpayer 100 Example Street Anytown, ST 00000",
+    "lines": 3,
+    "box": true
+  },
+  {
+    "kind": "line",
+    "text": "Dear Sample Testpayer:",
+    "lines": 1
+  },
+  {
+    "kind": "paragraph",
+    "text": "We have prepared your 2024 federal and state income tax returns from the information you provided. The returns have been filed electronically, and copies are enclosed for your records. Please review them carefully and let us know right away if anything appears to be incomplete or incorrect.",
+    "lines": 3
+  },
+  {
+    "kind": "paragraph",
+    "text": "Your federal return shows a balance due of $1,234. Please mail your payment with the enclosed voucher by April 15, 2025 to:",
+    "lines": 2
+  },
+  {
+    "kind": "address",
+    "text": "Internal Revenue Service P.O. Box 000000 Anytown, ST 00000-0000",
+    "lines": 3,
+    "box": true
+  },
+  {
+    "kind": "paragraph",
+    "text": "If you have questions about the returns or the payment, please call our office. We appreciate the opportunity to serve you and look forward to working with you again next year.",
+    "lines": 2
+  },
+  {
+    "kind": "line",
+    "text": "Sincerely,",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Sample & Partners CPAs",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Enclosures",
+    "lines": 1
+  }
+]

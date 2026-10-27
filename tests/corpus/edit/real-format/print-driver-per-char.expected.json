@@ -1,0 +1,37 @@
+[
+  {
+    "kind": "heading",
+    "text": "Organizer Cover Note",
+    "lines": 1
+  },
+  {
+    "kind": "paragraph",
+    "text": "Thank you for returning your tax organizer. We have recorded the documents listed below and will contact you if anything else is needed to complete your return.",
+    "lines": 2
+  },
+  {
+    "kind": "paragraph",
+    "text": "Items received after March 15 may delay your return. If you expect a corrected Form 1099, please let us know so that we can plan for an extension.",
+    "lines": 2
+  },
+  {
+    "kind": "label",
+    "text": "Client:",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "Sample A. Testpayer",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Received:",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "February 20, 2025",
+    "lines": 1
+  }
+]

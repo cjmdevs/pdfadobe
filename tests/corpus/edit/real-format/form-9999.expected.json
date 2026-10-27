@@ -1,0 +1,177 @@
+[
+  {
+    "kind": "line",
+    "text": "Form",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "9999",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Sample Individual Return of Fictitious Income",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "For the year Jan. 1 - Dec. 31, 2024, or other tax year beginning",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "OMB No. 0000-0000",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "2024",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Your first name and middle initial",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "SAMPLE A",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Last name",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "TESTPAYER",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Your identifying number",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "XXX-XX-0000",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Home address (number and street)",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "100 EXAMPLE STREET",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Apt. no.",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "City, town, or post office, state, and ZIP code",
+    "lines": 1
+  },
+  {
+    "kind": "value",
+    "text": "ANYTOWN ST 00000",
+    "lines": 1
+  },
+  {
+    "kind": "heading",
+    "text": "Income",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Total amount from Form(s) W-2, box 1 (see instructions)",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "45,000.",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Household employee wages not reported on Form(s) W-2",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Taxable interest",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "1,234.",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Ordinary dividends",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "567.",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Taxable refunds, credits, or offsets of state and local income taxes and amounts from a prior-year return (see instructions)",
+    "lines": 2
+  },
+  {
+    "kind": "label",
+    "text": "Capital gain or (loss). Attach Schedule D if required",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "2,500.",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Additional income from Schedule 1, line 10",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "800.",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Add lines 1a, 2b, 3b, 4, 7, and 8. This is your total income",
+    "lines": 1
+  },
+  {
+    "kind": "amount",
+    "text": "50,101.",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "For Privacy Act and Paperwork Reduction Act Notice, see separate instructions.",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Cat. No. 00000X",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Form 9999 (2024)",
+    "lines": 1
+  }
+]

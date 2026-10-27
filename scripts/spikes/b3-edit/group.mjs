@@ -15,6 +15,10 @@ import { pageChars, objBounds } from "./pdfium.mjs";
 
 const FPDF_PAGEOBJ_PATH = 2;
 const BULLETS = "•▪●–-";
+const TYPED_RULE = /^[-=_]{5,}$/;
+// A line that is only an amount ("1,234.", "$ 812", "(45)") is never reflowed into
+// the line above or below it: a column of numbers is one value per line.
+const AMOUNT = /^\$?\s?\(?-?\d[\d,]*\.?\d*\)?%?$/;
 
 export function pageRules(m, page) {
   const rules = { h: [], v: [] };
@@ -47,28 +51,48 @@ function rowsOf(chars) {
   return rows.sort((a, b) => b.y - a.y);
 }
 
+/** Dot leaders: 4+ periods in a row ("Taxable interest . . . . . . 2b"). */
+const leaderStarts = (chars, j) =>
+  chars[j].ch === "." &&
+  chars[j - 1]?.ch !== "." &&
+  chars.length >= j + 4 &&
+  chars.slice(j, j + 4).every((c) => c.ch === ".");
+
 function splitRow(row, rules) {
   const segs = [];
   let cur = null;
-  for (const c of row.chars) {
+  row.chars.forEach((c, j) => {
     const prev = cur?.chars.at(-1);
     const gap = prev ? c.l - prev.r : 0;
     const em = Math.max(c.size, prev?.size ?? 0);
     const ruled =
       prev &&
       rules.v.some((v) => v.x > prev.r - 0.5 && v.x < c.l + 0.5 && v.b <= row.y && v.t >= row.y);
-    if (!cur || gap > 0.9 * em || Math.abs(c.size - prev.size) > 0.5 || ruled) {
+    // Leaders are their own segment, so the label stays editable on its own.
+    const leader = prev && leaderStarts(row.chars, j);
+    const leaderEnds = prev?.ch === "." && c.ch !== "." && cur.chars.length >= 4 && cur.leader;
+    if (
+      !cur ||
+      gap > 0.9 * em ||
+      Math.abs(c.size - prev.size) > 0.5 ||
+      ruled ||
+      leader ||
+      leaderEnds
+    ) {
       // A lone list marker stays with the text after it.
       if (cur && cur.chars.length === 1 && BULLETS.includes(prev.ch) && !ruled) {
         cur.chars.push(c);
-        continue;
+        return;
       }
-      cur = { chars: [], y: row.y, size: c.size, spaces: row.spaces };
+      cur = { chars: [], y: row.y, size: c.size, spaces: row.spaces, leader: !!leader };
       segs.push(cur);
     }
     cur.chars.push(c);
-  }
+  });
   const out = segs.map(finishSegment);
+  // Typed rules ("-----", "=====" in Courier statements) and leaders stand alone: they
+  // never join a box, and a typed rule separates the boxes above and below it.
+  for (const s of out) s.standalone = s.leader || TYPED_RULE.test(s.text);
   // Field rows ("Date:  February 3, 2025"): the value after a label is its own paragraph.
   out.forEach((s, i) => (s.afterLabel = i > 0 && out[i - 1].text.endsWith(":")));
   return out;
@@ -109,18 +133,25 @@ export function groupPage(m, page, textPage) {
   const rules = pageRules(m, page);
   const lines = rowsOf(chars).flatMap((r) => splitRow(r, rules));
   lines.sort((a, b) => b.y - a.y || a.l - b.l);
+  const boxRules = [
+    ...rules.h,
+    ...lines
+      .filter((x) => !x.leader && x.standalone)
+      .map((x) => ({ l: x.l, r: x.r, y: (x.t + x.b) / 2 })),
+  ];
 
   const boxes = [];
   for (const line of lines) {
     const box = boxes.find((bx) => {
       const last = bx.lines.at(-1);
+      if (line.standalone || last.standalone) return false;
       if (Math.abs(last.size - line.size) > 0.5) return false;
       if (Math.abs(last.l - line.l) > 1.5) return false;
       const lead = last.y - line.y;
       if (lead <= 0) return false;
       if (bx.leading ? Math.abs(lead - bx.leading) > 0.15 * bx.leading : lead > 1.6 * line.size)
         return false;
-      const ruled = rules.h.some(
+      const ruled = boxRules.some(
         (h) =>
           h.y < last.b &&
           h.y > line.t &&
@@ -152,7 +183,9 @@ export function groupPage(m, page, textPage) {
         prev.r - prev.l < 0.6 * width ||
         prev.text.endsWith(":") ||
         line.afterLabel ||
-        BULLETS.includes(line.chars[0].ch);
+        BULLETS.includes(line.chars[0].ch) ||
+        AMOUNT.test(line.text) ||
+        AMOUNT.test(prev.text);
       if (brk) {
         para = { lines: [] };
         box.paragraphs.push(para);
@@ -186,8 +219,14 @@ export function scoreGrouping(boxes, expected) {
   const found = boxes.flatMap((b) =>
     b.paragraphs.map((p) => ({ text: norm(p.text), lines: p.lines.length })),
   );
+  // `box: true` (an address block): one box with these lines, however it splits them
+  // into paragraphs (each line of an address is its own hard break).
+  const foundBoxes = boxes.map((b) => ({
+    text: norm(b.paragraphs.map((p) => p.text).join(" ")),
+    lines: b.lines.length,
+  }));
   const results = expected.map((e) => {
-    const hit = found.find((f) => f.text === norm(e.text));
+    const hit = (e.box ? foundBoxes : found).find((f) => f.text === norm(e.text));
     return {
       kind: e.kind,
       text: e.text,

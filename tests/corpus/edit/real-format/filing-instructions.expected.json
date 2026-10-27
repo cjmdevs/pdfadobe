@@ -1,0 +1,93 @@
+[
+  {
+    "kind": "heading",
+    "text": "2024 Federal Filing Instructions",
+    "lines": 1
+  },
+  {
+    "kind": "line",
+    "text": "Prepared for Sample A. Testpayer",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Form",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Form 9999 Sample Individual Return of Fictitious Income",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Amount due",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "$1,234",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Due date",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "April 15, 2025",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Make check payable to",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "United States Treasury",
+    "lines": 1
+  },
+  {
+    "kind": "label",
+    "text": "Mail to",
+    "lines": 1
+  },
+  {
+    "kind": "address",
+    "text": "Internal Revenue Service P.O. Box 000000 Anytown, ST 00000-0000",
+    "lines": 3,
+    "box": true
+  },
+  {
+    "kind": "label",
+    "text": "Special instructions",
+    "lines": 1
+  },
+  {
+    "kind": "cell",
+    "text": "Write your identifying number, the tax year and the form number on your check. Do not staple the check to the voucher. Keep a copy of the return for at least three years.",
+    "lines": 3
+  },
+  {
+    "kind": "heading",
+    "text": "Before you mail the return",
+    "lines": 1
+  },
+  {
+    "kind": "list-item",
+    "text": "Sign and date the return. Both spouses must sign a joint return.",
+    "lines": 1
+  },
+  {
+    "kind": "list-item",
+    "text": "Attach Forms W-2 and any Form 1099 that shows federal income tax withheld to the front of the return.",
+    "lines": 1
+  },
+  {
+    "kind": "list-item",
+    "text": "Use the envelope provided, with enough postage. Returns mailed without postage are sent back to you.",
+    "lines": 1
+  }
+]

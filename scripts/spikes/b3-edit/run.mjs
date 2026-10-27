@@ -17,7 +17,7 @@ import { PDFArray, PDFDict, PDFDocument, PDFName, PDFRawStream, PDFRef } from "p
 import { Mem, loadPdfium, objBounds, openDoc, renderPage, saveDoc } from "./pdfium.mjs";
 import { groupPage, scoreGrouping } from "./group.mjs";
 import { retypeset } from "./retypeset.mjs";
-import { buildIndex, describeFile, fontFolders, matchFont, withFsType } from "./fonts.mjs";
+import { buildIndex, covers, describeFile, fontFolders, matchFont, withFsType } from "./fonts.mjs";
 
 const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -60,6 +60,80 @@ const EDITS = {
     a: (t) => t.replace("A missed payment", "A missed or late payment"),
     b: (t) => t + " Zero-balance quarters still need a voucher.",
   },
+};
+// Real-format samples (tests/corpus/edit/real-format/): non-embedded standard 14
+// fonts as tax software writes them. Several targets per file; `win` is the installed
+// font for case C. B edits use a letter outside WinAnsi, which the standard fonts
+// cannot show (so A-missing must refuse).
+const REAL_EDITS = {
+  "form-9999": [
+    {
+      key: "label",
+      target: "Taxable interest",
+      win: "Arial",
+      a: () => "Taxable interest and tax-exempt interest",
+      b: () => "Taxable interest (≥ $10)",
+    },
+    {
+      key: "data",
+      target: "SAMPLE A",
+      win: "Courier New",
+      a: () => "SAMPLE ANNE",
+      b: () => "ŁUKASZ A",
+    },
+  ],
+  "statement-courier": [
+    {
+      key: "row",
+      target: "SECOND SAMPLE CREDIT UNION",
+      win: "Courier New",
+      a: (t) => t.replace("SECOND SAMPLE", "SECOND SAMPLE FEDERAL"),
+      b: (t) => t.replace("CREDIT UNION", "CREDIT UNION (ŁÓDŹ)"),
+    },
+  ],
+  "transmittal-letter": [
+    {
+      key: "body",
+      target: "We have prepared",
+      win: "Times New Roman",
+      a: (t) => t.replace("filed electronically", "filed electronically today"),
+      b: (t) => t + " Totals are rounded → see the summary.",
+    },
+  ],
+  "filing-instructions": [
+    {
+      key: "cell",
+      target: "United States Treasury",
+      win: "Arial",
+      a: () => "United States Treasury (not the IRS)",
+      b: () => "United States Treasury → not the IRS",
+    },
+    {
+      key: "bullet",
+      target: "• Sign and date",
+      win: "Arial",
+      a: (t) => t.replace("Both spouses", "Both of you"),
+      b: (t) => t + " ≠ e-file",
+    },
+  ],
+  "k1-supplemental": [
+    {
+      key: "note",
+      target: "Box 20, Code Z",
+      win: "Arial",
+      a: (t) => t.replace("shown in the table below", "shown in the table that follows"),
+      b: (t) => t + " See Statement A ≤ page 2.",
+    },
+  ],
+  "print-driver-per-char": [
+    {
+      key: "para",
+      target: "Thank you for returning",
+      win: "Times New Roman",
+      a: (t) => t.replace("tax organizer", "2024 tax organizer"),
+      b: (t) => t + " Ref. Ł-07.",
+    },
+  ],
 };
 const WINDOWS_FONT = {
   "engagement-letter": "Times New Roman",
@@ -227,29 +301,38 @@ function qpdfCheck(path) {
   }
 }
 
-async function runCase(m, bytes, sampleName, caseId, choiceFor, editText, outDir) {
+async function runCase(m, bytes, sampleName, caseId, choiceFor, editText, outDir, edit) {
   const d = openDoc(m, bytes);
   const before = renderPage(m, d.doc, 0, 2);
   const page = m.FPDF_LoadPage(d.doc, 0);
   const tp = m.FPDFText_LoadPage(page);
   const { boxes, rules } = groupPage(m, page, tp);
-  const box = boxes.find((b) => b.paragraphs[0].text.startsWith(EDITS[sampleName].target));
+  const box = boxes.find((b) => b.paragraphs.some((p) => p.text.startsWith(edit.target)));
+  if (!box) throw new Error(`${sampleName}: no box starts with "${edit.target}"`);
   const text = editText(box.paragraphs.map((p) => p.text).join("\n"));
   const choice = choiceFor(box);
   const info = await retypeset(m, d.doc, page, tp, box, text, choice);
   m.FPDFText_ClosePage(tp);
   m.FPDF_ClosePage(page);
-  const result = { sample: sampleName, case: caseId, text, ...info };
+  const result = { sample: sampleName, target: edit.key ?? null, case: caseId, text, ...info };
   if (info.refused) {
     d.close();
+    // A file font may lack a letter too; the refusal is right when HarfBuzz agrees.
+    const lacks =
+      choice.kind === "file" &&
+      (info.missing?.length ?? 0) > 0 &&
+      !covers(choice.face, info.missing.join(""));
     const expectedRefusal =
-      caseId === "D-restricted" || (caseId === "A-missing" && (info.missing?.length ?? 0) > 0);
+      caseId === "D-restricted" ||
+      (caseId === "A-missing" && (info.missing?.length ?? 0) > 0) ||
+      lacks;
     return { ...result, pass: expectedRefusal };
   }
   const original = new Set((await fontReport(bytes)).map((f) => f.base));
   const out = await tagSubsets(saveDoc(m, d.doc), original);
   d.close();
-  const file = join(outDir, `${sampleName}.${caseId}.pdf`);
+  const stem = edit.key ? `${sampleName}.${edit.key}` : sampleName;
+  const file = join(outDir, `${stem}.${caseId}.pdf`);
   writeFileSync(file, out);
 
   // Checks
@@ -262,29 +345,32 @@ async function runCase(m, bytes, sampleName, caseId, choiceFor, editText, outDir
   m.FPDFText_ClosePage(tp2);
   m.FPDF_ClosePage(p2);
   d2.close();
+  // Where the new text landed: the regrouped box, or (when it ran into something and
+  // no longer groups on its own) the bounds of the objects written.
+  const landed = found ?? info.newBounds;
   const keep = {
-    l: box.l - 3,
-    r: Math.max(box.r, found?.r ?? 0) + 3,
-    t: box.t + 3,
-    b: Math.min(box.b, found?.b ?? box.b) - 3,
+    l: Math.min(box.l, landed.l) - 3,
+    r: Math.max(box.r, landed.r) + 3,
+    t: Math.max(box.t, landed.t) + 3,
+    b: Math.min(box.b, landed.b) - 3,
   };
   const crop = { l: keep.l - 20, r: keep.r + 20, t: keep.t + 20, b: keep.b - 20 };
-  writePng(join(outDir, `${sampleName}.before.png`), before, crop);
-  writePng(join(outDir, `${sampleName}.${caseId}.png`), after, crop);
+  writePng(join(outDir, `${stem}.before.png`), before, crop);
+  writePng(join(outDir, `${stem}.${caseId}.png`), after, crop);
   const pdfjs = norm(await pdfjsText(out));
   const tail = norm(text).split(" ").slice(-4).join(" ");
   // A grown box can run into the text below it or across a ruled line (form fields,
   // table cells). The spike does not move other content; it only reports the clash.
   const hits = (r, x) => x.l < r.r && x.r > r.l && x.b < r.t && x.t > r.b;
-  const overlaps = found
+  const overlaps = landed
     ? [
         ...boxes
-          .filter((b) => b !== box && hits(found, b))
+          .filter((b) => b !== box && hits(landed, b))
           .map((b) => `text: ${b.paragraphs[0].text.slice(0, 40)}`),
         ...rules.h
           .filter(
             (h) =>
-              hits(found, { l: h.l, r: h.r, b: h.y, t: h.y }) &&
+              hits(landed, { l: h.l, r: h.r, b: h.y, t: h.y }) &&
               !hits(box, { l: h.l, r: h.r, b: h.y, t: h.y }),
           )
           .map((h) => `rule at y=${h.y.toFixed(0)}`),
@@ -301,8 +387,13 @@ async function runCase(m, bytes, sampleName, caseId, choiceFor, editText, outDir
   };
   const c = result.checks;
   // `pass`: the edit itself worked. `looksRight`: and nothing it grew into was hit.
+  // A box that ran into other text may no longer group on its own; that is the clash
+  // the overflow warning is for, not a failed edit.
   result.pass =
-    c.qpdf !== "failed" && c.searchable && c.regrouped && c.changedPixelsOutsideBox === 0;
+    c.qpdf !== "failed" &&
+    c.searchable &&
+    (c.regrouped || overlaps.length > 0) &&
+    c.changedPixelsOutsideBox === 0;
   result.looksRight = result.pass && overlaps.length === 0;
   return result;
 }
@@ -402,9 +493,24 @@ function imageProbe(m, bytes, outDir) {
 }
 
 async function main() {
-  const sets = [{ name: "committed", dir: join(root, "tests", "corpus", "edit") }];
+  const spikeEdits = Object.fromEntries(
+    Object.entries(EDITS).map(([k, e]) => [k, [{ ...e, win: WINDOWS_FONT[k] }]]),
+  );
+  const sets = [];
+  if (!process.argv.includes("--real-only"))
+    sets.push({ name: "committed", dir: join(root, "tests", "corpus", "edit"), edits: spikeEdits });
   if (process.argv.includes("--local"))
-    sets.push({ name: "local", dir: join(root, "tests", "corpus", "edit", "local") });
+    sets.push({
+      name: "local",
+      dir: join(root, "tests", "corpus", "edit", "local"),
+      edits: spikeEdits,
+    });
+  if (process.argv.includes("--real") || process.argv.includes("--real-only"))
+    sets.push({
+      name: "real-format",
+      dir: join(root, "tests", "corpus", "edit", "real-format"),
+      edits: REAL_EDITS,
+    });
 
   // Firm folder stand-in: Liberation Sans (full fonts, so a partly embedded Liberation
   // font can be completed), Noto Sans (a "firm custom font" not installed in Windows)
@@ -435,7 +541,7 @@ async function main() {
   for (const set of sets) {
     const outDir = join(OUT, set.name);
     mkdirSync(outDir, { recursive: true });
-    for (const name of Object.keys(EDITS)) {
+    for (const name of Object.keys(set.edits)) {
       const bytes = readFileSync(join(set.dir, `${name}.pdf`));
       const expected = JSON.parse(readFileSync(join(set.dir, `${name}.expected.json`), "utf8"));
       const d = openDoc(m, bytes);
@@ -455,81 +561,92 @@ async function main() {
       m.FPDF_ClosePage(page);
       d.close();
 
-      const win = index.find((f) => f.source === "windows" && f.fullName === WINDOWS_FONT[name]);
-      const cases = [
-        ["A-present", () => ({ kind: "original" }), EDITS[name].a],
-        ["A-missing", () => ({ kind: "original" }), EDITS[name].b],
-        [
-          "B-completed",
-          (box) => {
-            const r = matchFont(index, box.lines[0].font);
-            return {
-              kind: "file",
-              face: r.exact ?? r.proposals[0],
-              label: r.exact ? "exact match" : "proposal",
-            };
-          },
-          EDITS[name].b,
-        ],
-        [
-          "B-proposed",
-          (box) => {
-            // The original font is not installed anywhere: hide every exact match.
-            const needs = EDITS[name].b(box.paragraphs.map((p) => p.text).join("\n"));
-            const line = box.lines[0];
-            const metrics = { sample: line.text, width: ((line.r - line.l) * 1000) / line.size };
-            let pool = index;
-            let r = matchFont(pool, line.font, metrics, needs);
-            while (r.exact) {
-              const fam = r.exact.family;
-              pool = pool.filter((f) => f.family !== fam);
-              r = matchFont(pool, line.font, metrics, needs);
-            }
-            const label = r.proposals
-              .map((p) => `${p.fullName} (width x${p.widthRatio?.toFixed(2)})`)
-              .join(" / ");
-            return { kind: "file", face: r.proposals[0], label: `proposal: ${label}` };
-          },
-          EDITS[name].b,
-        ],
-        [
-          "C-windows",
-          () => ({ kind: "file", face: win, label: `Windows: ${win.fullName}` }),
-          EDITS[name].b,
-        ],
-        [
-          "D-firm",
-          () => ({ kind: "file", face: firmFace, label: `firm: ${firmFace.fullName}` }),
-          EDITS[name].b,
-        ],
-        [
-          "D-restricted",
-          () => ({ kind: "file", face: restricted, label: "firm: fsType 0x0002 copy" }),
-          EDITS[name].b,
-        ],
-      ];
-      for (const [id, choiceFor, edit] of cases) {
-        const r = await runCase(m, bytes, name, id, choiceFor, edit, outDir);
-        r.set = set.name;
-        results.edits.push(r);
-        const c = r.checks;
-        console.log(
-          `${set.name.padEnd(9)} ${name.padEnd(18)} ${id.padEnd(13)} ${r.pass ? (r.looksRight === false ? "PASS*" : "PASS") : "FAIL"}`,
-          r.refused
-            ? `refused: ${r.refused}`
-            : `qpdf=${c.qpdf} search=${c.searchable} regroup=${c.regrouped} px=${c.changedPixelsOutsideBox}${c.overlaps.length ? ` overlaps=${c.overlaps.join("; ")}` : ""}`,
-        );
+      for (const edit of set.edits[name]) {
+        const win = index.find((f) => f.source === "windows" && f.fullName === edit.win);
+        const cases = [
+          ["A-present", () => ({ kind: "original" }), edit.a],
+          ["A-missing", () => ({ kind: "original" }), edit.b],
+          [
+            "B-completed",
+            (box) => {
+              const r = matchFont(index, box.lines[0].font);
+              return {
+                kind: "file",
+                face: r.exact ?? r.proposals[0],
+                label: r.twin
+                  ? `metric twin: ${r.exact.fullName}`
+                  : r.exact
+                    ? "exact match"
+                    : "proposal",
+              };
+            },
+            edit.b,
+          ],
+          [
+            "B-proposed",
+            (box) => {
+              // The original font is not installed anywhere: hide every exact match.
+              const needs = edit.b(box.paragraphs.map((p) => p.text).join("\n"));
+              const line = box.lines[0];
+              const metrics = { sample: line.text, width: ((line.r - line.l) * 1000) / line.size };
+              let pool = index;
+              let r = matchFont(pool, line.font, metrics, needs);
+              while (r.exact) {
+                const fam = r.exact.family;
+                pool = pool.filter((f) => f.family !== fam);
+                r = matchFont(pool, line.font, metrics, needs);
+              }
+              const label = r.proposals
+                .map((p) => `${p.fullName} (width x${p.widthRatio?.toFixed(2)})`)
+                .join(" / ");
+              return { kind: "file", face: r.proposals[0], label: `proposal: ${label}` };
+            },
+            edit.b,
+          ],
+          [
+            "C-windows",
+            () => ({ kind: "file", face: win, label: `Windows: ${win.fullName}` }),
+            edit.b,
+          ],
+          [
+            "D-firm",
+            () => ({ kind: "file", face: firmFace, label: `firm: ${firmFace.fullName}` }),
+            edit.b,
+          ],
+          [
+            "D-restricted",
+            () => ({ kind: "file", face: restricted, label: "firm: fsType 0x0002 copy" }),
+            edit.b,
+          ],
+        ];
+        for (const [id, choiceFor, editFn] of cases) {
+          const r = await runCase(m, bytes, name, id, choiceFor, editFn, outDir, edit);
+          r.set = set.name;
+          results.edits.push(r);
+          const c = r.checks;
+          console.log(
+            `${set.name.padEnd(11)} ${(edit.key ? `${name}.${edit.key}` : name).padEnd(28)} ${id.padEnd(13)} ${r.pass ? (r.looksRight === false ? "PASS*" : "PASS") : "FAIL"}`,
+            r.refused
+              ? `refused: ${r.refused}`
+              : `qpdf=${c.qpdf} search=${c.searchable} regroup=${c.regrouped} px=${c.changedPixelsOutsideBox}${c.overlaps.length ? ` overlaps=${c.overlaps.join("; ")}` : ""}`,
+          );
+        }
       }
     }
   }
-  results.images = imageProbe(
-    m,
-    readFileSync(join(sets[0].dir, "two-column.pdf")),
-    join(OUT, "committed"),
-  );
+  if (sets[0].name === "committed")
+    results.images = imageProbe(
+      m,
+      readFileSync(join(sets[0].dir, "two-column.pdf")),
+      join(OUT, "committed"),
+    );
   console.log("images:", JSON.stringify(results.images));
-  writeFileSync(join(OUT, "results.json"), JSON.stringify(results, null, 2));
-  console.log(`results: ${join(OUT, "results.json")}`);
+  const resultsFile = join(
+    OUT,
+    process.argv.includes("--real-only") ? "results-real.json" : "results.json",
+  );
+  writeFileSync(resultsFile, JSON.stringify(results, null, 2));
+  console.log(`results: ${resultsFile}`);
 }
 
 await main();
