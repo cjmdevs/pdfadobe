@@ -1351,3 +1351,65 @@ button.primary.danger-fill {
   overflow: hidden;
   z-index: 2;
 }
+.edit-format .format-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0;
+}
+.edit-format .format-row > span,
+.edit-format .format-row label > span {
+  min-width: 4.5em;
+  font-size: 12px;
+}
+.edit-format .format-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.edit-format select {
+  flex: 1;
+  min-width: 0;
+}
+.edit-format input[type="number"] {
+  width: 5em;
+}
+.format-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.format-toggle[aria-label="Italic"] {
+  font-style: italic;
+}
+.format-toggle[aria-label="Underline"] {
+  text-decoration: underline;
+}
+.format-toggle.pressed {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.format-toggle:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.format-warnings {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 12px;
+}
+.format-warnings .error {
+  color: #b3261e;
+}

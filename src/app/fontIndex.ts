@@ -14,7 +14,7 @@ export interface FontIndex {
   metrics(face: IndexedFace): Promise<FaceMetrics | null>;
 }
 
-let current: Promise<FontIndex> | null = null;
+let current: { firmPath: string | null; index: Promise<FontIndex> } | null = null;
 
 /** The index, built once per session (`refresh` rebuilds it, e.g. after a settings change). */
 export function fontIndex(
@@ -22,8 +22,10 @@ export function fontIndex(
   firmPath: string | null,
   refresh = false,
 ): Promise<FontIndex> {
-  if (!current || refresh) current = build(platform, firmPath);
-  return current;
+  // A different firm folder (Settings) rebuilds it too.
+  if (!current || refresh || current.firmPath !== firmPath)
+    current = { firmPath, index: build(platform, firmPath) };
+  return current.index;
 }
 
 async function build(platform: Platform, firmPath: string | null): Promise<FontIndex> {

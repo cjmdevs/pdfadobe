@@ -141,12 +141,25 @@ function fakeWindows(): AppWindows | null {
   };
 }
 
-/** Browser build: no font folders (Edit PDF uses the document's own fonts only). */
+/**
+ * Browser build: font folders exist only when a test serves them (`/__mockfonts-list`,
+ * `/__mockfonts/<path>`); otherwise there are none and Edit PDF offers the document's
+ * own and the standard fonts.
+ */
 let sessionFontIndex: FontIndexCache | null = null;
 const fonts: FontFolders = {
-  list: async () => ({ files: [], firm: "none" }),
-  read: async () => {
-    throw new PlatformError("unsupported", "font files need the Windows app");
+  async list(firm) {
+    const res = await fetch(`/__mockfonts-list?firm=${encodeURIComponent(firm ?? "")}`).catch(
+      () => null,
+    );
+    if (!res?.ok || !res.headers.get("content-type")?.includes("json"))
+      return { files: [], firm: "none" };
+    return (await res.json()) as Awaited<ReturnType<FontFolders["list"]>>;
+  },
+  read: async (path) => {
+    const res = await fetch(`/__mockfonts/${encodeURIComponent(path)}`).catch(() => null);
+    if (!res?.ok) throw new PlatformError("notFound", "font file not available");
+    return new Uint8Array(await res.arrayBuffer());
   },
   loadIndex: async () => sessionFontIndex,
   saveIndex: async (cache) => {

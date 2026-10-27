@@ -2,7 +2,7 @@
 // toolbar and the Escape command: the selection, the open text editor, Add Text mode,
 // and where to select again once an edited tab has reloaded.
 import { useSyncExternalStore } from "react";
-import type { EditTextBox } from "../../engine/edit";
+import type { EditPageInfo, EditTextBox, PlainStyle } from "../../engine/edit";
 
 /** Interaction mode while the Edit tool is on (EditLayer handles the pointer). */
 export const EDIT_MODE = "editPdf";
@@ -32,9 +32,22 @@ interface DocEditState {
   selection: EditSelection | null;
   session: EditSession | null;
   adding: boolean;
+  /** Style picked in the panel while the editor is open (applied when it commits). */
+  sessionStyle: Partial<PlainStyle> | null;
+  /** The font picker's choice for that style ("section:family"). */
+  sessionFontKey: string | null;
+  /** editPageInfo per page, as the layers last read it. */
+  pages: ReadonlyMap<number, EditPageInfo>;
 }
 
-const EMPTY: DocEditState = { selection: null, session: null, adding: false };
+const EMPTY: DocEditState = {
+  selection: null,
+  session: null,
+  adding: false,
+  sessionStyle: null,
+  sessionFontKey: null,
+  pages: new Map(),
+};
 const states = new Map<string, DocEditState>();
 const listeners = new Set<() => void>();
 
@@ -67,8 +80,18 @@ const committers = new Map<string, () => void>();
 
 export const editSession = {
   get: (documentId: string) => get(documentId).session,
-  open: (documentId: string, session: EditSession) => patch(documentId, { session, adding: false }),
-  close: (documentId: string) => patch(documentId, { session: null }),
+  open: (documentId: string, session: EditSession) =>
+    patch(documentId, { session, adding: false, sessionStyle: null, sessionFontKey: null }),
+  close: (documentId: string) =>
+    patch(documentId, { session: null, sessionStyle: null, sessionFontKey: null }),
+  style: (documentId: string) => get(documentId).sessionStyle,
+  setStyle(documentId: string, style: Partial<PlainStyle>, fontKey: string | null) {
+    const old = get(documentId);
+    patch(documentId, {
+      sessionStyle: { ...old.sessionStyle, ...style },
+      sessionFontKey: fontKey ?? old.sessionFontKey,
+    });
+  },
   registerCommit(documentId: string, fn: (() => void) | null) {
     if (fn) committers.set(documentId, fn);
     else committers.delete(documentId);
@@ -108,9 +131,48 @@ export const reselect = {
   },
 };
 
+export const pageInfos = {
+  get: (documentId: string, page: number) => get(documentId).pages.get(page) ?? null,
+  set(documentId: string, page: number, info: EditPageInfo) {
+    const pages = new Map(get(documentId).pages);
+    pages.set(page, info);
+    patch(documentId, { pages });
+  },
+};
+
+/**
+ * Style for new text (Add Text), kept for the session like Acrobat keeps the last
+ * one used. The font key is the picker's choice; the font itself is resolved when the
+ * text is written.
+ */
+let newText: { style: PlainStyle; fontKey: string } | null = null;
+const newTextListeners = new Set<() => void>();
+export const newTextStyle = {
+  get: () => newText,
+  set(v: { style: PlainStyle; fontKey: string }) {
+    newText = v;
+    for (const l of newTextListeners) l();
+  },
+};
+export function useNewTextStyle() {
+  return useSyncExternalStore(
+    (cb) => {
+      newTextListeners.add(cb);
+      return () => newTextListeners.delete(cb);
+    },
+    () => newText,
+  );
+}
+
 /** Leaving Edit mode: nothing stays selected, open or armed. */
 export function resetEdit(documentId: string) {
-  patch(documentId, { selection: null, session: null, adding: false });
+  patch(documentId, {
+    selection: null,
+    session: null,
+    adding: false,
+    sessionStyle: null,
+    sessionFontKey: null,
+  });
 }
 
 export function useEditSelection(documentId: string): EditSelection | null {
@@ -119,6 +181,20 @@ export function useEditSelection(documentId: string): EditSelection | null {
 
 export function useEditSession(documentId: string): EditSession | null {
   return useSyncExternalStore(subscribe, () => get(documentId).session);
+}
+
+export function useSessionStyle(documentId: string) {
+  return useSyncExternalStore(subscribe, () => get(documentId).sessionStyle);
+}
+
+export function useSessionFontKey(documentId: string) {
+  return useSyncExternalStore(subscribe, () => get(documentId).sessionFontKey);
+}
+
+export function usePageInfo(documentId: string, page: number | null): EditPageInfo | null {
+  return useSyncExternalStore(subscribe, () =>
+    page === null ? null : (get(documentId).pages.get(page) ?? null),
+  );
 }
 
 export function useAddingText(documentId: string): boolean {

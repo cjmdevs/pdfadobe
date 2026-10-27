@@ -7,9 +7,16 @@ import type { EditOutcome, PlainStyle } from "../../engine/edit";
 import { pageOp } from "../../app/pages";
 import { useWorkbench } from "../../app/workbench";
 import { cssFont } from "./cssFont";
-import { editSession, reselect, type EditSession } from "./editStore";
+import {
+  editSession,
+  newTextStyle,
+  reselect,
+  useNewTextStyle,
+  useSessionStyle,
+  type EditSession,
+} from "./editStore";
 
-/** New text from Add Text, until the properties panel (step U3) offers other fonts. */
+/** New text from Add Text until the panel picks another style (every reader has Helvetica). */
 export const NEW_TEXT_STYLE: PlainStyle = {
   font: { kind: "standard", name: "Helvetica" },
   size: 11,
@@ -39,14 +46,19 @@ export function TextEditor({
   const ref = useRef<HTMLTextAreaElement>(null);
   const initial = session.kind === "box" ? session.box.paragraphs.join("\n") : "";
   const committed = useRef(false);
+  // Style picked in the panel while typing; applied when the edit commits.
+  const override = useSessionStyle(documentId);
+  const newStyle = useNewTextStyle()?.style ?? NEW_TEXT_STYLE;
 
   const commit = () => {
     if (committed.current) return;
     committed.current = true;
+    const restyled = editSession.style(documentId);
     editSession.registerCommit(documentId, null);
     editSession.close(documentId);
     const text = ref.current?.value ?? initial;
-    if (text === initial || (session.kind === "new" && !text.trim())) return;
+    if ((text === initial && !restyled) || (session.kind === "new" && !text.trim())) return;
+    const style: PlainStyle = { ...(newTextStyle.get()?.style ?? NEW_TEXT_STYLE), ...restyled };
     const paragraphs = text.split("\n");
     let outcome: EditOutcome["result"] = null;
     const page = session.page;
@@ -62,6 +74,7 @@ export function TextEditor({
                   bytes,
                   { page, id: session.box.id, preview: session.box.preview },
                   paragraphs,
+                  paragraphs.map(() => restyled ?? undefined),
                 )
               : await pageOp(
                   "addText",
@@ -69,11 +82,11 @@ export function TextEditor({
                   page,
                   {
                     x: session.x,
-                    y: session.top - NEW_TEXT_STYLE.size * ASCENT,
+                    y: session.top - style.size * ASCENT,
                     width: session.width,
                   },
                   paragraphs,
-                  NEW_TEXT_STYLE,
+                  style,
                 );
           outcome = r.result;
           // Select the edited box again once the tab reloads (set before it does).
@@ -123,11 +136,18 @@ export function TextEditor({
     };
   }, [documentId]);
 
-  const style = session.kind === "box" ? session.box.styles[0] : undefined;
-  const size = style?.size ?? NEW_TEXT_STYLE.size;
-  const leading = style?.leading ?? NEW_TEXT_STYLE.leading;
-  const font = cssFont(style?.fontName ?? "Helvetica");
-  const c = style?.color ?? NEW_TEXT_STYLE.color;
+  // What the text looks like: the box's (or new text's) style with the panel's changes.
+  const own = session.kind === "box" ? session.box.styles[0] : undefined;
+  const base = own ?? { ...newStyle, fontName: fontNameOf(newStyle.font, "Helvetica") };
+  const style = {
+    ...base,
+    ...override,
+    fontName: override?.font ? fontNameOf(override.font, base.fontName) : base.fontName,
+  };
+  const size = style.size;
+  const leading = style.leading;
+  const font = cssFont(style.fontName);
+  const c = style.color;
   const rect =
     session.kind === "box"
       ? session.box.rect
@@ -165,8 +185,11 @@ export function TextEditor({
       defaultValue={initial}
       spellCheck
       style={css}
-      onBlur={() => {
-        // Switching to another program keeps the editor open, like Acrobat.
+      onBlur={(e) => {
+        // Switching to another program keeps the editor open, like Acrobat, and so does
+        // using the Format panel (its changes apply to this text when it commits).
+        const to = e.relatedTarget;
+        if (to instanceof Element && to.closest("[data-testid=edit-panel]")) return;
         if (document.hasFocus()) commit();
       }}
       onKeyDown={(e) => {
@@ -186,4 +209,13 @@ export function TextEditor({
       onPointerDown={(e) => e.stopPropagation()}
     />
   );
+}
+
+/** A font's name for the browser preview: the file's PostScript name, the standard name. */
+function fontNameOf(font: PlainStyle["font"], own: string): string {
+  return font.kind === "file"
+    ? font.face.postscript || font.face.family
+    : font.kind === "standard"
+      ? font.name
+      : own;
 }

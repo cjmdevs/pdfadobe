@@ -18,6 +18,7 @@ import {
   addText,
   editSelection,
   editSession,
+  pageInfos,
   reselect,
   useAddingText,
   useEditSelection,
@@ -77,6 +78,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
       .then((i) => {
         if (!live) return;
         setInfo(i);
+        if (i) pageInfos.set(documentId, pageIndex, i);
         // An edit just reloaded the tab: select the box it wrote.
         const sid = wb.meta[documentId]?.storeId;
         const again = reselect.take(sid);
