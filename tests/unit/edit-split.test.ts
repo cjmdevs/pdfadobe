@@ -33,8 +33,11 @@ function removeBox(bytes: Uint8Array, target: string, split = true) {
         const g = groupPage(m, page);
         box = g.boxes.find((b) => b.paragraphs.some((p) => p.text.startsWith(target)));
         if (!box) throw new Error(`no box for ${target}`);
-        if (split) created = removeBoxText(m, doc.ptr, page, box, g.chars);
-        else
+        if (split) {
+          const removal = removeBoxText(m, doc.ptr, page, box, g.chars);
+          removal.commit();
+          created = removal.created;
+        } else
           for (const o of box.objects) {
             m.FPDFPage_RemoveObject(page, o);
             m.FPDFPageObj_Destroy(o);
@@ -120,5 +123,31 @@ describe("removeBoxText (shared text objects)", () => {
     expect(r.created).toBe(1);
     expect(r.changed).toBe(0);
     expect(r.texts).toEqual(["LEFT"]);
+  });
+
+  it("rolls back to the exact original page", () => {
+    const bytes = new Uint8Array(readFileSync(join(REAL, "statement-courier.pdf")));
+    const doc = RawDoc.open(m, bytes);
+    try {
+      const before = renderPage(m, doc);
+      doc.withPage(
+        0,
+        (page) => {
+          const g = groupPage(m, page);
+          const box = g.boxes.find((b) => b.paragraphs.some((p) => p.text.startsWith("SECOND")))!;
+          removeBoxText(m, doc.ptr, page, box, g.chars).rollback();
+        },
+        true,
+      );
+      const again = RawDoc.open(m, doc.save());
+      try {
+        const keepNothing = { l: 0, r: 0, b: 0, t: 0 };
+        expect(changedOutside(before, renderPage(m, again), keepNothing)).toBe(0);
+      } finally {
+        again.close();
+      }
+    } finally {
+      doc.close();
+    }
   });
 });

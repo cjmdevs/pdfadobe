@@ -9,6 +9,19 @@ export type { Line, Paragraph, TextBox } from "./group";
 export { groupChars } from "./group";
 export { removeBoxText } from "./split";
 export { EditRefused } from "./refusal";
+export { retypeset, detectStyle, findOverflow, underlinesOf } from "./retypeset";
+export type {
+  EditParagraph,
+  EditTarget,
+  FontChoice,
+  Overflow,
+  ParagraphStyle,
+  RetypesetDeps,
+  RetypesetResult,
+  Rgba,
+  WrittenFont,
+} from "./retypeset";
+export { layoutParagraph, wrapWords, type Align } from "./typeset";
 
 /** Text boxes of a loaded page. Object handles in them are valid while `page` is. */
 export function groupPage(

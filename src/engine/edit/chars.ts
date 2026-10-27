@@ -34,6 +34,8 @@ export interface HRule {
   l: number;
   r: number;
   y: number;
+  /** The path object, when the rule is one (typed rules have none). */
+  obj?: number;
 }
 
 export interface VRule {
@@ -123,7 +125,7 @@ export function pageRules(m: PdfiumModule, page: number): Rules {
     if (m.FPDFPageObj_GetType(obj) !== FPDF_PAGEOBJ_PATH) continue;
     const b = objBounds(m, obj);
     if (!b) continue;
-    if (b.t - b.b < 4 && b.r - b.l > 10) rules.h.push({ l: b.l, r: b.r, y: (b.t + b.b) / 2 });
+    if (b.t - b.b < 4 && b.r - b.l > 10) rules.h.push({ l: b.l, r: b.r, y: (b.t + b.b) / 2, obj });
     else if (b.r - b.l < 4 && b.t - b.b > 6) rules.v.push({ x: (b.l + b.r) / 2, b: b.b, t: b.t });
   }
   return rules;

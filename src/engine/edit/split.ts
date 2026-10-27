@@ -28,11 +28,21 @@ interface Run {
   text: string;
 }
 
+/** A removal in progress: the originals are off the page but not yet destroyed. */
+export interface Removal {
+  /** Objects written for the parts of shared objects outside the box. */
+  created: number[];
+  /** Makes it final (destroys the originals). */
+  commit(): void;
+  /** Puts the page back exactly as it was. */
+  rollback(): void;
+}
+
 /**
- * Removes `box`'s text objects from the page, first rewriting the parts of shared
- * objects that lie outside the box. Returns the objects created for those parts. The
- * page content still needs FPDFPage_GenerateContent. `chars` are the page's chars from
- * the text page `box` was grouped from. Throws EditRefused with the page unchanged.
+ * Takes `box`'s text objects off the page, first rewriting the parts of shared objects
+ * that lie outside the box. Call `commit` or `rollback` on the result. The page content
+ * still needs FPDFPage_GenerateContent. `chars` are the page's chars from the text page
+ * `box` was grouped from. Throws EditRefused with the page unchanged.
  */
 export function removeBoxText(
   m: PdfiumModule,
@@ -40,7 +50,7 @@ export function removeBoxText(
   page: number,
   box: TextBox,
   chars: PageChar[],
-): number[] {
+): Removal {
   const inBox = new Set(box.lines.flatMap((l) => l.chars.map((c) => c.index)));
   const runs = box.objects.flatMap((obj) => leftoverRuns(obj, chars, inBox));
   // Drawing order of the originals, so a refusal can put them back where they were.
@@ -80,14 +90,29 @@ export function removeBoxText(
         );
       }
     }
-    for (const o of originals) m.FPDFPageObj_Destroy(o.obj);
-    return created;
+    return {
+      created,
+      commit: () => {
+        for (const o of originals) m.FPDFPageObj_Destroy(o.obj);
+      },
+      rollback: () => restore(m, page, created, originals),
+    };
   } catch (e) {
-    for (const o of created) removeObject(m, page, o);
-    for (const o of originals) {
-      if (objectIndex(m, page, o.obj) < 0) m.FPDFPage_InsertObjectAtIndex(page, o.obj, o.index);
-    }
+    restore(m, page, created, originals);
     throw e;
+  }
+}
+
+function restore(
+  m: PdfiumModule,
+  page: number,
+  created: number[],
+  originals: { obj: number; index: number }[],
+): void {
+  for (const o of created) removeObject(m, page, o);
+  // Ascending drawing order puts each one back at its old index.
+  for (const o of originals) {
+    if (objectIndex(m, page, o.obj) < 0) m.FPDFPage_InsertObjectAtIndex(page, o.obj, o.index);
   }
 }
 
