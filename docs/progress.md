@@ -10,8 +10,7 @@ Keep it under 2 pages; summarize older phases.
   offline via `\\localhost`). On the build PC:
   `npm run check` (296 Vitest + 6 expected-fail redaction pins, 44 Rust, license-check),
   117/117 Playwright. Stage 2 (mixed styles, spacing, kerning, push-down) not started.
-- **Phase 3 (markup) built 2026-10-23; still waiting for the owner's Windows + Acrobat
-  check** (`docs/testing/phase-03-test-guide.md`), then tag `phase-03-done`.
+- Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.
 
@@ -89,8 +88,7 @@ annotation/history 2.15.1 (MIT), pdf-lib 1.17.1 runtime (MIT), fast-xml-parser 5
   outlines can't be embedded; a refusal after a font was loaded can leave an unused
   font object; overlap tests use baseline geometry; no resize/rotate cursors on handles.
   Firm share mirroring tested on local folders only: real share deferred to Phase 10.
-- **Phase 3 Acrobat check pending** (squiggly, cloud, callout, text-box borders; notes
-  without `/Popup`). XFDF does not carry stamp appearances.
+- Markup: XFDF does not carry stamp appearances (built-in stamps are redrawn on import).
 - Coordinates (XFDF, summary markers, Edit PDF) assume the crop box starts at 0,0.
 - After a page edit the tab reopens (zoom re-fit ~150 ms later; `idle()` in e2e).
 - Memory: ~4x file size per open scan, undo up to 400 MB per document.
