@@ -4,7 +4,8 @@
 
 import { findMatches } from "../redact/patterns";
 import type { PagesCtx } from "../pages";
-import { fillForm, type FieldValues, type FillReport } from "./fill";
+import { fillAndCalculate } from "./calcSetup";
+import type { FieldValues, FillReport } from "./fill";
 import { finishFormSave, type XfaPolicy } from "./xfa";
 
 export async function fillCopy(
@@ -13,7 +14,7 @@ export async function fillCopy(
   values: FieldValues,
   xfa: XfaPolicy,
 ): Promise<FillReport & { bytes: Uint8Array }> {
-  const r = await fillForm(ctx.engine, template, values);
+  const r = await fillAndCalculate(ctx, template, values);
   return { ...r, bytes: await finishFormSave(ctx, r.bytes, xfa) };
 }
 

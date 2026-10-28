@@ -513,3 +513,38 @@ test("an XFA-only form says it needs Acrobat and opens it there; hybrid forms do
   await waitForPainted(page, 0);
   await expect(page.getByTestId("xfa-notice")).toHaveCount(0);
 });
+
+test("calculated fields update as inputs are typed; numbers show their format", async ({
+  page,
+  mockfs,
+}) => {
+  const CALC = String.raw`C:\Corpus\calc-form.pdf`;
+  mockfs.entries[CALC] = { bytes: readFileSync(join(CORPUS, "calc-form.pdf")) };
+  await boot(page);
+  await openPaths(page, [CALC]);
+  await waitForPainted(page, 0);
+  await idle(page);
+  await page.getByRole("button", { name: "Fill Forms", exact: true }).click();
+  await expect(page.getByTestId("forms-acrobat-only")).toContainText("Custom");
+  for (const [name, value] of [
+    ["Wages", "1000"],
+    ["Interest", "234.5"],
+    ["Deduction", "3000"],
+  ] as const) {
+    await field(page, name).click();
+    await page.keyboard.type(value);
+    await page.keyboard.press("Tab");
+  }
+  await expect(field(page, "Wages")).toHaveValue("1,000.00");
+  await expect(field(page, "Total")).toHaveValue("$1,234.50");
+  await expect(field(page, "Net")).toHaveValue("($1,765.50)");
+  const writes = mockfs.writes.length;
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => mockfs.writes.length, { timeout: 15_000 }).toBe(writes + 1);
+  // Saved like Acrobat: plain numbers in the values.
+  expect(await valuesOf(bytesAt(mockfs, CALC))).toMatchObject({
+    Wages: "1000",
+    Total: "1234.5",
+    Net: "-1765.5",
+  });
+});

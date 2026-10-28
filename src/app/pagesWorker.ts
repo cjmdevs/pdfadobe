@@ -35,6 +35,10 @@ import {
 import type { Placement } from "../engine/edit/images";
 import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
 import {
+  fillAndCalculate,
+  rawNumberValues,
+  readCalcSetup,
+  type CalcSetup,
   addField,
   addFields,
   detectFields,
@@ -44,7 +48,6 @@ import {
   type FieldProps,
   type NewField,
   fillCopy,
-  fillForm,
   flattenForm,
   formKind,
   formValues,
@@ -149,7 +152,10 @@ export const OPS = {
   detectFields: async (c: Ctx, b: Uint8Array, taken: string[]) =>
     detectFields(c.module, b, new Set(taken)),
   addFields: (c: Ctx, b: Uint8Array, specs: NewField[]) => addFields(c, b, specs),
-  fillForm: (c: Ctx, b: Uint8Array, values: FieldValues) => fillForm(c.engine, b, values),
+  // Import: fill, then Acrobat's calculations (engine/forms/calc.ts).
+  fillForm: (c: Ctx, b: Uint8Array, values: FieldValues) => fillAndCalculate(c, b, values),
+  calcSetup: (c: Ctx, b: Uint8Array) => readCalcSetup(c, b),
+  rawNumberValues: (c: Ctx, b: Uint8Array, setup: CalcSetup) => rawNumberValues(c, b, setup),
   fillCopy: (c: Ctx, b: Uint8Array, values: FieldValues, xfa: XfaPolicy) =>
     fillCopy(c, b, values, xfa),
   parseFormData: async (_c: Ctx, file: Uint8Array, format: DataFormat) =>

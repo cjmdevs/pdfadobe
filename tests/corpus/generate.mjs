@@ -868,6 +868,76 @@ async function flatForm() {
   return doc.save();
 }
 
+/**
+ * A form with Acrobat calculations (Phase 6): built-in sums/averages/products, a
+ * simplified-field-notation formula, a group sum over kids, number formats, a custom
+ * script we must not run, and the calculation order in /AcroForm /CO. Synthetic.
+ */
+export const CALC_FORM = {
+  inputs: ["Wages", "Interest", "Dividends"],
+  sumKids: ["Line.0", "Line.1", "Line.2"],
+};
+
+async function calcForm() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic calculated form");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  const form = doc.getForm();
+  const ctx = doc.context;
+  const js = (code) => ctx.obj({ S: PDFName.of("JavaScript"), JS: PDFString.of(code) });
+  const num2 = 'AFNumber_Format(2, 0, 0, 0, "", true);';
+  const money = 'AFNumber_Format(2, 0, 2, 0, "$", true);';
+  let y = 720;
+  const text = (name, { calc, format } = {}) => {
+    page.drawText(name, { x: 72, y: y + 5, size: 10, font });
+    const f = form.createTextField(name);
+    f.addToPage(page, { x: 220, y, width: 140, height: 18 });
+    const aa = {};
+    if (format) aa.F = js(format);
+    if (calc) aa.C = js(calc);
+    if (Object.keys(aa).length) f.acroField.dict.set(PDFName.of("AA"), ctx.obj(aa));
+    y -= 28;
+    return f;
+  };
+  for (const n of CALC_FORM.inputs) text(n, { format: num2 });
+  const total = text("Total", {
+    calc: 'AFSimple_Calculate("SUM", new Array ("Wages", "Interest", "Dividends"));',
+    format: money,
+  });
+  const avg = text("Average", {
+    calc: 'AFSimple_Calculate("AVG", "Wages, Interest, Dividends");',
+    format: num2,
+  });
+  text("Deduction", { format: num2 });
+  const net = text("Net", {
+    calc: '/** BVCALC Total - Deduction EVCALC **/ event.value = AFMakeNumber(getField("Total").value) - AFMakeNumber(getField("Deduction").value);',
+    format: money,
+  });
+  const half = text("Half", {
+    calc: "/** BVCALC Net / 2 EVCALC **/ event.value = 0;",
+    format: num2,
+  });
+  const custom = text("Custom", {
+    calc: 'event.value = this.getField("Wages").value > 0 ? "yes" : "no";',
+  });
+  // A group: "Line" with kids Line.0..2, summed by the group's name.
+  page.drawText("Lines", { x: 72, y: y + 5, size: 10, font });
+  CALC_FORM.sumKids.forEach((n, i) => {
+    form.createTextField(n).addToPage(page, { x: 220 + i * 60, y, width: 50, height: 18 });
+  });
+  y -= 28;
+  const lines = text("LinesTotal", {
+    calc: 'AFSimple_Calculate("SUM", new Array ("Line"));',
+    format: num2,
+  });
+  form.acroForm.dict.set(
+    PDFName.of("CO"),
+    ctx.obj([total, avg, net, half, custom, lines].map((f) => f.acroField.ref)),
+  );
+  return doc.save({ updateFieldAppearances: true });
+}
+
 async function xfaOnly() {
   const doc = await PDFDocument.create();
   stamp(doc, "Synthetic XFA-only form");
@@ -995,6 +1065,7 @@ export async function generateCorpus({ force = false } = {}) {
   await write("acroform.pdf", acroForm);
   await write("xfa-only.pdf", xfaOnly);
   await write("flat-form.pdf", flatForm);
+  await write("calc-form.pdf", calcForm);
   await write("scanned-image-only.pdf", async () =>
     scannedImageOnly(readFileSync(out("text-1p.pdf"))),
   );

@@ -57,3 +57,5 @@ export const FLAT_FORM_LAYOUT: {
   boxes: { label: string; y: number; x: number }[];
   notes: { label: string; x: number; y: number; w: number; h: number };
 };
+/** Field names in generated/calc-form.pdf (Phase 6 calculations). */
+export const CALC_FORM: { inputs: string[]; sumKids: string[] };

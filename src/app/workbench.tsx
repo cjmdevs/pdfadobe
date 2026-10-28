@@ -35,6 +35,7 @@ import {
 } from "../platform";
 import { flushFormWrites, takeFieldsDeleted } from "./formWrites";
 import { pageOp } from "./pages";
+import { calcs } from "../ui/forms/calcStore";
 import type { DocInfo } from "./docstore";
 import { FALLBACK_AUTHOR } from "../markup/config";
 import {
@@ -349,6 +350,10 @@ export function WorkbenchProvider({
         }
         let bytes: Uint8Array = new Uint8Array(await engine.saveAsCopy(doc).toPromise());
         if (takeFieldsDeleted(id)) bytes = (await pageOp("removeOrphanFields", bytes)).bytes;
+        // Number fields: plain numbers in /V under their formatted appearance (Acrobat's way).
+        const setup = calcs.get(id);
+        if (setup && Object.keys(setup.formats).length)
+          bytes = await pageOp("rawNumberValues", bytes, setup);
         setInfo(await queued(sid, () => platform.docs.push(sid, bytes, "Markup")));
       }
       for (const t of LIVE_TOPICS) h.purgeByMetadata(() => true, t);

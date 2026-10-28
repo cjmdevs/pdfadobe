@@ -9,3 +9,5 @@ export * from "./flatten";
 export * from "./reset";
 export * from "./xfa";
 export * from "./detect";
+export * from "./calc";
+export * from "./calcSetup";

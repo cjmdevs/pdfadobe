@@ -32,6 +32,7 @@ Created by `npm run corpus` (or automatically by Vitest's global setup). Require
 | `generated/workpaper-{a,b,c}.pdf` | `generate.mjs` (`WORKPAPERS`) | 3 pages each, the SAME field names (`client.name`, `tie.out`, `status` radio) with different values, a sticky note + square annotation, nested outline. Phase 2 merge/split tests |
 | `generated/signed-fake.pdf` | `generate.mjs` | Signature field with a /Sig value (zeroed contents, no certificate): viewers report it as signed. Tests the "signature will break" warning |
 | `generated/flat-form.pdf` | `generate.mjs` (`FLAT_FORM_LAYOUT`) | Flat intake form: underscore blanks, a ruled line, square boxes, an empty notes box. Phase 6 Detect fields |
+| `generated/calc-form.pdf` | `generate.mjs` (`CALC_FORM`) | Acrobat calculations: SUM/AVG built-ins, simplified field notation, a group sum over kids, number formats, a custom script, /CO order. Phase 6 calculations |
 | `generated/xfa-only.pdf` | `generate.mjs` | Dynamic XFA form: `/NeedsRendering true`, XFA template, no AcroForm widgets. Phase 6 "XFA-only" message |
 
 `000-xx-xxxx` is never issued by the SSA, so the fake SSN cannot belong to anyone.

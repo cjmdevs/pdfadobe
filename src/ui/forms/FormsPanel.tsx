@@ -5,7 +5,8 @@ import { useMemo, useRef, useState } from "react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
 import { useFormCapability } from "@embedpdf/plugin-form/react";
 import { useWorkbench } from "../../app/workbench";
-import { looksSensitive, type CsvTable } from "../../engine/forms";
+import { customCalcs, looksSensitive, type CsvTable } from "../../engine/forms";
+import { useCalcSetup } from "./calcStore";
 import { clearFields, resetForm } from "./formActions";
 import {
   exportFormData,
@@ -30,6 +31,8 @@ export default function FormsPanel({ documentId }: { documentId: string }) {
   const cancel = useRef(false);
   const missing = useMemo(() => fields.filter((f) => f.required && f.empty), [fields]);
   const fieldNames = useMemo(() => new Set(fields.map((f) => f.name)), [fields]);
+  const setup = useCalcSetup(documentId);
+  const acrobatOnly = setup ? customCalcs(setup) : [];
   const busy = wb.busy !== null;
 
   const go = (f: FieldRow) => {
@@ -60,6 +63,11 @@ export default function FormsPanel({ documentId }: { documentId: string }) {
   const chosen = fields.filter((f) => picked.has(f.name) && !f.readOnly).map((f) => f.name);
   return (
     <section className="forms-panel" aria-label="Fill Forms" data-testid="forms-panel">
+      {acrobatOnly.length > 0 && (
+        <p className="forms-note" data-testid="forms-acrobat-only">
+          Calculated in Acrobat only (custom script, not run here): {acrobatOnly.join(", ")}.
+        </p>
+      )}
       <div className="forms-row">
         <button type="button" onClick={() => setChecked(true)}>
           Check required fields

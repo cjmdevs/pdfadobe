@@ -13,6 +13,7 @@ import { RedactLayer } from "./redact/RedactLayer";
 import { FieldPlaceLayer } from "./forms/FieldPlaceLayer";
 import { FormMode } from "./forms/FormMode";
 import { XfaNotice } from "./forms/XfaNotice";
+import { FormCalc } from "./forms/FormCalc";
 import { FlyerLayer } from "./flyer/FlyerLayer";
 import { FlyerOverlay } from "./flyer/FlyerOverlay";
 import {
@@ -194,6 +195,7 @@ function Viewer({ documentId }: { documentId: string }) {
     <GlobalPointerProvider documentId={documentId} style={{ height: "100%" }}>
       <FormMode documentId={documentId} />
       <XfaNotice documentId={documentId} />
+      <FormCalc documentId={documentId} />
       <Viewport
         documentId={documentId}
         className={settings.formHighlight ? "viewport forms-highlight" : "viewport"}
