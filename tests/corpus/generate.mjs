@@ -17,8 +17,12 @@ import {
   PDFName,
   PDFString,
   StandardFonts,
+  TextRenderingMode,
   degrees,
+  popGraphicsState,
+  pushGraphicsState,
   rgb,
+  setTextRenderingMode,
 } from "pdf-lib";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -532,6 +536,208 @@ async function ssnFixture() {
   return doc.save({ useObjectStreams: false });
 }
 
+// ---- Leak suite corpus (Phase 5) --------------------------------------------
+// Each file hides FAKE_SSN somewhere a redaction can miss. tests/redaction/leak-suite
+// redacts it (search hits + `areas`) and checks every place with tools that share no
+// code with the redaction engine. Rects are PDF points (x, y, width, height).
+
+export const LEAK_FILES = [
+  {
+    file: "leak-scan.pdf",
+    what: "scanned page with an OCR text layer (page 1) and without one (page 2)",
+    areas: [{ page: 1, rect: { x: 194, y: 692, width: 110, height: 26 } }],
+    keep: "KEEP-SCAN-LINE",
+    sanitize: false,
+  },
+  {
+    file: "leak-image.pdf",
+    what: "transparent image (SMask) with the SSN in its left half, partly under the box",
+    areas: [{ page: 0, rect: { x: 95, y: 495, width: 100, height: 40 } }],
+    keep: "KEEP-IMG",
+    sanitize: false,
+    pixelsOnly: true,
+  },
+  {
+    file: "leak-objects.pdf",
+    what: "SSN in a form XObject, a link URI, a free-text comment, text drawn letter by letter",
+    areas: [],
+    keep: "KEEP-OBJ-LINE",
+    sanitize: false,
+  },
+  {
+    file: "leak-sanitize.pdf",
+    what: "SSN in an attachment, document JavaScript, private data, /Info and invisible text",
+    areas: [],
+    keep: "KEEP-SAN-LINE",
+    sanitize: true,
+  },
+  {
+    file: "leak-revisions.pdf",
+    what: "SSN removed in a later incremental revision, still in the earlier one",
+    areas: [],
+    keep: "KEEP-REV-LINE",
+    sanitize: false,
+  },
+];
+
+async function leakScan() {
+  // The "paper": label at x 72, SSN on its own at x 200 (the area box), keep line.
+  const paper = await PDFDocument.create();
+  const pf = await paper.embedFont(StandardFonts.Helvetica);
+  const pp = paper.addPage([612, 792]);
+  pp.drawText("Taxpayer SSN:", { x: 72, y: 700, size: 14, font: pf });
+  pp.drawText(FAKE_SSN, { x: 200, y: 700, size: 14, font: pf });
+  pp.drawText("KEEP-SCAN-LINE", { x: 72, y: 600, size: 14, font: pf });
+  const img = await rasterize(await paper.save(), 200 / 72);
+  const gray = Buffer.alloc(img.width * img.height);
+  for (let i = 0; i < gray.length; i++) gray[i] = img.data[i * 4];
+
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic scan for the redaction leak suite");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const image = await doc.embedPng(png(img.width, img.height, 0, gray));
+  for (const ocr of [true, false]) {
+    const page = doc.addPage([612, 792]);
+    page.drawImage(image, { x: 0, y: 0, width: 612, height: 792 });
+    if (!ocr) continue;
+    // An OCR layer: the same words, invisible, where the scan shows them.
+    page.pushOperators(pushGraphicsState(), setTextRenderingMode(TextRenderingMode.Invisible));
+    page.drawText("Taxpayer SSN:", { x: 72, y: 700, size: 14, font });
+    page.drawText(FAKE_SSN, { x: 200, y: 700, size: 14, font });
+    page.drawText("KEEP-SCAN-LINE", { x: 72, y: 600, size: 14, font });
+    page.pushOperators(popGraphicsState());
+  }
+  return doc.save();
+}
+
+async function leakImage() {
+  // 200 x 30 pt picture: SSN on the left, KEEP-IMG on the right; alpha from darkness.
+  const pic = await PDFDocument.create();
+  const pf = await pic.embedFont(StandardFonts.Helvetica);
+  const pp = pic.addPage([200, 30]);
+  pp.drawText(FAKE_SSN, { x: 4, y: 10, size: 14, font: pf });
+  pp.drawText("KEEP-IMG", { x: 120, y: 10, size: 14, font: pf });
+  const img = await rasterize(await pic.save(), 4);
+  const px = Buffer.from(img.data.buffer, img.data.byteOffset, img.data.byteLength);
+  for (let i = 0; i < px.length; i += 4) px[i + 3] = 255 - Math.min(px[i], px[i + 1], px[i + 2]);
+
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic image for the redaction leak suite");
+  const page = doc.addPage([612, 792]);
+  page.drawImage(await doc.embedPng(png(img.width, img.height, 6, px)), {
+    x: 100,
+    y: 500,
+    width: 200,
+    height: 30,
+  });
+  return doc.save();
+}
+
+async function leakObjects() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic objects for the redaction leak suite");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const src = await PDFDocument.create();
+  const sp = src.addPage([300, 30]);
+  sp.drawText(`Form SSN ${FAKE_SSN}`, {
+    x: 0,
+    y: 10,
+    size: 12,
+    font: await src.embedFont(StandardFonts.Helvetica),
+  });
+  const [form] = await doc.embedPdf(await src.save());
+  const page = doc.addPage([612, 792]);
+  page.drawPage(form, { x: 72, y: 690 });
+  // One text-show per letter (some PDF writers do this).
+  let x = 72;
+  for (const ch of `Split SSN ${FAKE_SSN}`) {
+    page.drawText(ch, { x, y: 650, size: 12, font });
+    x += font.widthOfTextAtSize(ch, 12);
+  }
+  page.drawText("KEEP-OBJ-LINE", { x: 72, y: 600, size: 12, font });
+  const ctx = doc.context;
+  page.node.addAnnot(
+    ctx.register(
+      ctx.obj({
+        Type: "Annot",
+        Subtype: "Link",
+        Rect: [72, 695, 250, 715],
+        Border: [0, 0, 0],
+        A: { S: "URI", URI: PDFString.of(`https://example.com/lookup?id=${FAKE_SSN}`) },
+      }),
+    ),
+  );
+  page.node.addAnnot(
+    ctx.register(
+      ctx.obj({
+        Type: "Annot",
+        Subtype: "FreeText",
+        Rect: [160, 645, 260, 665],
+        Contents: PDFString.of(`check ${FAKE_SSN}`),
+        DA: PDFString.of("0 0 0 rg /Helv 10 Tf"),
+        F: 4,
+      }),
+    ),
+  );
+  return doc.save();
+}
+
+async function leakSanitize() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic hidden data for the redaction leak suite");
+  doc.setSubject(`Taxpayer ${FAKE_SSN}`);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  page.drawText(`SSN ${FAKE_SSN}`, { x: 72, y: 700, size: 12, font });
+  page.drawText("KEEP-SAN-LINE", { x: 72, y: 600, size: 12, font });
+  page.pushOperators(pushGraphicsState(), setTextRenderingMode(TextRenderingMode.Invisible));
+  page.drawText(`hidden ${FAKE_SSN}`, { x: 72, y: 400, size: 12, font });
+  page.pushOperators(popGraphicsState());
+  await doc.attach(Buffer.from(`SSN ${FAKE_SSN}\n`), "notes.txt", { mimeType: "text/plain" });
+  doc.addJavaScript("lookup", `var ssn = "${FAKE_SSN}";`);
+  doc.catalog.set(
+    PDFName.of("PieceInfo"),
+    doc.context.obj({ Index: doc.context.obj({ Private: PDFString.of(FAKE_SSN) }) }),
+  );
+  return doc.save();
+}
+
+/** Revision 1 shows the SSN; revision 2 (appended, incremental) replaces the page text. */
+async function leakRevisions() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic revisions for the redaction leak suite");
+  const ctx = doc.context;
+  const fontRef = ctx.register(
+    ctx.obj({ Type: "Font", Subtype: "Type1", BaseFont: "Helvetica", Encoding: "WinAnsiEncoding" }),
+  );
+  const show = (y, t) => `BT /F1 12 Tf 72 ${y} Td (${t}) Tj ET`;
+  const contents = ctx.register(
+    ctx.stream(`${show(700, `SSN ${FAKE_SSN}`)}\n${show(600, "KEEP-REV-LINE")}`),
+  );
+  const page = doc.addPage([612, 792]);
+  page.node.set(PDFName.of("Contents"), contents);
+  page.node.set(PDFName.of("Resources"), ctx.obj({ Font: { F1: fontRef } }));
+  const rev1 = Buffer.from(await doc.save({ useObjectStreams: false }));
+
+  const text = rev1.toString("latin1");
+  const prev = Number(/startxref\s+(\d+)\s+%%EOF\s*$/.exec(text)[1]);
+  const trailer = text.slice(text.lastIndexOf("trailer"));
+  const size = /\/Size (\d+)/.exec(trailer)[1];
+  const root = /\/Root (\d+ \d+ R)/.exec(trailer)[1];
+  const info = /\/Info (\d+ \d+ R)/.exec(trailer)?.[1];
+  const data = show(600, "KEEP-REV-LINE");
+  const n = contents.objectNumber;
+  const obj = `${n} 0 obj\n<< /Length ${data.length} >>\nstream\n${data}\nendstream\nendobj\n`;
+  const at = rev1.length + 1;
+  const xref = at + obj.length;
+  const update =
+    `\n${obj}xref\n0 1\n0000000000 65535 f \n${n} 1\n` +
+    `${String(at).padStart(10, "0")} 00000 n \n` +
+    `trailer\n<< /Size ${size} /Root ${root}${info ? ` /Info ${info}` : ""} /Prev ${prev} >>\n` +
+    `startxref\n${xref}\n%%EOF\n`;
+  return Buffer.concat([rev1, Buffer.from(update, "latin1")]);
+}
+
 // ---- Workpapers for page organization (Phase 2) -----------------------------
 
 /**
@@ -704,6 +910,11 @@ export async function generateCorpus({ force = false } = {}) {
     scannedImageOnly(readFileSync(out("text-1p.pdf"))),
   );
   await write("ssn-redaction.pdf", ssnFixture);
+  await write("leak-scan.pdf", leakScan);
+  await write("leak-image.pdf", leakImage);
+  await write("leak-objects.pdf", leakObjects);
+  await write("leak-sanitize.pdf", leakSanitize);
+  await write("leak-revisions.pdf", leakRevisions);
   for (const w of WORKPAPERS) await write(w.file, () => workpaper(w));
   await write("signed-fake.pdf", signedFake);
   await write("stamp-reviewed.png", stampPng);

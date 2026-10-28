@@ -1,0 +1,32 @@
+# Redaction leak suite (Phase 5). A red run here means a redacted file could still
+# hold the fake SSN somewhere: do not ship. Also runs the rest of the Vitest suite.
+name: redaction
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vitest:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # qpdf.exe (pinned by SHA-256) into src-tauri/vendor/qpdf.
+      - run: node scripts/fetch-win-binaries.mjs
+      # Tesseract for the OCR check (Apache-2.0, test-only).
+      - run: choco install tesseract --no-progress -y
+      - run: echo "TESSERACT=C:\Program Files\Tesseract-OCR\tesseract.exe" >> $env:GITHUB_ENV
+      - run: npm run corpus
+      - run: npx vitest run tests/redaction
+      - run: npx vitest run

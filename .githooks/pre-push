@@ -1,0 +1,8 @@
+#!/bin/sh
+# Blocks a push when the redaction leak suite fails (Phase 5).
+# Enable once per clone:  git config core.hooksPath .githooks
+echo "pre-push: running the redaction leak suite (tests/redaction)..."
+npx vitest run tests/redaction || {
+  echo "pre-push: redaction leak suite FAILED. Push blocked."
+  exit 1
+}
