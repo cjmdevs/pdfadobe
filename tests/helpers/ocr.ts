@@ -31,7 +31,7 @@ export function tesseractBin(): string {
   );
 }
 
-/** Text Tesseract reads on each page, rendered at 300 dpi. */
+/** Text Tesseract reads on each page, rendered at 300 dpi (two layout modes joined). */
 export function ocrPages(m: PdfiumModule, bytes: Uint8Array): string[] {
   const bin = tesseractBin();
   const dir = mkdtempSync(join(tmpdir(), "pdfwb-ocr-"));
@@ -42,7 +42,11 @@ export function ocrPages(m: PdfiumModule, bytes: Uint8Array): string[] {
       const r = renderPage(m, doc, i, 300 / 72);
       const file = join(dir, `p${i}.png`);
       writeFileSync(file, png(r.width, r.height, 6, r.data));
-      out.push(execFileSync(bin, [file, "stdout", "--psm", "6"], { stdio: "pipe" }).toString());
+      // Two layouts: 6 (one block) reads ordinary pages; 11 (sparse text) still reads
+      // a line that sits next to a big black box, where 6 can return nothing.
+      const read = (psm: string) =>
+        execFileSync(bin, [file, "stdout", "--psm", psm], { stdio: "pipe" }).toString();
+      out.push([read("6"), read("11")].join("\n"));
     }
     return out;
   } finally {

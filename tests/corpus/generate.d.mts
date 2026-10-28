@@ -25,6 +25,8 @@ export const LEAK_FILES: {
   sanitize: boolean;
   /** The SSN exists only as image pixels (OCR is the only check that can see it). */
   pixelsOnly?: boolean;
+  /** The SSN is in the file but never drawn (an earlier revision): OCR cannot see it. */
+  notDrawn?: boolean;
 }[];
 export interface NavOutlineItem {
   title: string;

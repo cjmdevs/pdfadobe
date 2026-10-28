@@ -94,7 +94,7 @@ describe.each(FILES)("$file ($what)", (spec) => {
   it("OCR of every rendered page (Tesseract), and the keep line still reads", () => {
     const before = ocrPages(m, original).join("\n");
     const after = ocrPages(m, redacted).join("\n");
-    expect(before).toMatch(OCR_SSN);
+    if (!spec.notDrawn) expect(before).toMatch(OCR_SSN);
     expect(after).not.toMatch(OCR_SSN);
     expect(after.replace(/\s/g, "")).toContain(spec.keep);
   });

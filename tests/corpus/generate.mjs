@@ -577,6 +577,7 @@ export const LEAK_FILES = [
     areas: [],
     keep: "KEEP-REV-LINE",
     sanitize: false,
+    notDrawn: true,
   },
 ];
 
