@@ -39,12 +39,11 @@ test.describe("workspace", () => {
   }) => {
     await boot(page);
     const tools = page.getByRole("complementary", { name: "Tools pane" });
-    await expect(tools.getByRole("button", { name: "Redact" })).toHaveCount(0);
+    await expect(tools.getByRole("button", { name: "Fill Forms" })).toHaveCount(0);
     await tools.getByLabel("Show tools that are coming later").check();
-    const redact = tools.getByRole("button", { name: "Redact" });
-    await expect(redact).toBeDisabled();
-    await expect(redact).toContainText("Coming in a later phase");
-    await expect(tools.getByRole("button", { name: "Fill Forms" })).toBeDisabled();
+    const forms = tools.getByRole("button", { name: "Fill Forms" });
+    await expect(forms).toBeDisabled();
+    await expect(forms).toContainText("Coming in a later phase");
   });
 
   test("a tool opens its own toolbar above the page and closes again", async ({ page }) => {

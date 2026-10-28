@@ -37,7 +37,7 @@ describe("tool registry", () => {
 
   it("cleans saved toolbars: drops unknown, unbuilt and duplicate entries", () => {
     expect(
-      cleanQuickToolbar(["organize.extract", "nope.x", "organize.extract", "redact.mark", 3]),
+      cleanQuickToolbar(["organize.extract", "nope.x", "organize.extract", "forms.fill", 3]),
     ).toEqual(["organize.extract"]);
     expect(cleanQuickToolbar("organize.extract")).toBeNull();
   });

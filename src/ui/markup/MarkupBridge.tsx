@@ -1,5 +1,6 @@
 // One-time markup setup on top of EmbedPDF's plugins (Phase 3): the Cloud tool, the
 // eraser's interaction mode, and the author name on every tool. Renders nothing.
+import { REDACT_MODE } from "../redact/redactStore";
 import { useEffect } from "react";
 import { useAnnotationCapability, useAnnotationPlugin } from "@embedpdf/plugin-annotation/react";
 import { installCommitRaceGuard } from "../../markup/commitRaceGuard";
@@ -136,6 +137,8 @@ export function MarkupBridge({ author }: { author: string }) {
     im?.registerMode({ id: FLYER_MODE, scope: "page", exclusive: true, cursor: "copy" });
     // Edit PDF (B3): EditLayer handles the pointer while the Edit tool is open.
     im?.registerMode({ id: EDIT_MODE, scope: "page", exclusive: true, cursor: "default" });
+    // Redact (Phase 5): a drag draws a redaction box (RedactLayer).
+    im?.registerMode({ id: REDACT_MODE, scope: "page", exclusive: true, cursor: "crosshair" });
   }, [im]);
 
   // New markup is signed with the current author name.

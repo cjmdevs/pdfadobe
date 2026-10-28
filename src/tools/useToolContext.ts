@@ -18,6 +18,7 @@ import { TEXT_STAMPS } from "../engine/stamps";
 import { stampPlacement, textStamp } from "../ui/markup/stampPlacement";
 import { importXfdf } from "../ui/markup/importXfdf";
 import { useFlyerCommands } from "../ui/flyer/useFlyer";
+import { useRedactCommands } from "../ui/redact/useRedact";
 import { usePageActions } from "../app/pageActions";
 import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
@@ -46,6 +47,8 @@ export function useDocToolContext(documentId: string): ToolContext {
   const stored = m?.pageSelection;
   // Tickmarks are markup: same rule (encrypted documents have no bytes to save).
   const flyer = useFlyerCommands(documentId, !encrypted);
+  // Redaction reads the store's bytes too.
+  const redact = useRedactCommands(documentId, !encrypted);
   return useMemo(
     () => ({
       wb,
@@ -112,9 +115,11 @@ export function useDocToolContext(documentId: string): ToolContext {
             },
           },
       flyer,
+      redact,
     }),
     [
       flyer,
+      redact,
       wb,
       documentId,
       organizing,
@@ -151,6 +156,7 @@ export function useNoDocToolContext(): ToolContext {
       markup: null,
       edit: null,
       flyer: null,
+      redact: null,
     }),
     [wb],
   );

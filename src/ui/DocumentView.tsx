@@ -9,6 +9,7 @@ import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
 import { EraserLayer } from "./markup/EraserLayer";
 import { StampLayer } from "./markup/StampLayer";
 import { EditLayer } from "./edit/EditLayer";
+import { RedactLayer } from "./redact/RedactLayer";
 import { FlyerLayer } from "./flyer/FlyerLayer";
 import { FlyerOverlay } from "./flyer/FlyerOverlay";
 import {
@@ -264,6 +265,7 @@ function PageLayers({
         <StampLayer documentId={documentId} pageIndex={pageIndex} />
         <EditLayer documentId={documentId} pageIndex={pageIndex} />
         <FlyerLayer documentId={documentId} pageIndex={pageIndex} />
+        <RedactLayer documentId={documentId} pageIndex={pageIndex} />
       </PagePointerProvider>
     </Rotate>
   );

@@ -11,6 +11,18 @@ import type { QpdfJob, QpdfResult } from "../engine/pages";
 import { editPageInfo } from "../engine/edit/pageInfo";
 import { pageNumbers } from "../engine/flyer/numbers";
 import {
+  RedactionLeakError,
+  pageMarks,
+  redactDocument,
+  sanitizeDocument,
+  searchDocument,
+  type LeakHit,
+  type RedactRequest,
+  type SanitizeOptions,
+  type SanitizeReport,
+  type SearchSpec,
+} from "../engine/redact";
+import {
   addImageToPage,
   addTextBox,
   editBoxText,
@@ -90,6 +102,47 @@ export const OPS = {
     paragraphs: string[],
     style: PlainStyle,
   ) => addTextBox(c.module, b, page, at, paragraphs, style, { subset: await subsetter() }),
+  // Redaction (Phase 5). A leak is a result, not an error: errors cross the worker
+  // boundary as text only, and the UI needs the hits to say where.
+  redactSearch: async (c: Ctx, b: Uint8Array, spec: SearchSpec) =>
+    searchDocument(c.module, b, spec),
+  redactPageMarks: async (c: Ctx, b: Uint8Array, pages: number[]) => pageMarks(c.module, b, pages),
+  redactApply: async (
+    c: Ctx,
+    b: Uint8Array,
+    req: RedactRequest,
+  ): Promise<
+    | {
+        ok: true;
+        bytes: Uint8Array;
+        imagesRemoved: number;
+        pathsClipped: number;
+        pathsRemovedWhole: number;
+        annotationsRemoved: number;
+        fieldsRemoved: number;
+        sanitize: SanitizeReport;
+      }
+    | { ok: false; hits: LeakHit[] }
+  > => {
+    try {
+      const r = await redactDocument(c.module, c.qpdf, b, req);
+      return {
+        ok: true,
+        bytes: r.bytes,
+        imagesRemoved: r.content.imagesRemoved,
+        pathsClipped: r.content.pathsClipped,
+        pathsRemovedWhole: r.content.pathsRemovedWhole.length,
+        annotationsRemoved: r.objects.annotationsRemoved,
+        fieldsRemoved: r.objects.fieldsRemoved.length,
+        sanitize: r.sanitize,
+      };
+    } catch (e) {
+      if (e instanceof RedactionLeakError) return { ok: false, hits: e.hits };
+      throw e;
+    }
+  },
+  sanitize: async (c: Ctx, b: Uint8Array, opt: SanitizeOptions) =>
+    sanitizeDocument(c.module, c.qpdf, b, opt),
   /** Images (JPEG/PNG/TIFF files) -> one PDF, one page per image. */
   imagesToPdf: async (_c: Ctx, files: Uint8Array[]) =>
     P.imagesToPdf(files.flatMap((f) => P.imagePages(f))),

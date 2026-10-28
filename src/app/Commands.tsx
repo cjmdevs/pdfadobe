@@ -1,5 +1,6 @@
 // Runs keyboard shortcuts (src/app/shortcuts.ts) and toolbar commands against the
 // active document. Rendered once; holds no UI.
+import { REDACT_MODE } from "../ui/redact/redactStore";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import {
@@ -175,7 +176,8 @@ function DocCommands({
   const eraserOn =
     imState.activeMode === ERASER_MODE ||
     imState.activeMode === STAMP_MODE ||
-    imState.activeMode === FLYER_MODE;
+    imState.activeMode === FLYER_MODE ||
+    imState.activeMode === REDACT_MODE;
   const doc = useDocumentState(documentId)?.document ?? null;
   /** Resolves when the last Ctrl+A selection is in place. */
   const pendingSelect = useRef<Promise<unknown>>(Promise.resolve());

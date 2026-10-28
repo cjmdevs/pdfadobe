@@ -14,6 +14,8 @@ import { TICK_SECTIONS } from "../engine/flyer/tickmarks";
 import { pickLabel, type TickPick, type TickSectionPicks } from "../flyer/sections";
 import type { StampTemplate } from "../engine/flyer/userStamps";
 import type { ConnectorStyle } from "../flyer/connectors";
+import type { SanitizeOptions } from "../engine/redact/sanitize";
+import { ALL_SANITIZE } from "../engine/redact/sanitize";
 /** File commands load the platform layer; imported on use so this list stays Node-safe. */
 const markupFiles = () => import("../ui/markup/markupFiles");
 const flyerFiles = () => import("../ui/flyer/flyerFiles");
@@ -35,6 +37,26 @@ export interface ToolContext {
   edit: EditCommands | null;
   /** Workpaper Tools (Phase 4); null without a document that takes markup. */
   flyer: FlyerCommands | null;
+  /** Redact (Phase 5); null without a document that takes markup. */
+  redact: RedactCommands | null;
+}
+
+export interface RedactCommands {
+  /** "Draw box" is on: a drag on a page makes a redaction mark. */
+  drawing: boolean;
+  setDrawing(on: boolean): void;
+  /** Marks the selected text. */
+  markSelection(): void;
+  /** Marks whole pages (0-based). */
+  markPages(pages: number[]): void;
+  /** Marks in the document, and how many of them are accepted. */
+  marks: number;
+  accepted: number;
+  /** Apply or Sanitize is running. */
+  working: boolean;
+  /** Applies the accepted marks into a new file, optionally with Sanitize. */
+  apply(sanitize?: SanitizeOptions | null): Promise<void>;
+  sanitize(opt: SanitizeOptions): Promise<void>;
 }
 
 export interface FlyerCommands {
@@ -684,7 +706,65 @@ export const TOOLS: ToolDef[] = [
       },
     ],
   },
-  planned("redact", "Redact", "redact", "#d0336c", "Permanently remove sensitive content", []),
+  {
+    id: "redact",
+    name: "Redact",
+    icon: "redact",
+    color: "#d0336c",
+    description: "Permanently remove sensitive content",
+    comingIn: null,
+    open: "toolbar",
+    panel: () => import("../ui/redact/RedactPanel"),
+    toolbar: [
+      {
+        id: "drawBox",
+        label: "Mark an area: drag a box over what to remove",
+        caption: "Draw Box",
+        icon: "redact",
+        run: (c) => {
+          if (!c.documentId || !c.redact) return;
+          if (c.wb.meta[c.documentId]?.activeTool !== "redact")
+            c.wb.setActiveTool(c.documentId, "redact");
+          c.redact.setDrawing(!c.redact.drawing);
+        },
+        pressed: (c) => c.redact?.drawing ?? false,
+        enabled: (c) => c.redact !== null,
+      },
+      {
+        id: "markSelection",
+        label: "Mark the selected text for redaction",
+        caption: "Mark Text",
+        icon: "text",
+        run: (c) => c.redact?.markSelection(),
+        enabled: (c) => c.redact !== null,
+      },
+      {
+        id: "markPages",
+        label: "Mark the current page (or the pages selected in Organize) for redaction",
+        caption: "Mark Page",
+        icon: "pages",
+        run: (c) => c.redact?.markPages(c.pages),
+        enabled: (c) => c.redact !== null && c.pages.length > 0,
+      },
+      {
+        id: "apply",
+        label: "Apply the accepted marks: writes <name>_Redacted.pdf, the original is unchanged",
+        caption: "Apply",
+        icon: "save",
+        run: (c) => void c.redact?.apply(),
+        enabled: (c) => (c.redact?.accepted ?? 0) > 0 && !c.redact?.working,
+      },
+      {
+        id: "sanitize",
+        label:
+          "Sanitize Document: remove metadata, attachments, scripts and hidden data into a new file",
+        caption: "Sanitize",
+        icon: "protect",
+        run: (c) => void c.redact?.sanitize(ALL_SANITIZE),
+        enabled: (c) => c.redact !== null && !c.redact.working,
+      },
+    ],
+  },
   planned("forms", "Fill Forms", "form", "#8a4fd8", "Fill and create form fields", []),
   planned("ocr", "Scan & OCR", "ocr", "#2e9e44", "Make scanned pages searchable", []),
   planned("protect", "Protect", "protect", "#3a6fd8", "Passwords and permissions", []),
