@@ -32,7 +32,9 @@ beforeAll(async () => {
 });
 
 async function open(bytes: Uint8Array): Promise<PdfDocumentObject> {
-  return engine.openDocumentBuffer({ id: crypto.randomUUID(), content: toArrayBuffer(bytes) }).toPromise();
+  return engine
+    .openDocumentBuffer({ id: crypto.randomUUID(), content: toArrayBuffer(bytes) })
+    .toPromise();
 }
 
 async function widgets(doc: PdfDocumentObject, page = 0): Promise<PdfWidgetAnnoObject[]> {

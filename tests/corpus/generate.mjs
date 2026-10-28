@@ -807,6 +807,35 @@ async function signedFake() {
   return doc.save();
 }
 
+/**
+ * A dynamic XFA form (XFA-only): /NeedsRendering true, an XFA template, no AcroForm
+ * widgets. The page shows only the placeholder a non-XFA viewer would see. Synthetic.
+ */
+async function xfaOnly() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic XFA-only form");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  page.drawText("This form needs an XFA viewer to display.", { x: 72, y: 700, size: 14, font });
+  const xdp =
+    '<?xml version="1.0" encoding="UTF-8"?>' +
+    '<xdp:xdp xmlns:xdp="http://ns.adobe.com/xdp/">' +
+    '<template xmlns="http://www.xfa.org/schema/xfa-template/3.3/">' +
+    '<subform name="form1" layout="tb"><pageSet><pageArea name="Page1">' +
+    '<contentArea x="0.25in" y="0.25in" w="8in" h="10.5in"/>' +
+    '<medium stock="letter" short="8.5in" long="11in"/></pageArea></pageSet>' +
+    '<field name="SyntheticName" w="3in" h="9mm"><ui><textEdit/></ui></field>' +
+    "</subform></template>" +
+    '<xfa:datasets xmlns:xfa="http://www.xfa.org/schema/xfa-data/1.0/">' +
+    "<xfa:data><form1><SyntheticName/></form1></xfa:data></xfa:datasets>" +
+    "</xdp:xdp>";
+  const ctx = doc.context;
+  const xfa = ctx.register(ctx.flateStream(xdp));
+  doc.catalog.set(PDFName.of("AcroForm"), ctx.obj({ Fields: [], XFA: xfa }));
+  doc.catalog.set(PDFName.of("NeedsRendering"), ctx.obj(true));
+  return doc.save();
+}
+
 async function workpaper(spec) {
   const doc = await PDFDocument.create();
   stamp(doc, `Synthetic workpaper ${spec.id}`);
@@ -907,6 +936,7 @@ export async function generateCorpus({ force = false } = {}) {
   await write("navigation.pdf", navigation);
   await write("corrupt.pdf", async () => corrupt());
   await write("acroform.pdf", acroForm);
+  await write("xfa-only.pdf", xfaOnly);
   await write("scanned-image-only.pdf", async () =>
     scannedImageOnly(readFileSync(out("text-1p.pdf"))),
   );
