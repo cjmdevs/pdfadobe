@@ -15,7 +15,8 @@ export type JDict = { [key: string]: JVal };
 
 interface JObject {
   value?: JVal;
-  stream?: { dict: JDict };
+  /** `data`: base64 stream content, only on streams this edit creates or replaces. */
+  stream?: { dict: JDict; data?: string };
 }
 
 const REF = /^\d+ \d+ R$/;
@@ -87,6 +88,26 @@ export class PdfObjects {
       if (!isDict(value)) throw new Error("a stream's dictionary must stay a dictionary");
       this.changed.set(key, { stream: { dict: value } });
     } else this.changed.set(key, { value });
+  }
+
+  private nextId = 0;
+
+  /** A fresh object reference for an object this edit adds. */
+  newRef(): string {
+    if (!this.nextId) {
+      const h = isDict(this.header) ? this.header : {};
+      const max = typeof h["maxobjectid"] === "number" ? h["maxobjectid"] : 0;
+      const used = this.refs().map((r) => Number(r.split(" ")[0]));
+      this.nextId = Math.max(max, ...used) + 1;
+    }
+    return `${this.nextId++} 0 R`;
+  }
+
+  /** Writes a stream object (new or replaced) with `data` as its content. */
+  setStream(ref: string, dict: JDict, data: Uint8Array): void {
+    let bin = "";
+    for (const b of data) bin += String.fromCharCode(b);
+    this.changed.set(`obj:${ref}`, { stream: { dict, data: btoa(bin) } });
   }
 
   /** Every object reference. */

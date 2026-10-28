@@ -19,3 +19,16 @@ export async function flushFormWrites(): Promise<void> {
   if (active instanceof HTMLElement && active.closest("[data-form-field]")) active.blur();
   while (running.size) await Promise.all([...running]);
 }
+
+// Tabs where a form field was deleted in Prepare Form: their next push to the store
+// also removes the deleted fields from the field tree (engine removeOrphanFields).
+const deleted = new Set<string>();
+
+export function markFieldsDeleted(documentId: string): void {
+  deleted.add(documentId);
+}
+
+/** True once per marking: the caller cleans up now. */
+export function takeFieldsDeleted(documentId: string): boolean {
+  return deleted.delete(documentId);
+}

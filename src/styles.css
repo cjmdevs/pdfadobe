@@ -1983,3 +1983,24 @@ button.primary.danger-fill {
 .forms-csv select {
   max-width: 100%;
 }
+
+/* Prepare Form (Phase 6): the outline of the field about to be placed. */
+.field-place-outline {
+  position: absolute;
+  border: 1px dashed var(--accent, #2563eb);
+  background: rgba(37, 99, 235, 0.08);
+  pointer-events: none;
+}
+.forms-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.forms-props {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.forms-panel button[aria-pressed="true"] {
+  outline: 2px solid var(--accent, #2563eb);
+}

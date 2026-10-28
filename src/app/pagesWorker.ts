@@ -35,6 +35,12 @@ import {
 import type { Placement } from "../engine/edit/images";
 import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
 import {
+  addField,
+  readFieldProps,
+  removeOrphanFields,
+  setFieldProps,
+  type FieldProps,
+  type NewField,
   fillCopy,
   fillForm,
   flattenForm,
@@ -130,6 +136,12 @@ export const OPS = {
   },
   formValues: (c: Ctx, b: Uint8Array) => formValues(c.engine, b),
   flattenForm: (c: Ctx, b: Uint8Array) => flattenForm(c, b),
+  // Prepare Form.
+  addField: (c: Ctx, b: Uint8Array, spec: NewField) => addField(c, b, spec),
+  readFieldProps: (c: Ctx, b: Uint8Array, name: string) => readFieldProps(c, b, name),
+  setFieldProps: (c: Ctx, b: Uint8Array, name: string, props: Partial<FieldProps>) =>
+    setFieldProps(c, b, name, props),
+  removeOrphanFields: (c: Ctx, b: Uint8Array) => removeOrphanFields(c, b),
   fillForm: (c: Ctx, b: Uint8Array, values: FieldValues) => fillForm(c.engine, b, values),
   fillCopy: (c: Ctx, b: Uint8Array, values: FieldValues, xfa: XfaPolicy) =>
     fillCopy(c, b, values, xfa),

@@ -211,7 +211,7 @@ function fieldName(m: PdfiumModule, form: number, annot: number): string {
   }
 }
 
-interface Terminal {
+export interface Terminal {
   ref: string;
   /** Default value as text (a button's state name), inherited from ancestors. */
   dv: string | null;
@@ -219,7 +219,7 @@ interface Terminal {
 }
 
 /** Terminal fields by fully qualified name: the field object and its widget objects. */
-function terminalFields(objs: PdfObjects): Map<string, Terminal> {
+export function terminalFields(objs: PdfObjects): Map<string, Terminal> {
   const out = new Map<string, Terminal>();
   const form = objs.dict(objs.catalog["/AcroForm"]);
   const seen = new Set<string>();

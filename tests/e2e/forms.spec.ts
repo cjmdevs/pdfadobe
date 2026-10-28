@@ -7,6 +7,7 @@ import { PDFDocument } from "pdf-lib";
 import { parseFdf } from "../../src/engine/forms/data";
 import {
   CORPUS,
+  P,
   boot,
   bytesAt,
   expect,
@@ -340,4 +341,109 @@ test("Flatten to new file: the typed value is page text, no fields, original unc
   expect(mockfs.writes.filter((w) => w.path === FORM)).toEqual([]);
   await waitForPainted(page, 0);
   await page.screenshot({ path: join(CORPUS, "..", "out", "forms", "flattened-tab.png") });
+});
+
+test.describe("Prepare Form", () => {
+  test.beforeEach(async ({ page }) => {
+    await boot(page);
+    await openPaths(page, [P.text]);
+    await waitForPainted(page, 0);
+    await idle(page);
+    await page.getByRole("button", { name: "Prepare Form", exact: true }).click();
+  });
+  const panel = (page: Page) => page.getByTestId("prepare-panel");
+  const save = async (page: Page, mockfs: MockFs) => {
+    const writes = mockfs.writes.length;
+    await page.keyboard.press("Control+s");
+    await expect.poll(() => mockfs.writes.length, { timeout: 15_000 }).toBe(writes + 1);
+    return new Uint8Array(bytesAt(mockfs, P.text));
+  };
+  async function fieldsIn(bytes: Uint8Array) {
+    const task = getDocument({ data: bytes.slice() });
+    const pdf = await task.promise;
+    const objs = (await pdf.getFieldObjects()) as Map<
+      string,
+      { type: string; exportValues?: string; charLimit?: number; required?: boolean }[]
+    > | null;
+    const out = new Map([...(objs ?? [])].map(([k, v]) => [k, v.filter((x) => x.type)]));
+    await task.destroy();
+    return out;
+  }
+  const place = async (page: Page, label: string, x: number, y: number) => {
+    await panel(page).getByRole("button", { name: label, exact: true }).click();
+    await clickAt(page, x, y);
+    await idle(page);
+  };
+
+  test("add a field of each kind; radio buttons share a group", async ({ page, mockfs }) => {
+    await place(page, "Text", 400, 700);
+    await place(page, "Check box", 400, 650);
+    await place(page, "Radio button", 400, 600);
+    await place(page, "Radio button", 440, 600);
+    await place(page, "Dropdown", 400, 550);
+    await place(page, "Date", 400, 500);
+    await place(page, "Signature", 400, 440);
+    const f = await fieldsIn(await save(page, mockfs));
+    expect([...f.keys()].sort()).toEqual(
+      ["Check Box1", "Date1", "Dropdown1", "Group1", "Signature1", "Text1"].sort(),
+    );
+    expect(f.get("Group1")?.map((w) => w.exportValues)).toEqual(["Choice1", "Choice2"]);
+  });
+
+  test("properties: rename, required, max length; Esc cancels placing", async ({
+    page,
+    mockfs,
+  }) => {
+    await place(page, "Text", 400, 700);
+    await panel(page).getByRole("button", { name: "Check box", exact: true }).click();
+    await page.keyboard.press("Escape");
+    await expect(
+      panel(page).getByRole("button", { name: "Check box", exact: true }),
+    ).toHaveAttribute("aria-pressed", "false");
+    // Select the new field and set it up.
+    await clickAt(page, 400, 700);
+    const props = page.getByTestId("field-props");
+    await expect(props).toBeVisible();
+    const name = props.getByRole("textbox", { name: "Name" });
+    await name.fill("client.name");
+    await name.press("Enter");
+    await props.getByRole("checkbox", { name: "Required" }).check();
+    await props.getByRole("spinbutton", { name: "Max length" }).fill("12");
+    await props.getByRole("button", { name: "Apply" }).click();
+    await idle(page);
+    const bytes = await save(page, mockfs);
+    const f = await fieldsIn(bytes);
+    expect([...f.keys()]).toEqual(["client.name"]);
+    expect(f.get("client.name")?.[0]).toMatchObject({ charLimit: 12 });
+    // Required is field flag bit 2 (pdf.js keeps it in the annotation data).
+    const task = getDocument({ data: bytes.slice() });
+    const annots = (await (await (await task.promise).getPage(1)).getAnnotations()) as {
+      fieldName?: string;
+      fieldFlags?: number;
+    }[];
+    await task.destroy();
+    expect((annots.find((a) => a.fieldName === "client.name")?.fieldFlags ?? 0) & 2).toBe(2);
+  });
+
+  test("a deleted field leaves no trace in the saved file", async ({ page, mockfs }) => {
+    await place(page, "Text", 400, 700);
+    await place(page, "Check box", 400, 650);
+    await clickAt(page, 400, 700);
+    await expect(page.getByTestId("field-props")).toBeVisible();
+    await page.keyboard.press("Delete");
+    const bytes = await save(page, mockfs);
+    expect([...(await fieldsIn(bytes)).keys()]).toEqual(["Check Box1"]);
+    const qpdfLike = Buffer.from(bytes).toString("latin1");
+    expect(qpdfLike).not.toContain("(Text1)");
+  });
+
+  test("a new field can be filled once Prepare Form is closed", async ({ page, mockfs }) => {
+    await place(page, "Text", 400, 700);
+    await page.getByRole("button", { name: "Close Prepare Form" }).click();
+    await field(page, "Text1").click();
+    await page.keyboard.type("Typed in a new field");
+    await page.keyboard.press("Tab");
+    const bytes = await save(page, mockfs);
+    expect(await valuesOf(Buffer.from(bytes))).toMatchObject({ Text1: "Typed in a new field" });
+  });
 });

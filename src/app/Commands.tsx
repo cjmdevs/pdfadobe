@@ -12,11 +12,17 @@ import { useSearch } from "@embedpdf/plugin-search/react";
 import { useSelectionCapability } from "@embedpdf/plugin-selection/react";
 import { useViewportCapability } from "@embedpdf/plugin-viewport/react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
-import { PdfPermissionFlag, type PdfAnnotationObject } from "@embedpdf/models";
+import {
+  PdfAnnotationSubtype,
+  PdfPermissionFlag,
+  type PdfAnnotationObject,
+} from "@embedpdf/models";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { ERASER_MODE, STAMP_MODE } from "../markup/config";
+import { markFieldsDeleted } from "./formWrites";
+import { FIELD_MODE } from "../ui/forms/prepareStore";
 import { EDIT_MODE, addText, editSelection, editSession, pendingImage } from "../ui/edit/editStore";
 import { deleteSelection } from "../ui/edit/editActions";
 import { stampPlacement } from "../ui/markup/stampPlacement";
@@ -177,7 +183,8 @@ function DocCommands({
     imState.activeMode === ERASER_MODE ||
     imState.activeMode === STAMP_MODE ||
     imState.activeMode === FLYER_MODE ||
-    imState.activeMode === REDACT_MODE;
+    imState.activeMode === REDACT_MODE ||
+    imState.activeMode === FIELD_MODE;
   const doc = useDocumentState(documentId)?.document ?? null;
   /** Resolves when the last Ctrl+A selection is in place. */
   const pendingSelect = useRef<Promise<unknown>>(Promise.resolve());
@@ -227,6 +234,8 @@ function DocCommands({
           .map((uid) => annotState.byUid[uid]?.object)
           .filter((a): a is PdfAnnotationObject => a !== undefined && !a.flags?.includes("locked"));
         if (!picked.length || wb.busy) return false;
+        if (picked.some((a) => a.type === PdfAnnotationSubtype.WIDGET))
+          markFieldsDeleted(documentId);
         annots?.deleteAnnotations(picked.map((a) => ({ pageIndex: a.pageIndex, id: a.id })));
         return true;
       }

@@ -13,6 +13,7 @@ import {
 import { useWorkbench } from "../../app/workbench";
 import { CLOUD_INTENSITY } from "../../markup/properties";
 import { CLOUD_TOOL, ERASER_MODE, STAMP_MODE, toolDefaults } from "../../markup/config";
+import { FIELD_MODE } from "../forms/prepareStore";
 import { EDIT_MODE } from "../edit/editStore";
 import { FLYER_MODE } from "../flyer/flyerStore";
 import { NOTE_TOOL } from "../flyer/useFlyer";
@@ -139,6 +140,8 @@ export function MarkupBridge({ author }: { author: string }) {
     im?.registerMode({ id: EDIT_MODE, scope: "page", exclusive: true, cursor: "default" });
     // Redact (Phase 5): a drag draws a redaction box (RedactLayer).
     im?.registerMode({ id: REDACT_MODE, scope: "page", exclusive: true, cursor: "crosshair" });
+    // Prepare Form (Phase 6): a click places the armed field (FieldPlaceLayer).
+    im?.registerMode({ id: FIELD_MODE, scope: "page", exclusive: true, cursor: "crosshair" });
   }, [im]);
 
   // New markup is signed with the current author name.

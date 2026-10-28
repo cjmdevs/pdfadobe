@@ -10,6 +10,8 @@ import { EraserLayer } from "./markup/EraserLayer";
 import { StampLayer } from "./markup/StampLayer";
 import { EditLayer } from "./edit/EditLayer";
 import { RedactLayer } from "./redact/RedactLayer";
+import { FieldPlaceLayer } from "./forms/FieldPlaceLayer";
+import { FormMode } from "./forms/FormMode";
 import { FlyerLayer } from "./flyer/FlyerLayer";
 import { FlyerOverlay } from "./flyer/FlyerOverlay";
 import {
@@ -189,6 +191,7 @@ function Viewer({ documentId }: { documentId: string }) {
 
   return (
     <GlobalPointerProvider documentId={documentId} style={{ height: "100%" }}>
+      <FormMode documentId={documentId} />
       <Viewport
         documentId={documentId}
         className={settings.formHighlight ? "viewport forms-highlight" : "viewport"}
@@ -271,6 +274,7 @@ function PageLayers({
         <EditLayer documentId={documentId} pageIndex={pageIndex} />
         <FlyerLayer documentId={documentId} pageIndex={pageIndex} />
         <RedactLayer documentId={documentId} pageIndex={pageIndex} />
+        <FieldPlaceLayer documentId={documentId} pageIndex={pageIndex} />
       </PagePointerProvider>
     </Rotate>
   );

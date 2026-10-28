@@ -33,7 +33,8 @@ import {
   type FileSource,
   type OpenedFile,
 } from "../platform";
-import { flushFormWrites } from "./formWrites";
+import { flushFormWrites, takeFieldsDeleted } from "./formWrites";
+import { pageOp } from "./pages";
 import type { DocInfo } from "./docstore";
 import { FALLBACK_AUTHOR } from "../markup/config";
 import {
@@ -346,7 +347,8 @@ export function WorkbenchProvider({
           if (!scope.getState().hasPendingChanges && !locks?.get(id)) break;
           await new Promise((r) => setTimeout(r, 10));
         }
-        const bytes = new Uint8Array(await engine.saveAsCopy(doc).toPromise());
+        let bytes: Uint8Array = new Uint8Array(await engine.saveAsCopy(doc).toPromise());
+        if (takeFieldsDeleted(id)) bytes = (await pageOp("removeOrphanFields", bytes)).bytes;
         setInfo(await queued(sid, () => platform.docs.push(sid, bytes, "Markup")));
       }
       for (const t of LIVE_TOPICS) h.purgeByMetadata(() => true, t);

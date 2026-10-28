@@ -21,6 +21,7 @@ const markupFiles = () => import("../ui/markup/markupFiles");
 const flyerFiles = () => import("../ui/flyer/flyerFiles");
 const formActions = () => import("../ui/forms/formActions");
 const formDataFiles = () => import("../ui/forms/formDataFiles");
+const prepareStore = () => import("../ui/forms/prepareStore");
 
 /** What an action works on. */
 export interface ToolContext {
@@ -841,6 +842,36 @@ export const TOOLS: ToolDef[] = [
           })),
       },
     ],
+  },
+  {
+    id: "prepareForm",
+    name: "Prepare Form",
+    icon: "form",
+    color: "#6b3fc0",
+    description: "Add, move and set up form fields",
+    comingIn: null,
+    open: "toolbar",
+    panel: () => import("../ui/forms/PreparePanel"),
+    toolbar: (
+      [
+        ["text", "Text field", "fieldHighlight"],
+        ["checkbox", "Check box", "checkRequired"],
+        ["radio", "Radio button", "checkRequired"],
+        ["dropdown", "Dropdown", "form"],
+        ["date", "Date field", "form"],
+        ["signature", "Signature field", "form"],
+      ] as const
+    ).map(([kind, label, icon]) => ({
+      id: `add-${kind}`,
+      label: `Add a ${label.toLowerCase()}: click on the page to place it (Esc cancels)`,
+      caption: label,
+      icon,
+      run: (c: ToolContext) => {
+        const id = c.documentId;
+        if (id) void prepareStore().then((m) => m.prepare.arm(id, kind));
+      },
+      enabled: (c: ToolContext) => hasDoc(c),
+    })),
   },
   planned("ocr", "Scan & OCR", "ocr", "#2e9e44", "Make scanned pages searchable", []),
   planned("protect", "Protect", "protect", "#3a6fd8", "Passwords and permissions", []),

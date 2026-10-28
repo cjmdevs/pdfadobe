@@ -2,6 +2,7 @@
 // by the app's worker and the MCP server.
 export * from "./batch";
 export * from "./data";
+export * from "./design";
 export * from "./fields";
 export * from "./fill";
 export * from "./flatten";
