@@ -89,6 +89,10 @@ export type EditTarget =
       width?: number;
       /** Box id to mark the text with (default: the box's own, else a new one). */
       boxId?: number;
+      /** New left edge (points, like `TextBox.l`); default the box's own. */
+      left?: number;
+      /** Moves the text up (+) or down (-) by this many points (the top handle). */
+      dy?: number;
     }
   /** Add a new box: first baseline at (x, y); `width` wraps, null grows. */
   | {
@@ -124,6 +128,9 @@ export interface RetypesetResult {
   fakeItalic: boolean;
   /** Text or rules the new text runs into (not pushed down: the user resizes). */
   overflow: Overflow[];
+  /** Boxes pushed down below the edited one (`push`), and how many went off the page. */
+  pushed?: number;
+  pushedOff?: number;
   /** Text objects written for each paragraph (PDFium handles, valid while the page is loaded). */
   objects: number[][];
 }
@@ -149,7 +156,8 @@ export function retypeset(
   // The box's left edge, at glyph origins (a loose box can start a hair before one).
   const first = box?.lines[0];
   const left = box
-    ? box.l + ((first?.chars[0]?.x ?? box.l) - (first?.l ?? box.l))
+    ? (target.kind === "box" && target.left !== undefined ? target.left : box.l) +
+      ((first?.chars[0]?.x ?? box.l) - (first?.l ?? box.l))
     : target.kind === "new"
       ? target.x
       : 0;
@@ -168,7 +176,11 @@ export function retypeset(
   const wrap = box
     ? newWidth !== undefined || box.paragraphs.some((p) => p.lines.length > 1)
     : target.kind === "new" && target.width !== null;
-  let baseline = box ? (box.lines[0]?.y ?? 0) : target.kind === "new" ? target.y : 0;
+  let baseline = box
+    ? (box.lines[0]?.y ?? 0) + (target.kind === "box" ? (target.dy ?? 0) : 0)
+    : target.kind === "new"
+      ? target.y
+      : 0;
   const placed: { para: EditParagraph; lines: PlacedLine[]; font: LoadedFont }[] = [];
   paragraphs.forEach((para, i) => {
     const font = fonts.get(para.style.font);

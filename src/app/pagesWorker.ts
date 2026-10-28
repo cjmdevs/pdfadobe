@@ -28,6 +28,7 @@ import {
   editBoxText,
   editImage,
   joinBoxes,
+  moveBox,
   splitBox,
   type BoxRef,
   type Caret,
@@ -118,7 +119,11 @@ export const OPS = {
     paragraphs: string[],
     styles: (Partial<PlainStyle> | undefined)[] = [],
     width?: number,
-  ) => editBoxText(c.module, b, ref, paragraphs, { subset: await subsetter() }, styles, width),
+    opts: { left?: number; dy?: number; push?: boolean } = {},
+  ) =>
+    editBoxText(c.module, b, ref, paragraphs, { subset: await subsetter() }, styles, width, opts),
+  moveText: async (c: Ctx, b: Uint8Array, ref: BoxRef, dx: number, dy: number) =>
+    moveBox(c.module, b, ref, dx, dy),
   joinText: async (c: Ctx, b: Uint8Array, refs: BoxRef[]) =>
     joinBoxes(c.module, b, refs, { subset: await subsetter() }),
   splitText: async (

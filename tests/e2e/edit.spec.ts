@@ -662,6 +662,22 @@ test.describe("Edit PDF", () => {
       await page.mouse.click(pb.x + pb.width * 0.5, pb.y + pb.height * 0.5);
       await expect(page.getByTestId("edit-image")).toHaveCount(0);
     });
+    test("W and H fields resize, keeping proportions while locked", async ({ page }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      await settled(page);
+      const before = (await frame(page).boundingBox())!;
+      const fields = page.getByTestId("edit-image-fields");
+      await expect(fields).toBeVisible();
+      await expect(page.getByTestId("edit-lock-aspect")).toBeChecked();
+      await fields.getByLabel("Width").fill("1");
+      await fields.getByLabel("Width").press("Enter");
+      await settled(page);
+      const after = (await frame(page).boundingBox())!;
+      expect(await fields.getByLabel("Width").inputValue()).toBe("1");
+      // Proportions kept: the height shrank by the same factor.
+      expect(after.height / after.width).toBeCloseTo(before.height / before.width, 1);
+    });
   });
 
   test.describe("overflow and box width", () => {
@@ -682,7 +698,7 @@ test.describe("Edit PDF", () => {
       await expect(page.getByTestId("overflow-note")).toContainText(
         'runs into the text "• Proposed adjustment',
       );
-      await expect(page.locator(".toast")).toContainText("Drag the box's right edge");
+      await expect(page.locator(".toast")).toContainText("Drag the box's edges");
     });
 
     test("the right-edge handle re-wraps the text at a new width (one undo step)", async ({
@@ -709,6 +725,118 @@ test.describe("Edit PDF", () => {
       await settled(page);
       const undone = (await box(page, "We selected sales").boundingBox())!;
       expect(undone.width).toBeCloseTo(before.width, -1);
+    });
+  });
+
+  // B3 stage 2 step 2: move (drag, arrow keys), frame handles, X/Y/W/H, auto-fit, push.
+  test.describe("box controls", () => {
+    const left = async (page: Page, start: string) => (await box(page, start).boundingBox())!.x;
+
+    test("dragging a box moves it as it is (one undo step); a click still edits", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      // Relative to the page (the view may scroll a little while dragging).
+      const rel = async () => {
+        const b = (await box(page, "We selected sales").boundingBox())!;
+        const p = await pageBox(page);
+        return { x: b.x - p.x, y: b.y - p.y, width: b.width };
+      };
+      const before = await rel();
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + 40, y + 60, { steps: 8 });
+      await page.mouse.up();
+      await settled(page);
+      await expect(editor(page)).toHaveCount(0);
+      const after = await rel();
+      expect(after.x - before.x).toBeCloseTo(40, -1);
+      expect(after.y - before.y).toBeCloseTo(60, -1);
+      expect(after.width).toBeCloseTo(before.width, 0);
+      await page.keyboard.press("Control+z");
+      await settled(page);
+      expect((await rel()).x).toBeCloseTo(before.x, 0);
+    });
+
+    test("arrow keys nudge the selected box (Shift: 10 points)", async ({ page }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await page.keyboard.press("Escape");
+      const before = await left(page, "We selected sales");
+      const pb = await pageBox(page);
+      const scale = pb.width / 612;
+      await page.keyboard.press("Shift+ArrowRight");
+      await page.keyboard.press("Shift+ArrowRight");
+      await page.keyboard.press("ArrowRight");
+      await settled(page);
+      await expect.poll(() => left(page, "We selected sales")).toBeGreaterThan(before + 15 * scale);
+      expect(await left(page, "We selected sales")).toBeCloseTo(before + 21 * scale, 0);
+    });
+
+    test("the left handle re-wraps from the left; the X field moves the box", async ({ page }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await page.keyboard.press("Escape");
+      const before = (await box(page, "We selected sales").boundingBox())!;
+      const h = (await page.locator("[data-testid=edit-frame-handle][data-edge=w]").boundingBox())!;
+      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(h.x + 120, h.y + h.height / 2, { steps: 6 });
+      await page.mouse.up();
+      await settled(page);
+      const after = (await box(page, "We selected sales").boundingBox())!;
+      expect(after.x).toBeGreaterThan(before.x + 100);
+      expect(after.height).toBeGreaterThan(before.height + 5);
+
+      const fields = page.getByTestId("edit-box-fields");
+      await fields.getByLabel("X position").fill("1");
+      await fields.getByLabel("X position").press("Enter");
+      await settled(page);
+      await expect(page.getByTestId("edit-box-fields").getByLabel("X position")).toHaveValue("1");
+    });
+
+    test("the bottom handle fixes the height; text taller than the box is flagged", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("edit-autofit")).toBeChecked();
+      const h = (await page.locator("[data-testid=edit-frame-handle][data-edge=s]").boundingBox())!;
+      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(h.x + h.width / 2, h.y - 20, { steps: 4 });
+      await page.mouse.up();
+      await expect(page.getByTestId("edit-autofit")).not.toBeChecked();
+      await expect(page.getByTestId("overfull-note")).toBeVisible();
+      await expect(box(page, "We selected sales")).toHaveClass(/overflow/);
+      await page.getByTestId("edit-autofit").check();
+      await expect(page.getByTestId("overfull-note")).toHaveCount(0);
+    });
+
+    test("with push on, growing text moves the list below down instead of clashing", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      const list = (await box(page, "• Proposed adjustment").boundingBox())!;
+      const [x, y] = await center(page, "Two invoices dated");
+      await page.mouse.click(x, y);
+      await page.getByTestId("edit-push").check();
+      await editor(page).focus();
+      await page.keyboard.press("Control+End");
+      await page.keyboard.type(
+        " The client also agreed to review every credit memo issued in the first week of January before the year-end close.",
+      );
+      await page.keyboard.press("Escape");
+      await settled(page);
+      await expect(box(page, "Two invoices dated")).not.toHaveClass(/overflow/);
+      const moved = (await box(page, "• Proposed adjustment").boundingBox())!;
+      expect(moved.y).toBeGreaterThan(list.y + 5);
+      await page.getByTestId("edit-push").uncheck();
     });
   });
 

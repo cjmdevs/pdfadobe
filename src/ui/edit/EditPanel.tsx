@@ -10,7 +10,13 @@
 // One style per paragraph (stage 1): a change sets that property for every paragraph
 // of the box and keeps the others as they are.
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { EditTextBox, PlainParagraphStyle, PlainStyle, Rgba } from "../../engine/edit";
+import type {
+  EditTextBox,
+  PlainParagraphStyle,
+  PlainStyle,
+  RetypesetResult,
+  Rgba,
+} from "../../engine/edit";
 import { parsePdfFontName } from "../../engine/edit/fonts";
 import { pageOp } from "../../app/pages";
 import { useWorkbench } from "../../app/workbench";
@@ -20,6 +26,7 @@ import { fontOptions, resolveFont, type Section, type Warning } from "./fontChoi
 import {
   boundingBoxes,
   editSession,
+  frameSettings,
   newTextStyle,
   useAddingText,
   useEditSelection,
@@ -33,9 +40,13 @@ import {
   useShowBoxes,
 } from "./editStore";
 import { NEW_TEXT_STYLE } from "./TextEditor";
+import { ImageFields, PushOption, TextBoxFields } from "./BoxFields";
+import { NumberField } from "./NumberField";
 import {
   afterTextEdit,
   deleteSelection,
+  reportTextEdit,
+  textEditOpts,
   joinSelection,
   placeImageEdit,
   replaceImageEdit,
@@ -167,9 +178,18 @@ export default function EditPanel({ documentId }: { documentId: string }) {
         ) : sel?.kind === "image" && image ? (
           <>
             <p data-testid="edit-selection">
-              Image on page {sel.page + 1}: drag to move, corners to resize (Shift: free), the round
-              handle to rotate (Shift: 15° steps).
+              Image on page {sel.page + 1}: drag to move (arrow keys: 1 pt, Shift: 10 pt), corners
+              to resize, the round handle to rotate (Shift: 15° steps).
             </p>
+            {info && (
+              <ImageFields
+                documentId={documentId}
+                page={sel.page}
+                pageHeight={info.height}
+                image={image}
+                disabled={wb.busy !== null}
+              />
+            )}
             <div className="format-row">
               <button
                 type="button"
@@ -275,6 +295,7 @@ export default function EditPanel({ documentId }: { documentId: string }) {
     const page = target.page;
     setWorking(true);
     let hit: string | null = null;
+    let result: RetypesetResult | null = null;
     await wb.edit(
       documentId,
       "Change text style",
@@ -285,17 +306,23 @@ export default function EditPanel({ documentId }: { documentId: string }) {
           { page, id: b.id, preview: b.preview },
           b.paragraphs,
           b.paragraphs.map(() => override),
+          undefined,
+          textEditOpts(),
         );
-        hit = afterTextEdit(wb, documentId, page, r.result);
+        result = r.result;
+        hit = afterTextEdit(
+          wb,
+          documentId,
+          page,
+          r.result,
+          frameSettings.get(wb.meta[documentId]?.storeId, page, b),
+        );
         return r.bytes;
       },
       { page },
     );
     setWorking(false);
-    if (hit)
-      wb.toast(
-        `The text now runs into ${hit as string}. Drag the box's right edge to change its width, or undo.`,
-      );
+    reportTextEdit(wb, result, hit);
   }
 
   const disabled = working || wb.busy !== null;
@@ -437,10 +464,21 @@ export default function EditPanel({ documentId }: { documentId: string }) {
 
       {target.kind === "box" && overflow?.page === target.page && overflow.id === target.box.id && (
         <p className="format-overflow" role="alert" data-testid="overflow-note">
-          This text runs into {overflow.text}. Drag the handle on the box&apos;s right edge to
-          change its width (the text wraps to fit), shorten the text, or undo (Ctrl+Z).
+          This text runs into {overflow.text}. Drag the box&apos;s side handles to change its width
+          (the text wraps to fit), turn on pushing the text below down, shorten the text, or undo
+          (Ctrl+Z).
         </p>
       )}
+      {target.kind === "box" && info && (
+        <TextBoxFields
+          documentId={documentId}
+          page={target.page}
+          pageHeight={info.height}
+          box={target.box}
+          disabled={disabled}
+        />
+      )}
+      {target.kind === "editor" && <PushOption />}
       {warnings.length > 0 && (
         <ul className="format-warnings" data-testid="font-warnings">
           {warnings.map((w) => (
@@ -468,48 +506,6 @@ function BoxesToggle() {
       />
       <span>Show bounding boxes</span>
     </label>
-  );
-}
-
-/** A number box that applies on Enter or when it loses focus (not on every key). */
-function NumberField(props: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  disabled: boolean;
-  onCommit(v: number): void;
-}) {
-  const [text, setText] = useState(String(props.value));
-  const [shown, setShown] = useState(props.value);
-  if (shown !== props.value) {
-    setShown(props.value);
-    setText(String(props.value));
-  }
-  const commit = () => {
-    const v = Number(text);
-    if (!text.trim() || !Number.isFinite(v) || v === props.value) {
-      setText(String(props.value));
-      return;
-    }
-    props.onCommit(Math.min(props.max, Math.max(props.min, v)));
-  };
-  return (
-    <input
-      type="number"
-      aria-label={props.label}
-      value={text}
-      min={props.min}
-      max={props.max}
-      step={props.step}
-      disabled={props.disabled}
-      onChange={(e) => setText(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") commit();
-      }}
-    />
   );
 }
 

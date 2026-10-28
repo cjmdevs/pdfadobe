@@ -19,6 +19,8 @@ import {
 } from "./retypeset";
 import { nextBoxId, setBoxId } from "./marks";
 import { removeBoxText } from "./split";
+import { boxesBelow, groupNow, moveBoxText, pushDown } from "./move";
+import { findOverflow } from "./retypeset";
 import type { TextBox } from "./group";
 import type { Rect } from "./chars";
 import {
@@ -63,6 +65,14 @@ export function editBoxText(
   styles: (Partial<PlainStyle> | undefined)[] = [],
   /** New box width in points (the right-edge handle): the text wraps at it. */
   width?: number,
+  opts: {
+    /** New left edge (points): the left handle or the X field. */
+    left?: number;
+    /** Moves the text up (+) or down (-): the top handle. */
+    dy?: number;
+    /** Push the boxes below in the same column down when the box grows. */
+    push?: boolean;
+  } = {},
 ): EditOutcome {
   const doc = RawDoc.open(m, bytes);
   try {
@@ -93,7 +103,8 @@ export function editBoxText(
           // Empty lines between paragraphs are not kept (one style per paragraph, no
           // paragraph spacing in stage 1).
           .filter((p) => p.text);
-        return retypeset(
+        const boxId = box.id ?? nextBoxId(m, page);
+        const r = retypeset(
           m,
           doc.ptr,
           page,
@@ -103,11 +114,33 @@ export function editBoxText(
             chars,
             rules,
             others: boxes,
+            boxId,
             ...(width === undefined ? {} : { width: Math.max(12, width) }),
+            ...(opts.left === undefined ? {} : { left: opts.left }),
+            ...(opts.dy === undefined ? {} : { dy: opts.dy }),
           },
           paras,
           deps,
         );
+        const grew = box.b - r.bounds.b;
+        if (!opts.push || grew <= 0.5) return r;
+        // Push the column below down by what the box grew, then look again at what the
+        // new text runs into.
+        const span = { l: Math.min(box.l, r.bounds.l), r: Math.max(box.r, r.bounds.r), b: box.b };
+        const below = boxesBelow(span, boxes, box);
+        const off = pushDown(m, doc.ptr, page, below, grew);
+        const now = groupNow(m, page);
+        return {
+          ...r,
+          pushed: below.length,
+          pushedOff: off,
+          overflow: findOverflow(
+            r.lines,
+            box,
+            now.boxes.filter((b) => b.id !== boxId),
+            now.rules,
+          ),
+        };
       },
       true,
     );
@@ -115,15 +148,6 @@ export function editBoxText(
   } finally {
     doc.close();
   }
-}
-
-/** The page's chars, rules and boxes, as grouping sees them now. */
-function groupNow(m: PdfiumModule, page: number) {
-  const tp = m.FPDFText_LoadPage(page);
-  const chars = pageChars(m, tp);
-  m.FPDFText_ClosePage(tp);
-  const rules = pageRules(m, page);
-  return { chars, rules, boxes: groupChars(chars, rules) };
 }
 
 const STALE = "The page changed since this text was selected. Select it again.";
@@ -191,6 +215,26 @@ export function joinBoxes(
       true,
     );
     return { bytes: doc.save(), result };
+  } finally {
+    doc.close();
+  }
+}
+
+/** Moves a text box by (dx, dy) points as it is (no re-typesetting). One undo step. */
+export function moveBox(m: PdfiumModule, bytes: Uint8Array, ref: BoxRef, dx: number, dy: number) {
+  const doc = RawDoc.open(m, bytes);
+  try {
+    doc.withPage(
+      ref.page,
+      (page) => {
+        const g = groupNow(m, page);
+        const box = g.boxes[ref.id];
+        if (!box || previewOf(box) !== ref.preview) throw new EditRefused(STALE);
+        moveBoxText(m, doc.ptr, page, box, g.chars, g.rules, dx, dy);
+      },
+      true,
+    );
+    return doc.save();
   } finally {
     doc.close();
   }

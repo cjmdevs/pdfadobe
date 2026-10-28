@@ -4,7 +4,19 @@
 import { useEffect, useRef } from "react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { useWorkbench } from "../../app/workbench";
-import { EDIT_MODE, editSession, pendingImage, resetEdit } from "./editStore";
+import {
+  EDIT_MODE,
+  editSelection,
+  editSession,
+  nudge,
+  pageInfos,
+  pendingImage,
+  resetEdit,
+} from "./editStore";
+import { moveTextBox, placeImageEdit } from "./editActions";
+
+/** Arrow keys move the selection 1 point (Shift: 10); written this long after the last key. */
+const NUDGE_WAIT = 450;
 
 export function EditBridge({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
@@ -31,6 +43,72 @@ export function EditBridge({ documentId }: { documentId: string }) {
     editSession.commit(documentId);
     resetEdit(documentId);
     pendingImage.set(documentId, null);
+  }, [documentId, editing]);
+
+  // The latest workbench for the key listener (it is re-created on every change).
+  const wbRef = useRef(wb);
+  useEffect(() => {
+    wbRef.current = wb;
+  });
+
+  // Arrow keys nudge the selected text box or image (not while typing). The steps add
+  // up on screen and are written as one "Move" once the keys stop.
+  useEffect(() => {
+    if (!editing) return;
+    let timer = 0;
+    const flush = () => {
+      timer = 0;
+      const d = nudge.get(documentId);
+      const sel = editSelection.get(documentId);
+      nudge.set(documentId, null);
+      const info = sel && pageInfos.get(documentId, sel.page);
+      if (!d || !sel || !info || (d.dx === 0 && d.dy === 0)) return;
+      if (sel.kind === "text") {
+        const box = info.boxes[sel.id];
+        if (box) void moveTextBox(wbRef.current, documentId, sel.page, box, d.dx, d.dy);
+      } else {
+        const img = info.images[sel.id];
+        if (img)
+          void placeImageEdit(
+            wbRef.current,
+            documentId,
+            sel.page,
+            img,
+            { ...img.placement, cx: img.placement.cx + d.dx, cy: img.placement.cy + d.dy },
+            "Move image",
+          );
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[
+        e.key
+      ];
+      if (!step || e.ctrlKey || e.altKey || e.metaKey) return;
+      const t = e.target;
+      if (
+        t instanceof HTMLElement &&
+        (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
+      )
+        return;
+      const sel = editSelection.get(documentId);
+      if (!sel || sel.more?.length || editSession.get(documentId) || wbRef.current.busy) return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      const n = e.shiftKey ? 10 : 1;
+      const d = nudge.get(documentId) ?? { dx: 0, dy: 0 };
+      nudge.set(documentId, { dx: d.dx + (step[0] ?? 0) * n, dy: d.dy + (step[1] ?? 0) * n });
+      window.clearTimeout(timer);
+      timer = window.setTimeout(flush, NUDGE_WAIT);
+    };
+    // Capture: ahead of the page-turning arrow keys.
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      window.removeEventListener("keydown", onKey, true);
+      if (timer) {
+        window.clearTimeout(timer);
+        flush();
+      }
+    };
   }, [documentId, editing]);
 
   return null;

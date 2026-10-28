@@ -30,7 +30,18 @@ Keep it under 2 pages; summarize older phases.
   marked content `/PWBox <</id N>> BDC … EMC` (`src/engine/edit/marks.ts`); grouping keeps
   one id in one box, so Join/Split survive save + reopen. Standard PDF, ignored by other
   viewers; no sidecar. **Show bounding boxes** toggle (default on, as stage 1).
-  Steps 2-5 (box controls, formatting, objects panel, toolbar) not started.
+- **B3 stage 2 step 2 done: text box controls.** Drag a box to move it (a click still
+  edits; the editor opens on release), arrow keys 1 pt / Shift 10 pt (one undo step once
+  the keys stop). A move moves the text objects as they are (`src/engine/edit/move.ts`;
+  shared objects split first, `isolateBox`). Selected box: 8 frame handles (sides re-wrap,
+  top moves the text, bottom sets a fixed height and turns auto-fit off). Panel: X/Y/W/H
+  in inches from the page's top-left, auto-fit height, padding, "When text grows, push
+  the text below down" (moves the text boxes below in the same column; images and ruled
+  lines stay; warns when pushed text leaves the page). Images: X/Y/W/H and "Lock aspect
+  ratio" (Shift while dragging does the other). **Deviation:** auto-fit, fixed height and
+  padding are app-only for the session (a PDF has no text-box object); they only change
+  the frame, its warning and the X/Y/W/H numbers. Handles show no resize cursors.
+  Steps 3-5 (formatting, objects panel, toolbar) not started.
 - Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.

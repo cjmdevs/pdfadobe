@@ -28,6 +28,8 @@ export interface EditTextBox {
   styles: PlainParagraphStyle[];
   /** Every paragraph is one line: the box grows instead of wrapping. */
   grows: boolean;
+  /** Box id from our marked content (stable across edits), or null. */
+  boxId: number | null;
 }
 
 /** A paragraph's style as plain data. */
@@ -81,6 +83,7 @@ export function editPageInfo(m: PdfiumModule, bytes: Uint8Array, pageIndex: numb
           preview: (b.paragraphs[0]?.text ?? "").slice(0, 60),
           baseline: b.lines[0]?.y ?? b.b,
           grows: b.paragraphs.every((p) => p.lines.length === 1),
+          boxId: b.id,
           styles: detectStyle(m, b, rules).map(({ font: _font, ...s }, i) => {
             void _font;
             const p = b.paragraphs[i];

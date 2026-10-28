@@ -42,6 +42,8 @@ interface DocEditState {
   pages: ReadonlyMap<number, EditPageInfo>;
   /** The box an edit left running into other text or a rule, and what it hits. */
   overflow: { page: number; id: number; text: string } | null;
+  /** Arrow-key nudges waiting to be written (points). */
+  nudge: { dx: number; dy: number } | null;
 }
 
 const EMPTY: DocEditState = {
@@ -52,6 +54,7 @@ const EMPTY: DocEditState = {
   sessionFontKey: null,
   pages: new Map(),
   overflow: null,
+  nudge: null,
 };
 const states = new Map<string, DocEditState>();
 const listeners = new Set<() => void>();
@@ -139,6 +142,8 @@ type Reselect = {
   y: number;
   /** The edit ran into this (shown in the panel once the box is selected again). */
   overflow?: string;
+  /** The box's frame settings, carried over to the box the edit wrote. */
+  frame?: FrameSettings;
 };
 const reselects = new Map<string, Reselect>();
 export const reselect = {
@@ -208,6 +213,67 @@ export function useShowBoxes() {
   );
 }
 
+/**
+ * A text box's frame settings (Acrobat's auto-fit and padding). A PDF has no text-box
+ * object, so these live in the app only, for the session: the frame is what the
+ * outline, the handles and the X/Y/W/H fields show. Kept per store document and box
+ * (by its marked-content id once it has one, which every edit gives it).
+ */
+export interface FrameSettings {
+  /** The frame's height follows the text. */
+  autoFit: boolean;
+  /** Fixed frame height (points) when auto-fit is off. */
+  height: number | null;
+  /** Space between the frame and the text (points). */
+  padding: number;
+}
+export const DEFAULT_FRAME: FrameSettings = { autoFit: true, height: null, padding: 1 };
+const frames = new Map<string, FrameSettings>();
+let framesVersion = 0;
+const frameKey = (storeId: string, page: number, box: EditTextBox) =>
+  `${storeId}:${page}:${box.boxId !== null ? `id${box.boxId}` : `p${box.preview}`}`;
+export const frameSettings = {
+  get(storeId: string | undefined, page: number, box: EditTextBox): FrameSettings {
+    return (storeId && frames.get(frameKey(storeId, page, box))) || DEFAULT_FRAME;
+  },
+  set(storeId: string | undefined, page: number, box: EditTextBox, f: Partial<FrameSettings>) {
+    if (!storeId) return;
+    const k = frameKey(storeId, page, box);
+    frames.set(k, { ...(frames.get(k) ?? DEFAULT_FRAME), ...f });
+    framesVersion++;
+    for (const l of listeners) l();
+  },
+};
+export function useFramesVersion() {
+  return useSyncExternalStore(subscribe, () => framesVersion);
+}
+
+/** Arrow-key nudges not yet written: the selection is drawn this far off (points). */
+export const nudge = {
+  get: (documentId: string) => get(documentId).nudge,
+  set: (documentId: string, nudge: { dx: number; dy: number } | null) =>
+    patch(documentId, { nudge }),
+};
+export function useNudge(documentId: string) {
+  return useSyncExternalStore(subscribe, () => get(documentId).nudge);
+}
+
+/**
+ * App-wide Edit options: what happens when text grows into content below (Acrobat only
+ * warns), and whether image corners keep the proportions (Shift does the other).
+ */
+let options = { push: false, lockAspect: true };
+export const editOptions = {
+  get: () => options,
+  set(o: Partial<typeof options>) {
+    options = { ...options, ...o };
+    for (const l of listeners) l();
+  },
+};
+export function useEditOptions() {
+  return useSyncExternalStore(subscribe, () => options);
+}
+
 /** Leaving Edit mode: nothing stays selected, open or armed. */
 export function resetEdit(documentId: string) {
   patch(documentId, {
@@ -217,6 +283,7 @@ export function resetEdit(documentId: string) {
     sessionStyle: null,
     sessionFontKey: null,
     overflow: null,
+    nudge: null,
   });
 }
 

@@ -59,6 +59,7 @@ export {
   editBoxText,
   editImage,
   joinBoxes,
+  moveBox,
   splitBox,
 } from "./document";
 export type {

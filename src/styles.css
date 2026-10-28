@@ -2052,3 +2052,35 @@ button.primary.danger-fill {
 .edit-layer.hide-boxes .edit-item:not(.hover):not(.selected):not(.overflow) {
   border-color: transparent;
 }
+
+/* Edit PDF: the selected text box's frame handles (placed inline), and a box being
+   moved, resized or nudged. */
+.edit-handle.frame {
+  width: 9px;
+  height: 9px;
+  margin: -5px 0 0 -5px;
+  border-radius: 1px;
+}
+.edit-item.edit-box.dragging {
+  border: 1px dashed var(--accent);
+  background: rgba(26, 95, 180, 0.06);
+}
+.format-box {
+  margin: 8px 0 0;
+  padding: 4px 8px 6px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 4px;
+}
+.format-box legend {
+  font-size: 12px;
+  padding: 0 4px;
+}
+.format-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+}
+.format-grid input {
+  width: 100%;
+  min-width: 0;
+}

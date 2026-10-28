@@ -1,6 +1,8 @@
 // Edit PDF (B3): outlines around the page's text boxes and images while Edit mode is on,
-// like Acrobat's Edit PDF. A click on text opens the in-place editor; a click on an
-// image selects it; a click on empty page clears the selection. In Add Text mode a
+// like Acrobat's Edit PDF. A click on text opens the in-place editor, a drag moves the
+// box; the selected box's frame has 8 handles (sides re-wrap, top moves, bottom sets a
+// fixed height); a click on an image selects it; a click on empty page clears the
+// selection. In Add Text mode a
 // click places one growing line, a drag sets the width to wrap at. The boxes come from
 // the engine (editPageInfo) in the page worker, read from the store's current bytes.
 import { useEffect, useRef, useState } from "react";
@@ -28,11 +30,16 @@ import {
   useEditSession,
   usePendingImage,
   useShowBoxes,
+  editOptions,
+  frameSettings,
+  useFramesVersion,
+  useNudge,
   type EditSelection,
 } from "./editStore";
+import { dragEdge, edgeAt, frameOf, overfull, type Edge } from "./frame";
 import { TextEditor } from "./TextEditor";
 import { dragPlacement, hitHandle, naturalSize, type Handle, type Pt } from "./imageDrag";
-import { addImageEdit, placeImageEdit, resizeTextBox } from "./editActions";
+import { addImageEdit, applyFrame, moveTextBox, placeImageEdit } from "./editActions";
 
 /** Store bytes per loaded document object: one read serves every page of the tab. */
 const bytesFor = new WeakMap<object, Promise<Uint8Array | null>>();
@@ -50,6 +57,9 @@ type Item = EditTextBox | EditImage;
 
 /** A drag shorter than this (points) is a click. */
 const DRAG = 8;
+/** Pressing a text box: moving this many screen pixels starts a move instead of a click. */
+const DRAG_PX = 4;
+const EDGES: Edge[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 /** Handle grab radius and the rotate handle's distance above the image (screen pixels). */
 const HANDLE = 7;
 const ROTATE_GAP = 22;
@@ -87,17 +97,41 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     now: Placement;
   } | null>(null);
   const [ghost, setGhost] = useState<Pt | null>(null);
-  /** The selected text box's right edge being dragged: the new right edge (points). */
-  const [widthDrag, setWidthDrag] = useState<{ box: EditTextBox; right: number } | null>(null);
+  /** A text box pressed but not yet released: a drag moves it, a click edits it. */
+  const [press, setPress] = useState<{
+    box: EditTextBox;
+    from: Pt;
+    dx: number;
+    dy: number;
+    moving: boolean;
+  } | null>(null);
+  /** One of the selected text box's frame handles being dragged: the frame now. */
+  const [frameDrag, setFrameDrag] = useState<{ box: EditTextBox; edge: Edge; now: Rect } | null>(
+    null,
+  );
   const overflow = useOverflowNote(documentId);
   const pending = usePendingImage(documentId);
   const selection = useEditSelection(documentId);
   const session = useEditSession(documentId);
   const adding = useAddingText(documentId);
   const showBoxes = useShowBoxes();
-  const latest = useRef({ info, busy: wb.busy, drag, imgDrag, widthDrag, selection, scale, wb });
+  const shift = useNudge(documentId);
+  useFramesVersion();
+  const storeId = wb.meta[documentId]?.storeId;
+  const frameFor = (b: EditTextBox) => frameSettings.get(storeId, pageIndex, b);
+  const latest = useRef({
+    info,
+    busy: wb.busy,
+    drag,
+    imgDrag,
+    press,
+    frameDrag,
+    selection,
+    scale,
+    wb,
+  });
   useEffect(() => {
-    latest.current = { info, busy: wb.busy, drag, imgDrag, widthDrag, selection, scale, wb };
+    latest.current = { info, busy: wb.busy, drag, imgDrag, press, frameDrag, selection, scale, wb };
   });
 
   useEffect(() => {
@@ -116,6 +150,9 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         else if (i && again) {
           const hit = hitTest(i, again.x, again.y);
           if (hit) editSelection.set(documentId, selectionOf(pageIndex, hit));
+          // The box keeps its frame settings (its key changes when it gets an id).
+          if (hit?.kind === "text" && again.frame)
+            frameSettings.set(sid, pageIndex, hit, again.frame);
           overflowNote.set(
             documentId,
             hit?.kind === "text" && again.overflow
@@ -143,16 +180,28 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     });
     /** Handle size and rotate-handle gap: fixed on screen, so in points they shrink with zoom. */
     const px = (n: number) => n / latest.current.scale;
+    /** Corners keep proportions unless Shift (the other way round when unlocked). */
+    const free = (shiftKey: boolean) => (editOptions.get().lockAspect ? shiftKey : !shiftKey);
+    const sid = () => latest.current.wb.meta[documentId]?.storeId;
     return register({
       onPointerMove: (pos, evt) => {
         const d = latest.current.drag;
         const g = latest.current.imgDrag;
-        const w = latest.current.widthDrag;
-        if (w) setWidthDrag({ ...w, right: Math.max((w.box.lines[0]?.l ?? 0) + 13, pos.x) });
-        else if (g)
+        const f = latest.current.frameDrag;
+        const pr = latest.current.press;
+        if (f) {
+          const start = frameOf(f.box, frameSettings.get(sid(), pageIndex, f.box));
+          setFrameDrag({ ...f, now: dragEdge(start, f.edge, pdf(pos)) });
+        } else if (pr) {
+          const p = pdf(pos);
+          const dx = p.x - pr.from.x;
+          const dy = p.y - pr.from.y;
+          const moving = pr.moving || Math.hypot(dx, dy) * latest.current.scale >= DRAG_PX;
+          setPress({ ...pr, dx, dy, moving });
+        } else if (g)
           setImgDrag({
             ...g,
-            now: dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), evt.shiftKey),
+            now: dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), free(evt.shiftKey)),
           });
         else if (d) setDrag({ ...d, x1: pos.x, y1: pos.y });
         else if (pendingImage.get(documentId)) setGhost(pdf(pos));
@@ -174,14 +223,17 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         }
         const i = latest.current.info;
         const sel = latest.current.selection;
-        // The selected text box's width handle (middle of its right edge).
-        const selBox = sel?.kind === "text" && sel.page === pageIndex ? i?.boxes[sel.id] : null;
+        // The selected text box's frame handles (corners and edge middles).
+        const selBox =
+          sel?.kind === "text" && sel.page === pageIndex && !sel.more?.length
+            ? i?.boxes[sel.id]
+            : null;
         if (selBox && i) {
-          const mid = (selBox.rect.b + selBox.rect.t) / 2;
-          const p = pdf(pos);
-          if (Math.hypot(p.x - selBox.rect.r, p.y - mid) <= px(HANDLE)) {
+          const frame = frameOf(selBox, frameSettings.get(sid(), pageIndex, selBox));
+          const edge = edgeAt(frame, pdf(pos), px(HANDLE));
+          if (edge) {
             evt.setPointerCapture?.();
-            setWidthDrag({ box: selBox, right: selBox.rect.r });
+            setFrameDrag({ box: selBox, edge, now: frame });
             return;
           }
         }
@@ -207,23 +259,27 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           return;
         }
         editSelection.set(documentId, selectionOf(pageIndex, hit));
+        evt.setPointerCapture?.();
+        // Text: a drag moves the box, a click (on release) opens the editor.
         if (hit.kind === "text")
-          editSession.open(documentId, { kind: "box", page: pageIndex, box: hit });
-        else {
-          evt.setPointerCapture?.();
-          setImgDrag({ img: hit, handle: handle ?? "move", from: pdf(pos), now: hit.placement });
-        }
+          setPress({ box: hit, from: pdf(pos), dx: 0, dy: 0, moving: false });
+        else setImgDrag({ img: hit, handle: handle ?? "move", from: pdf(pos), now: hit.placement });
       },
       onPointerUp: (pos, evt) => {
-        const w = latest.current.widthDrag;
-        if (w) {
+        const f = latest.current.frameDrag;
+        if (f) {
           evt.releasePointerCapture?.();
-          setWidthDrag(null);
-          const left = w.box.lines[0]?.l ?? w.box.rect.l + 1;
-          // The box's rect has a point of air on each side.
-          const width = Math.max(12, pos.x - 1 - left);
-          if (Math.abs(pos.x - w.box.rect.r) > 1)
-            void resizeTextBox(latest.current.wb, documentId, pageIndex, w.box, width);
+          setFrameDrag(null);
+          void applyFrame(latest.current.wb, documentId, pageIndex, f.box, f.now);
+          return;
+        }
+        const pr = latest.current.press;
+        if (pr) {
+          evt.releasePointerCapture?.();
+          setPress(null);
+          if (pr.moving)
+            void moveTextBox(latest.current.wb, documentId, pageIndex, pr.box, pr.dx, pr.dy);
+          else editSession.open(documentId, { kind: "box", page: pageIndex, box: pr.box });
           return;
         }
         const g = latest.current.imgDrag;
@@ -231,7 +287,13 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         if (g) {
           evt.releasePointerCapture?.();
           setImgDrag(null);
-          const now = dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), evt.shiftKey);
+          const now = dragPlacement(
+            g.img.placement,
+            g.handle,
+            g.from,
+            pdf(pos),
+            free(evt.shiftKey),
+          );
           const p = g.img.placement;
           const changed =
             Math.hypot(now.cx - p.cx, now.cy - p.cy) > 0.5 ||
@@ -290,6 +352,8 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     width: (r.r - r.l) * scale,
     height: (r.t - r.b) * scale,
   });
+  const offset = (r: Rect, d: { dx: number; dy: number } | null): Rect =>
+    d ? { l: r.l + d.dx, r: r.r + d.dx, b: r.b + d.dy, t: r.t + d.dy } : r;
   const picked = (it: Item) =>
     selection?.page === pageIndex &&
     selection.kind === it.kind &&
@@ -299,12 +363,23 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
   const editingHere = session?.page === pageIndex ? session : null;
   const selectedImage =
     selection?.kind === "image" && selection.page === pageIndex ? info.images[selection.id] : null;
-  const framed = imgDrag?.now ?? selectedImage?.placement ?? null;
-  // The width handle is for one box at a time.
+  const nudged =
+    selectedImage && shift
+      ? {
+          ...selectedImage.placement,
+          cx: selectedImage.placement.cx + shift.dx,
+          cy: selectedImage.placement.cy + shift.dy,
+        }
+      : null;
+  const framed = imgDrag?.now ?? nudged ?? selectedImage?.placement ?? null;
+  // The frame handles are for one box at a time.
   const selectedBox =
     selection?.kind === "text" && selection.page === pageIndex && !selection.more?.length
       ? info.boxes[selection.id]
       : null;
+  const selFrame = selectedBox
+    ? (frameDrag?.now ?? offset(frameOf(selectedBox, frameFor(selectedBox)), shift))
+    : null;
   const ghostSize = pending ? naturalSize(pending.px, info.width) : null;
   return (
     <div
@@ -320,39 +395,58 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           style={css(img.rect)}
         />
       ))}
-      {info.boxes.map((b) =>
-        editingHere?.kind === "box" && editingHere.box.id === b.id ? null : (
+      {info.boxes.map((b) => {
+        if (editingHere?.kind === "box" && editingHere.box.id === b.id) return null;
+        const f = frameFor(b);
+        const moved = press?.moving && press.box.id === b.id ? press : null;
+        const rect = b === selectedBox && selFrame ? selFrame : offset(frameOf(b, f), moved);
+        const clash = (overflow?.page === pageIndex && overflow.id === b.id) || overfull(b, f);
+        const live = moved || (b === selectedBox && (frameDrag || shift));
+        return (
           <div
             key={`t${b.id}`}
-            className={`edit-item edit-box${state(b)}${
-              overflow?.page === pageIndex && overflow.id === b.id ? " overflow" : ""
+            className={`edit-item edit-box${state(b)}${clash ? " overflow" : ""}${
+              live ? " dragging" : ""
             }`}
             data-testid="edit-box"
             data-text={b.preview}
             aria-hidden="true"
-            style={css(b.rect)}
+            style={css(rect)}
           />
-        ),
-      )}
-      {selectedBox && !editingHere && (
+        );
+      })}
+      {selectedBox && selFrame && !editingHere && !press?.moving && (
         <>
-          {widthDrag && (
+          {frameDrag && (
             <div
               className="edit-item edit-new"
               data-testid="edit-width-preview"
               aria-hidden="true"
-              style={css({ ...selectedBox.rect, r: widthDrag.right })}
+              style={css(frameDrag.now)}
             />
           )}
-          <span
-            className="edit-handle width"
-            data-testid="edit-width-handle"
-            aria-hidden="true"
-            style={{
-              left: (widthDrag?.right ?? selectedBox.rect.r) * scale,
-              top: (info.height - (selectedBox.rect.b + selectedBox.rect.t) / 2) * scale,
-            }}
-          />
+          {EDGES.map((edge) => {
+            const x = edge.includes("w")
+              ? selFrame.l
+              : edge.includes("e")
+                ? selFrame.r
+                : (selFrame.l + selFrame.r) / 2;
+            const y = edge.includes("n")
+              ? selFrame.t
+              : edge.includes("s")
+                ? selFrame.b
+                : (selFrame.b + selFrame.t) / 2;
+            return (
+              <span
+                key={edge}
+                className={`edit-handle frame ${edge}`}
+                data-testid={edge === "e" ? "edit-width-handle" : "edit-frame-handle"}
+                data-edge={edge}
+                aria-hidden="true"
+                style={{ left: x * scale, top: (info.height - y) * scale }}
+              />
+            );
+          })}
         </>
       )}
       {framed && (

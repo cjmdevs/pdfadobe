@@ -7,9 +7,10 @@ import type { EditOutcome, PlainStyle } from "../../engine/edit";
 import { pageOp } from "../../app/pages";
 import { useWorkbench } from "../../app/workbench";
 import { cssFont } from "./cssFont";
-import { afterTextEdit, overflowText } from "./editActions";
+import { afterTextEdit, overflowText, reportTextEdit, textEditOpts } from "./editActions";
 import {
   editSession,
+  frameSettings,
   newTextStyle,
   reselect,
   useNewTextStyle,
@@ -62,6 +63,11 @@ export function TextEditor({
     const style: PlainStyle = { ...(newTextStyle.get()?.style ?? NEW_TEXT_STYLE), ...restyled };
     const paragraphs = text.split("\n");
     let outcome: EditOutcome["result"] = null;
+    // The box keeps its frame settings through the edit.
+    const frame =
+      session.kind === "box"
+        ? frameSettings.get(wb.meta[documentId]?.storeId, session.page, session.box)
+        : undefined;
     const page = session.page;
     void wb
       .edit(
@@ -76,6 +82,8 @@ export function TextEditor({
                   { page, id: session.box.id, preview: session.box.preview },
                   paragraphs,
                   paragraphs.map(() => restyled ?? undefined),
+                  undefined,
+                  textEditOpts(),
                 )
               : await pageOp(
                   "addText",
@@ -91,7 +99,7 @@ export function TextEditor({
                 );
           outcome = r.result;
           // Select the edited box again once the tab reloads (set before it does).
-          afterTextEdit(wb, documentId, page, r.result);
+          afterTextEdit(wb, documentId, page, r.result, frame);
           return r.bytes;
         },
         { page },
@@ -100,11 +108,7 @@ export function TextEditor({
         const r = outcome as EditOutcome["result"];
         if (!ok) reselect.set(wb.meta[documentId]?.storeId, null);
         if (!ok || !r) return;
-        const hit = overflowText(r);
-        if (hit)
-          wb.toast(
-            `The text now runs into ${hit}. Drag the box's right edge to change its width, or undo.`,
-          );
+        reportTextEdit(wb, r, overflowText(r));
       });
   };
 

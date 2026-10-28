@@ -27,6 +27,8 @@ interface Run {
   glyphs: PageChar[];
   /** Text to write, spaces included. */
   text: string;
+  /** The moved box's own part (isolateBox). */
+  mine?: boolean;
 }
 
 /** A removal in progress: the originals are off the page but not yet destroyed. */
@@ -54,8 +56,52 @@ export function removeBoxText(
 ): Removal {
   const inBox = new Set(box.lines.flatMap((l) => l.chars.map((c) => c.index)));
   const runs = box.objects.flatMap((obj) => leftoverRuns(obj, chars, inBox));
+  return rewrite(m, doc, page, box.objects, runs).removal;
+}
+
+/**
+ * Gives `box` text objects of its own, so it can be moved without touching other
+ * boxes: every object it shares is rewritten as one part per box. Returns the box's
+ * objects (old unshared ones and the new parts) and the removal of the shared
+ * originals (commit or roll back). Throws EditRefused with the page unchanged.
+ */
+export function isolateBox(
+  m: PdfiumModule,
+  doc: number,
+  page: number,
+  box: TextBox,
+  chars: PageChar[],
+): { objects: number[]; removal: Removal } {
+  const inBox = new Set(box.lines.flatMap((l) => l.chars.map((c) => c.index)));
+  const shared = box.objects.filter((obj) => leftoverRuns(obj, chars, inBox).length > 0);
+  const own = box.objects.filter((obj) => !shared.includes(obj));
+  const runs = shared.flatMap((obj) => {
+    const outside = new Set(
+      chars.filter((c) => c.obj === obj && !inBox.has(c.index)).map((c) => c.index),
+    );
+    return [
+      ...leftoverRuns(obj, chars, inBox),
+      // The box's own part: the "leftover" once everything else counts as taken.
+      ...leftoverRuns(obj, chars, outside).map((r) => ({ ...r, mine: true })),
+    ];
+  });
+  const r = rewrite(m, doc, page, shared, runs);
+  return { objects: [...own, ...r.mine], removal: r.removal };
+}
+
+/**
+ * Takes `originals` off the page and writes `runs` (parts of them) back as new
+ * objects, each checked glyph by glyph against where it was.
+ */
+function rewrite(
+  m: PdfiumModule,
+  doc: number,
+  page: number,
+  objects: number[],
+  runs: Run[],
+): { removal: Removal; mine: number[] } {
   // Drawing order of the originals, so a refusal can put them back where they were.
-  const originals = box.objects
+  const originals = objects
     .map((obj) => ({ obj, index: objectIndex(m, page, obj) }))
     .filter((o) => o.index >= 0)
     .sort((a, b) => a.index - b.index);
@@ -78,6 +124,7 @@ export function removeBoxText(
       removeObject(m, page, p.obj);
       created.splice(created.indexOf(p.obj), 1);
       return p.run.glyphs.map((g) => ({
+        run: p.run,
         g,
         obj: writeRun(m, doc, page, { ...p.run, glyphs: [g] }, g.ch, at),
       }));
@@ -91,12 +138,19 @@ export function removeBoxText(
         );
       }
     }
+    const mine = [
+      ...placed.filter((p) => p.run.mine && !failed.includes(p)).map((p) => p.obj),
+      ...single.filter((s) => s.run.mine).map((s) => s.obj),
+    ];
     return {
-      created,
-      commit: () => {
-        for (const o of originals) m.FPDFPageObj_Destroy(o.obj);
+      mine,
+      removal: {
+        created,
+        commit: () => {
+          for (const o of originals) m.FPDFPageObj_Destroy(o.obj);
+        },
+        rollback: () => restore(m, page, created, originals),
       },
-      rollback: () => restore(m, page, created, originals),
     };
   } catch (e) {
     restore(m, page, created, originals);

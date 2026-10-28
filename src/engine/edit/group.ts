@@ -116,7 +116,12 @@ function rowsOf(chars: PageChar[], scripts: Scripts): Row[] {
   glyphs.sort((a, b) => b.y - a.y || a.x - b.x);
   const rows: Row[] = [];
   for (const g of glyphs) {
-    const row = rows.find((r) => Math.abs(r.y - g.y) < 0.3 * Math.max(r.size, g.size));
+    // Text we wrote as different boxes never shares a row (a box moved over another).
+    const row = rows.find(
+      (r) =>
+        Math.abs(r.y - g.y) < 0.3 * Math.max(r.size, g.size) &&
+        (r.chars[0]?.box ?? null) === (g.box ?? null),
+    );
     if (row) row.chars.push(g);
     else rows.push({ y: g.y, size: g.size, chars: [g] });
   }
