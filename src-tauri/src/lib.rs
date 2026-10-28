@@ -1,3 +1,4 @@
+mod acrobat;
 mod app_windows;
 mod docstore;
 mod fileio;
@@ -80,6 +81,7 @@ pub fn run() {
             fonts::font_index_load,
             fonts::font_index_save,
             repair::repair_pdf,
+            acrobat::open_in_acrobat,
             print::print_pdf,
             docstore::doc_create,
             docstore::doc_push,

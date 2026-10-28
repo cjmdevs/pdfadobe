@@ -2004,3 +2004,22 @@ button.primary.danger-fill {
 .forms-panel button[aria-pressed="true"] {
   outline: 2px solid var(--accent, #2563eb);
 }
+
+/* XFA-only form (Phase 6): what to do instead of filling here. */
+.xfa-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 8px 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #c9a227;
+  border-radius: 4px;
+  background: #fff8e1;
+  color: #3d3000;
+  font-size: 13px;
+}
+.xfa-notice p {
+  flex: 1 1 320px;
+  margin: 0;
+}

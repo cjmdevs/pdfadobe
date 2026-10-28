@@ -246,6 +246,10 @@ export const tauriPlatform: Platform = {
 
   repair: (source, target) => call<{ hadWarnings: boolean }>("repair_pdf", { source, target }),
 
+  async openInAcrobat(path) {
+    await call("open_in_acrobat", { path });
+  },
+
   async print(req: PrintRequest): Promise<PrintResult> {
     const options = {
       title: req.title,

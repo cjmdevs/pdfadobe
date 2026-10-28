@@ -46,6 +46,7 @@ import {
   fillCopy,
   fillForm,
   flattenForm,
+  formKind,
   formValues,
   parseFormData,
   readFields,
@@ -138,6 +139,7 @@ export const OPS = {
   },
   formValues: (c: Ctx, b: Uint8Array) => formValues(c.engine, b),
   flattenForm: (c: Ctx, b: Uint8Array) => flattenForm(c, b),
+  formKind: async (c: Ctx, b: Uint8Array) => formKind(c.module, b),
   // Prepare Form.
   addField: (c: Ctx, b: Uint8Array, spec: NewField) => addField(c, b, spec),
   readFieldProps: (c: Ctx, b: Uint8Array, name: string) => readFieldProps(c, b, name),

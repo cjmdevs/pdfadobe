@@ -332,6 +332,12 @@ export const browserPlatform: Platform = {
     return w.__PDFWB_NEXT_SAVE_PATHS__?.shift() ?? suggested;
   },
 
+  async openInAcrobat(path) {
+    // Tests read the request from window.__PDFWB_ACROBAT__ (no Acrobat in a browser).
+    const w = window as unknown as { __PDFWB_ACROBAT__?: string[] };
+    (w.__PDFWB_ACROBAT__ ??= []).push(path);
+  },
+
   async repair(source, target) {
     const res = await fetch(`/__mockfs-repair`, {
       method: "POST",

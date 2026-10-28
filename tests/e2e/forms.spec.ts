@@ -482,3 +482,34 @@ test("Detect fields on a flat form adds named fields in one undoable step", asyn
   await idle(page);
   await expect(page.locator(".form-widget")).toHaveCount(0);
 });
+
+test("an XFA-only form says it needs Acrobat and opens it there; hybrid forms do not", async ({
+  page,
+  mockfs,
+}) => {
+  const XFA = String.raw`C:\Corpus\xfa-only.pdf`;
+  const IRS = String.raw`C:\Corpus\f1040.pdf`;
+  mockfs.entries[XFA] = { bytes: readFileSync(join(CORPUS, "xfa-only.pdf")) };
+  mockfs.entries[IRS] = { bytes: readFileSync(join(CORPUS, "..", "irs", "f1040.pdf")) };
+  mockfs.entries[FORM] = { bytes: readFileSync(join(CORPUS, "acroform.pdf")) };
+  await boot(page);
+  await openPaths(page, [IRS]);
+  await waitForPainted(page, 0);
+  await idle(page);
+  await openPaths(page, [FORM]);
+  await waitForPainted(page, 0);
+  await idle(page);
+  await expect(page.getByTestId("xfa-notice")).toHaveCount(0);
+  await openPaths(page, [XFA]);
+  await waitForPainted(page, 0);
+  const notice = page.getByTestId("xfa-notice");
+  await expect(notice).toContainText("only works in Adobe Acrobat");
+  await notice.getByRole("button", { name: "Open in Acrobat" }).click();
+  await expect
+    .poll(() => page.evaluate(() => (window as { __PDFWB_ACROBAT__?: string[] }).__PDFWB_ACROBAT__))
+    .toEqual([XFA]);
+  // The hybrid 1040 tab shows no notice.
+  await page.getByRole("tab", { name: /f1040/ }).click();
+  await waitForPainted(page, 0);
+  await expect(page.getByTestId("xfa-notice")).toHaveCount(0);
+});

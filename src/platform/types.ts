@@ -27,6 +27,8 @@ export type FileErrorKind =
   | "qpdfFailed"
   | "unrepairable"
   | "unsupported"
+  /** Open in Acrobat: neither Acrobat nor Acrobat Reader is installed. */
+  | "acrobatMissing"
   /** Saved, but the file did not read back as written; `<name>.bak` was kept. */
   | "unverified"
   | "other";
@@ -106,6 +108,9 @@ export interface Platform {
   stamps: StampLibrary;
   /** Font files for Edit PDF (backlog B3). */
   fonts: FontFolders;
+  /** Opens a file on disk in Adobe Acrobat or Reader (XFA-only forms, Phase 6). Throws
+   * PlatformError("acrobatMissing") when neither is installed. */
+  openInAcrobat(path: string): Promise<void>;
   /** qpdf-repair `source` into `target` (never the same file). */
   repair(source: string, target: string): Promise<{ hadWarnings: boolean }>;
   /** Native print. Throws PlatformError("unsupported") when only WebView print exists. */
