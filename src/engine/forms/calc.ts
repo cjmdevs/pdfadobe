@@ -21,6 +21,8 @@ export interface CalcSetup {
   calcs: Record<string, Calc>;
   /** Number formats (AFNumber_Format) by field name. */
   formats: Record<string, Extract<FieldFormat, { kind: "number" }>>;
+  /** Max length of number-formatted fields that have one. */
+  maxLens?: Record<string, number>;
   /** Every field name, for group names ("Line" sums "Line.0", "Line.1"...). */
   names: string[];
 }

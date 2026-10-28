@@ -5,7 +5,7 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 6 (forms) built, waiting for the owner check** (`docs/testing/phase-06-test-
+- **Phase 6 (forms) built; owner check 2026-10-28 passed steps 2-11, fixes pushed** (`docs/testing/phase-06-test-
 guide.md`), not tagged yet. Open: the owner's Acrobat check of the three 1040 XFA
   samples decides `DEFAULT_XFA_POLICY` (keep or strip). On the build PC: `npm run check`
   (473 Vitest + 1 intended skip, 47 Rust, license-check), 144 Playwright.
@@ -87,6 +87,16 @@ alone; import cannot empty a radio group (Reset can); signature fields are place
 (no signing); custom calculation scripts never run (listed as "calculated in Acrobat
 only"); max length is written on the field and mirrored on its widget (EmbedPDF reads
 the widget); file names from a CSV column refuse SSN/EIN columns.
+
+Owner check 2026-10-28: steps 2-11 passed. Step 1 (XFA): Acrobat showed the AcroForm
+values in all three samples ("SP" for SPIKE 3 is the narrow middle-initial box); keep or
+strip still to confirm. Fixed after the check: a deleted field left its picture behind
+(fields were also baked into the page tiles: render `withForms` is now false, the form
+plugin draws every field); signature fields were invisible and could not be selected
+(own renderer, `SignatureBox.tsx`); a number field with a max length showed its
+formatted text cut ("12,34": the plain number is kept when the formatted text would not
+fit); the corpus Notes field asked for 69 pt text (now 10 pt; automatic size wraps at
+12 pt); a field deleted while a push was running stayed in the field tree.
 
 Known gaps: `DEFAULT_XFA_POLICY` is "keep" until the owner's Acrobat check; any save of an
 IRS form breaks its /UR3 usage rights (PDFium full rewrite); a live recalculation is one

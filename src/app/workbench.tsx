@@ -348,8 +348,11 @@ export function WorkbenchProvider({
           if (!scope.getState().hasPendingChanges && !locks?.get(id)) break;
           await new Promise((r) => setTimeout(r, 10));
         }
+        // Taken before the copy is made: a field deleted while it is being made stays
+        // marked for the next push, which then holds the deletion.
+        const cleanFields = takeFieldsDeleted(id);
         let bytes: Uint8Array = new Uint8Array(await engine.saveAsCopy(doc).toPromise());
-        if (takeFieldsDeleted(id)) bytes = (await pageOp("removeOrphanFields", bytes)).bytes;
+        if (cleanFields) bytes = (await pageOp("removeOrphanFields", bytes)).bytes;
         // Number fields: plain numbers in /V under their formatted appearance (Acrobat's way).
         const setup = calcs.get(id);
         if (setup && Object.keys(setup.formats).length)

@@ -10,6 +10,7 @@ import { pdfjsView } from "../helpers/leak-scan";
 import type { PagesCtx } from "../../src/engine/pages";
 import {
   customCalcs,
+  displayValue,
   fillAndCalculate,
   flattenForm,
   formValues,
@@ -130,5 +131,20 @@ describe("calc-form.pdf", () => {
     const text = (await pdfjsView((await flattenForm(ctx, r.bytes)).bytes)).pageText.join(" ");
     for (const shown of ["1,000.00", "$2,234.75", "744.92", "($765.25)", "6.50"])
       expect.soft(text, shown).toContain(shown);
+  });
+});
+
+describe("display vs max length", () => {
+  const setup: CalcSetup = {
+    order: [],
+    calcs: {},
+    formats: { N: { kind: "number", decimals: 2, sep: 0, negative: 0, currency: "" } },
+    names: ["N"],
+    maxLens: { N: 5 },
+  };
+  it("keeps the plain number when the formatted text would not fit", () => {
+    expect(displayValue(setup, "N", "12345")).toBe("12345");
+    expect(displayValue(setup, "N", "12")).toBe("12.00");
+    expect(displayValue({ ...setup, maxLens: {} }, "N", "12345")).toBe("12,345.00");
   });
 });

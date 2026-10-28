@@ -79,6 +79,15 @@ export async function readCalcSetup(ctx: PagesCtx, bytes: Uint8Array): Promise<C
       if (f.kind === "number") setup.formats[name] = f;
     }
   }
+  for (const name of Object.keys(setup.formats)) {
+    const t = fields.get(name);
+    const m =
+      t &&
+      [t.ref, ...t.widgets]
+        .map((r) => objs.dict(r)?.["/MaxLen"])
+        .find((v) => typeof v === "number");
+    if (typeof m === "number" && m > 0) (setup.maxLens ??= {})[name] = m;
+  }
   const co = objs.get(objs.dict(objs.catalog["/AcroForm"])?.["/CO"]);
   const ordered = Array.isArray(co) ? co.map((r) => (isRef(r) ? byRef.get(r) : undefined)) : [];
   for (const n of ordered) if (n && setup.calcs[n] && !setup.order.includes(n)) setup.order.push(n);
@@ -118,11 +127,23 @@ export async function rawNumberValues(
   });
 }
 
-/** Display text for a value typed into a number field ("1234.5" -> "1,234.50"). */
-export function displayValue(setup: CalcSetup, name: string, value: string): string {
+/**
+ * Display text for a value typed into a number field ("1234.5" -> "1,234.50"). When the
+ * formatted text would not fit the field's max length, the plain number is kept: the
+ * appearance is drawn from the stored value, and PDFium would cut it ("12,34").
+ */
+export function displayValue(
+  setup: CalcSetup,
+  name: string,
+  value: string,
+  maxLen?: number,
+): string {
   const f = setup.formats[name];
   if (!f || !value.trim()) return value;
-  return formatNumber(toNumber(value, f), f);
+  const shown = formatNumber(toNumber(value, f), f);
+  const limit = maxLen ?? setup.maxLens?.[name];
+  if (limit && [...shown].length > limit) return rawNumber(toNumber(value, f), f);
+  return shown;
 }
 
 /**

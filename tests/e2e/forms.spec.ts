@@ -437,6 +437,35 @@ test.describe("Prepare Form", () => {
     expect(qpdfLike).not.toContain("(Text1)");
   });
 
+  test("signature fields show, can be selected and moved; a deleted field leaves nothing", async ({
+    page,
+    mockfs,
+  }) => {
+    await place(page, "Signature", 300, 600);
+    await place(page, "Text", 400, 700);
+    const sig = page.getByTestId("signature-box");
+    await expect(sig).toBeVisible();
+    await sig.click();
+    await expect(page.getByTestId("field-props")).toBeVisible();
+    const before = (await sig.boundingBox())!;
+    await page.mouse.move(before.x + 20, before.y + 10);
+    await page.mouse.down();
+    await page.mouse.move(before.x + 80, before.y + 60, { steps: 5 });
+    await page.mouse.up();
+    await expect.poll(async () => (await sig.boundingBox())!.x).toBeGreaterThan(before.x + 30);
+    // Delete the text field: nothing of it stays drawn (fields are not baked into tiles).
+    await clickAt(page, 400, 700);
+    await expect(
+      page.getByTestId("field-props").getByRole("textbox", { name: "Name" }),
+    ).toHaveValue("Text1");
+    await page.keyboard.press("Delete");
+    const bytes = await save(page, mockfs);
+    expect([...(await fieldsIn(bytes)).keys()]).toEqual(["Signature1"]);
+    await page.getByRole("button", { name: "Close Prepare Form" }).click();
+    await expect(page.locator(".form-widget")).toHaveCount(0);
+    await expect(sig).toContainText("Sign in Acrobat");
+  });
+
   test("a new field can be filled once Prepare Form is closed", async ({ page, mockfs }) => {
     await place(page, "Text", 400, 700);
     await page.getByRole("button", { name: "Close Prepare Form" }).click();

@@ -5,17 +5,36 @@
 // the plugin's own entry is the one in use.
 
 import { useEffect, useMemo, type ReactElement } from "react";
-import { PDF_FORM_FIELD_FLAG, type PdfWidgetAnnoObject } from "@embedpdf/models";
 import {
+  PDF_FORM_FIELD_FLAG,
+  PDF_FORM_FIELD_TYPE,
+  PdfAnnotationSubtype,
+  type PdfWidgetAnnoObject,
+} from "@embedpdf/models";
+import {
+  createRenderer,
   useRegisteredRenderers,
   useRendererRegistry,
   type AnnotationRendererProps,
   type BoxedAnnotationRenderer,
 } from "@embedpdf/plugin-annotation/react";
 import { formRenderers } from "@embedpdf/plugin-form/react";
+import { SignatureBox } from "./SignatureBox";
 import { TextFill } from "./TextFill";
 
 const TEXT_ID = "formTextField";
+
+/** Signature fields: not covered by the form plugin's renderers. */
+const signatureRenderer = createRenderer<PdfWidgetAnnoObject>({
+  id: "formSignature",
+  matches: (a): a is PdfWidgetAnnoObject =>
+    a.type === PdfAnnotationSubtype.WIDGET &&
+    (a as PdfWidgetAnnoObject).field?.type === PDF_FORM_FIELD_TYPE.SIGNATURE,
+  render: (p) => <SignatureBox props={p} />,
+  renderLocked: (p) => <SignatureBox props={p} />,
+  interactionDefaults: { isDraggable: true, isResizable: true, isRotatable: false },
+  useAppearanceStream: false,
+});
 
 function Widget({ props, children }: { props: AnnotationRendererProps; children: ReactElement }) {
   const field = (props.currentObject as PdfWidgetAnnoObject).field;
@@ -32,12 +51,17 @@ export function FormRenderers() {
   const current = useRegisteredRenderers();
   const ours = useMemo<BoxedAnnotationRenderer[]>(
     () =>
-      formRenderers.map((r) => {
-        const inner =
-          r.id === TEXT_ID ? (p: AnnotationRendererProps) => <TextFill {...p} /> : r.renderLocked;
-        if (!inner) return r;
-        return { ...r, renderLocked: (p) => <Widget props={p}>{inner(p)}</Widget> };
-      }),
+      formRenderers
+        .map((r) => {
+          const inner =
+            r.id === TEXT_ID ? (p: AnnotationRendererProps) => <TextFill {...p} /> : r.renderLocked;
+          if (!inner) return r;
+          return {
+            ...r,
+            renderLocked: (p: AnnotationRendererProps) => <Widget props={p}>{inner(p)}</Widget>,
+          };
+        })
+        .concat(signatureRenderer),
     [],
   );
   const inUse = current.find((r) => r.id === TEXT_ID)?.renderLocked;

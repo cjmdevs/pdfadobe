@@ -341,6 +341,8 @@ async function acroForm() {
   const notes = form.createTextField("notes");
   notes.enableMultiline();
   notes.addToPage(page, { x: 200, y: 460, width: 300, height: 80 });
+  // pdf-lib sizes the font to the box height (69 pt); a notes box wants normal text.
+  notes.setFontSize(10);
   return doc.save();
 }
 

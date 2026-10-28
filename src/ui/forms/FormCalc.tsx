@@ -49,8 +49,9 @@ export function FormCalc({ documentId }: { documentId: string }) {
         .filter((a): a is PdfWidgetAnnoObject => a.type === PdfAnnotationSubtype.WIDGET);
       const values: Record<string, string> = { ...scope.getFormValues(), ...latest };
       for (const [name, raw] of Object.entries(recalculate(setup, values))) {
-        const shown = displayValue(setup, name, raw);
         const w = widgets.find((x) => x.field.name === name);
+        const maxLen = w && "maxLen" in w.field ? w.field.maxLen : undefined;
+        const shown = displayValue(setup, name, raw, maxLen);
         if (!w || shown === (latest[name] ?? values[name] ?? "")) continue;
         latest[name] = shown;
         const task = scope.setFormFieldValues(w.pageIndex, w, { ...w.field, value: shown });

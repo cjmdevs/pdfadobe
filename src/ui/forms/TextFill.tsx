@@ -47,12 +47,12 @@ export function TextFill(props: AnnotationRendererProps) {
     (typed: string) => {
       // Number fields show their format ("$1,234.50") once left, like Acrobat.
       const setup = calcs.get(documentId);
-      const value = setup ? displayValue(setup, field.name, typed) : typed;
+      const value = setup ? displayValue(setup, field.name, typed, maxLen) : typed;
       if (!scope || readOnly || value === original.current) return;
       original.current = value;
       trackFormWrite(scope.setFormFieldValues(pageIndex, annotation, { ...field, value }));
     },
-    [annotation, documentId, field, pageIndex, readOnly, scope],
+    [annotation, documentId, field, maxLen, pageIndex, readOnly, scope],
   );
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
