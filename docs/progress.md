@@ -5,11 +5,11 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 5 (redaction) done: owner check passed 2026-10-28**, tagged `phase-05-done`
-  (`docs/testing/phase-05-test-guide.md`). On the
-  build PC: `npm run check` (376 Vitest + 1 intended skip, 44 Rust, license-check),
-  124 Playwright (one Phase 4 connector test flaked once under load, 3/3 alone).
-  GitHub Actions `redaction` workflow green.
+- **Phase 6 (forms) built, waiting for the owner check** (`docs/testing/phase-06-test-
+guide.md`), not tagged yet. Open: the owner's Acrobat check of the three 1040 XFA
+  samples decides `DEFAULT_XFA_POLICY` (keep or strip). On the build PC: `npm run check`
+  (473 Vitest + 1 intended skip, 47 Rust, license-check), 144 Playwright.
+- **Phase 5 (redaction) done: owner check passed 2026-10-28**, tagged `phase-05-done`.
 - **Phase 4 stages 1-3 + fixes: owner check passed 2026-10-27** (combined run A-J and
   `docs/testing/phase-04-fixes-test-guide.md`). Stage 4 (PDFlyer marks in old
   workpapers) waits for a synthetic PDFlyer sample in `tests/corpus/pdflyer/`; after it,
@@ -47,59 +47,54 @@ Keep it under 2 pages; summarize older phases.
   images add/move/resize/replace/delete); host `fonts.rs` (Windows/user/firm fonts,
   firm share mirrored to `<config>\font-cache\firm\`); UI `src/ui/edit/`, each change one
   `wb.edit` undo step. Spike: `docs/edit-spike-report.md`.
-- **Phase 4** (spec `docs/phases/phase-04.md`): tickmarks drawn with pdf-lib as /Stamp
-  (`src/engine/flyer/tickmarks.ts`), library built-in < firm < personal
-  (`src/flyer/library.ts`), tags in EmbedPDF custom data (`pwType`, not `/PWType`);
-  sections and letter/number picks (`src/flyer/sections.ts`), matching letters linked by
-  /Link with /IRT (`src/flyer/tickLinks.ts`). Connectors are /Line with `pwFrom`/`pwTo`,
-  re-routed by FlyerOverlay; cross-page ends are "p. N" markers + /Link. Sign-off stamps
-  (`userStamps.ts`) and workpaper notes (free-text clone). Calculator (`src/flyer/calc.ts`,
-  10-key + standard), amounts from PDFium chars (`engine/flyer/numbers.ts`), foot /
-  cross-foot, tape as /Stamp (`pwTape`; Update tape makes a new annotation).
-  Deviations: same-page connectors attach only in our app; items repeat until Esc; notes
-  are visible text boxes; standard calculator has no precedence.
+- **Phase 4** (spec `docs/phases/phase-04.md`): tickmarks as /Stamp (pdf-lib), library
+  built-in < firm < personal, tags in EmbedPDF custom data (`pwType`); letter/number
+  picks linked by /Link + /IRT; connectors are /Line (`pwFrom`/`pwTo`), cross-page ends
+  "p. N" markers; sign-off stamps, workpaper notes; calculator (10-key + standard,
+  foot / cross-foot, tape as /Stamp `pwTape`). Deviations: same-page connectors attach
+  only in our app; items repeat until Esc; standard calculator has no precedence.
+- **Phase 5 (redaction)**: `src/engine/redact/` pipeline: PDFium redact text/vectors/
+  pixels (`apply.ts`), qpdf object edits (annotations, whole fields, `objects.ts`), scrub
+  (XMP, XFA, /Info, tagged text, `sanitize.ts`), optional Sanitize, qpdf full rewrite,
+  leak scan (`leak.ts`, throws `RedactionLeakError`). UI `src/ui/redact/`; output
+  `_Redacted.pdf` / `_Sanitized.pdf`. Leak suite + CI workflow + `.githooks/pre-push`.
+  Owner: the Redact panel looks ugly and is a little confusing; redesign later. Gaps:
+  form XObject paths partly under a box removed whole; clipped paths lose blend/spot
+  colours; in-app leak scan has no OCR; bookmark titles with a redacted string refuse.
 
-## Phase 5: redaction (2026-10-27)
+## Phase 6: forms (2026-10-27/28)
 
-Engine `src/engine/redact/` (Node-safe; worker ops `redactSearch`, `redactPageMarks`,
-`redactApply`, `sanitize`). Pre-check: area redaction over a scan overwrites the image
-pixels in the stream (`tests/redaction/scanned-area.test.ts`). Pipeline
-(`redactDocument`): `apply.ts` (PDFium `EPDFText_RedactInQuads` removes text, also in
-form XObjects, covered vectors and pixels; we remove covered images/shadings, give
-partly covered images a private stream first (GetBitmap/SetBitmap: a shared stream
-drawn elsewhere lost pixels too), clip partly covered paths (owner choice A: fills
-Sutherland-Hodgman on 4 strips, strokes split exactly, dash phase kept), draw the
-overlay into content) -> `objects.ts` (qpdf JSON: annotations touching a box, /Redact
-marks, whole fields with every widget, /Fields, /Kids, /CO; inline annotations too) ->
-`sanitize.ts` scrub (XMP, thumbnails, XFA, /Info and tagged text holding a redacted
-string) -> optional Sanitize -> qpdf full rewrite (`--object-streams=generate
---remove-unreferenced-resources=yes`) -> `leak.ts` (PDFium page text, raw + qpdf-decoded
-bytes in 6 encodings, render of each box); any hit throws `RedactionLeakError` (hits
-name pages, never text). Patterns in `patterns.ts`. UI `src/ui/redact/`: tool `redact`
-(Draw Box, Mark Text, Mark Page, Apply, Sanitize), panel (Search & Redact, review,
-overlay, Apply, Sanitize). Marks are /Redact annotations; accepted state and found
-text live in memory only. Output: `<name>_Redacted.pdf` / `_Sanitized.pdf` via
-`writeNewFile`, opened in a new tab. Leak suite `tests/redaction/leak-suite.test.ts`
-over `LEAK_FILES` + the SSN fixture (pdf.js, qpdf, Tesseract OCR psm 6 + 11); CI
-`.github/workflows/redaction.yml`; `.githooks/pre-push` (enable with
-`git config core.hooksPath .githooks`). All six Phase 0 `it.fails` pins now pass.
+Spike `docs/forms-spike-report.md`: PDFium creates text/checkbox/radio/dropdown fields
+(not signatures); the WASM has no JavaScript, so calculations never run by themselves.
+Engine `src/engine/forms/` (Node-safe, worker ops in `src/app/pagesWorker.ts`):
+`fields.ts` (read; button values use the /Opt label), `fill.ts` (fill by name through
+PDFium's form-fill path; misfits skipped and reported, never altered), `xfa.ts`
+(`formKind`, strip/keep), `reset.ts` (Reset/Clear: text + choices via PDFium, buttons via
+qpdf; a cleared dropdown gets its AP text block emptied), `data.ts` (FDF via pdf-lib's
+parser, XFDF, JSON, CSV), `batch.ts` (one copy per CSV row), `flatten.ts` (buttons'
+/AP /N pointed at the current state, widgets drawn backwards, /OBJR links cut, full
+rewrite), `design.ts` (add fields, properties, orphan-field cleanup), `detect.ts`,
+`calc.ts` + `calcSetup.ts` (AFSimple_Calculate, simplified field notation, /CO order,
+AFNumber_Format; /V plain, appearance formatted). UI `src/ui/forms/`: fill mode via
+`@embedpdf/plugin-form` with our own `TextFill` (writes once on leave: the plugin's
+per-keystroke writes raced and lost characters); tools Fill Forms and Prepare Form;
+XFA-only notice with Open in Acrobat (`src-tauri/src/acrobat.rs`). Corpus:
+`xfa-only.pdf`, `flat-form.pdf`, `calc-form.pdf`.
 
-Deviations: account numbers and dates of birth match only after a label; added an
-"Any date" pattern (off); ITINs are also caught by the SSN pattern; Apply drops XMP whole;
-Sanitize's hidden text includes OCR layers; leak secrets are search hits plus 6+ digit
-runs under boxes (plain words are not checked); Apply/Sanitize show their own progress
-(no shared busy wrapper). No confirm dialog before Apply (nothing is overwritten).
+Deviations: fill UI uses the form plugin (owner: "do what you think is best"); read-only
+fields are skipped by fill, import, Reset and Clear; an empty CSV cell leaves its field
+alone; import cannot empty a radio group (Reset can); signature fields are placeholders
+(no signing); custom calculation scripts never run (listed as "calculated in Acrobat
+only"); max length is written on the field and mirrored on its widget (EmbedPDF reads
+the widget); file names from a CSV column refuse SSN/EIN columns.
 
-Owner check 2026-10-28: all steps passed. Step 9 first failed because the app never
-drew form fields (render plugin `withForms` defaulted to false): now on in `App.tsx`.
-Owner: the Redact panel looks ugly and is a little confusing; redesign later.
-
-Known gaps: paths inside form XObjects partly under a box are removed whole (PDFium
-cannot insert into a form; reported); clipped paths lose blend mode and spot colours
-(RGB); the in-app leak scan has no OCR (the suite does); scans need OCR or Draw Box
-(search cannot see pixels); bookmark titles holding a redacted string make Apply refuse
-(no bookmark scrub); embedded index location (/PieceInfo) assumed from Acrobat
-practice, not verified in a spec; encrypted files cannot be redacted (no bytes).
+Known gaps: `DEFAULT_XFA_POLICY` is "keep" until the owner's Acrobat check; any save of an
+IRS form breaks its /UR3 usage rights (PDFium full rewrite); a live recalculation is one
+undo step per changed calculated field; date formats are written for Acrobat but not
+applied or validated here (numbers are); keystroke filters are not enforced; the undo
+label says "Markup" for form edits too; a flattened dropdown keeps its arrow; multiline
+values store CR LF; Detect fields knows blanks, lines and boxes only (no comb boxes or
+table cells).
 
 ## Dependency versions and licenses
 
@@ -110,7 +105,9 @@ annotation/history 2.15.1 (MIT), pdf-lib 1.17.1 runtime (MIT), fast-xml-parser 5
 Phase 4 stage 1: no new dependencies (four more Fluent icons from the existing package).
 Phase 5: no new npm or crate dependencies. Test/CI only: Tesseract OCR 5.4.0 (Apache-2.0;
 build PC via winget `UB-Mannheim.TesseractOCR`, CI via choco), qpdf 12.4.2 (Apache-2.0,
-already vendored).
+already vendored). **Phase 6: @embedpdf/plugin-form 2.15.1 runtime (MIT; its package.json
+has no license field, so `license-policy.json` records the LICENSE file).** No new crates:
+the `windows` crate gains its `Win32_System_Registry` feature (Open in Acrobat).
 
 ## Known gaps / notes for later phases
 
@@ -126,3 +123,5 @@ already vendored).
 - Memory: ~4x file size per open scan, undo up to 400 MB per document.
 - Playwright: the first run after adding a dependency may fail while Vite re-optimizes.
 - Keep document-bound UI inside a `Guard`; extra windows never save view settings.
+- A tab's document id changes with every edit: key per-document UI state by `storeId`.
+- Form widgets are locked (fill mode) except while Prepare Form is open (`FormMode.tsx`).
