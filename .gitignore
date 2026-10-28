@@ -39,3 +39,6 @@ src-tauri/vendor/
 
 # B3 edit samples made from installed Windows fonts (never commit font subsets)
 tests/corpus/edit/local/
+
+# Docs (owner 2026-10-28): files already tracked stay tracked
+docs/
