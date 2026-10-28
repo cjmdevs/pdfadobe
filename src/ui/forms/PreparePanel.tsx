@@ -20,7 +20,7 @@ import {
   type FieldProps,
   type NewFieldKind,
 } from "../../engine/forms";
-import { applyFieldProps, loadFieldProps } from "./prepareActions";
+import { applyFieldProps, detectAndAdd, loadFieldProps } from "./prepareActions";
 import { FIELD_MODE, prepare, usePrepare } from "./prepareStore";
 import { useFormFields } from "./useFormFields";
 
@@ -57,6 +57,16 @@ export default function PreparePanel({ documentId }: { documentId: string }) {
 
   return (
     <section className="forms-panel" aria-label="Prepare Form" data-testid="prepare-panel">
+      <div className="forms-row">
+        <button
+          type="button"
+          disabled={wb.busy !== null}
+          title="Find blank lines, underscores and boxes on a flat form and add fields there"
+          onClick={() => void detectAndAdd(wb, documentId)}
+        >
+          Detect fields
+        </button>
+      </div>
       <h3 className="forms-heading">Add a field</h3>
       <p className="forms-note">Pick a kind, then click on the page. Esc cancels.</p>
       <div className="forms-row">

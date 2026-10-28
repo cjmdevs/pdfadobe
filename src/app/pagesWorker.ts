@@ -36,6 +36,8 @@ import type { Placement } from "../engine/edit/images";
 import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
 import {
   addField,
+  addFields,
+  detectFields,
   readFieldProps,
   removeOrphanFields,
   setFieldProps,
@@ -142,6 +144,9 @@ export const OPS = {
   setFieldProps: (c: Ctx, b: Uint8Array, name: string, props: Partial<FieldProps>) =>
     setFieldProps(c, b, name, props),
   removeOrphanFields: (c: Ctx, b: Uint8Array) => removeOrphanFields(c, b),
+  detectFields: async (c: Ctx, b: Uint8Array, taken: string[]) =>
+    detectFields(c.module, b, new Set(taken)),
+  addFields: (c: Ctx, b: Uint8Array, specs: NewField[]) => addFields(c, b, specs),
   fillForm: (c: Ctx, b: Uint8Array, values: FieldValues) => fillForm(c.engine, b, values),
   fillCopy: (c: Ctx, b: Uint8Array, values: FieldValues, xfa: XfaPolicy) =>
     fillCopy(c, b, values, xfa),

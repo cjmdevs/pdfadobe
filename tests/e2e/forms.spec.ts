@@ -447,3 +447,38 @@ test.describe("Prepare Form", () => {
     expect(await valuesOf(Buffer.from(bytes))).toMatchObject({ Text1: "Typed in a new field" });
   });
 });
+
+test("Detect fields on a flat form adds named fields in one undoable step", async ({
+  page,
+  mockfs,
+}) => {
+  const FLAT = String.raw`C:\Corpus\flat-form.pdf`;
+  mockfs.entries[FLAT] = { bytes: readFileSync(join(CORPUS, "flat-form.pdf")) };
+  await boot(page);
+  await openPaths(page, [FLAT]);
+  await waitForPainted(page, 0);
+  await idle(page);
+  await page.getByRole("button", { name: "Prepare Form", exact: true }).click();
+  await page.getByTestId("prepare-panel").getByRole("button", { name: "Detect fields" }).click();
+  await idle(page);
+  await expect(page.getByRole("status").or(page.getByRole("alert")).first()).toContainText(
+    "Added 6 fields",
+  );
+  const writes = mockfs.writes.length;
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => mockfs.writes.length, { timeout: 15_000 }).toBe(writes + 1);
+  const task = getDocument({ data: new Uint8Array(bytesAt(mockfs, FLAT)) });
+  const names = [
+    ...(((await (await task.promise).getFieldObjects()) as Map<string, unknown>) ?? []),
+  ].map(([k]) => k);
+  await task.destroy();
+  expect(names.sort()).toEqual(
+    ["Client name", "Dependents", "Married", "Notes", "Preparer", "Tax year"].sort(),
+  );
+  // Fill mode wraps each field in .form-widget: 6 now, none after one undo.
+  await page.getByRole("button", { name: "Close Prepare Form" }).click();
+  await expect(page.locator(".form-widget")).toHaveCount(6);
+  await page.keyboard.press("Control+z");
+  await idle(page);
+  await expect(page.locator(".form-widget")).toHaveCount(0);
+});

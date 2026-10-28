@@ -22,6 +22,7 @@ const flyerFiles = () => import("../ui/flyer/flyerFiles");
 const formActions = () => import("../ui/forms/formActions");
 const formDataFiles = () => import("../ui/forms/formDataFiles");
 const prepareStore = () => import("../ui/forms/prepareStore");
+const prepareActions = () => import("../ui/forms/prepareActions");
 
 /** What an action works on. */
 export interface ToolContext {
@@ -852,26 +853,39 @@ export const TOOLS: ToolDef[] = [
     comingIn: null,
     open: "toolbar",
     panel: () => import("../ui/forms/PreparePanel"),
-    toolbar: (
-      [
-        ["text", "Text field", "fieldHighlight"],
-        ["checkbox", "Check box", "checkRequired"],
-        ["radio", "Radio button", "checkRequired"],
-        ["dropdown", "Dropdown", "form"],
-        ["date", "Date field", "form"],
-        ["signature", "Signature field", "form"],
-      ] as const
-    ).map(([kind, label, icon]) => ({
-      id: `add-${kind}`,
-      label: `Add a ${label.toLowerCase()}: click on the page to place it (Esc cancels)`,
-      caption: label,
-      icon,
-      run: (c: ToolContext) => {
-        const id = c.documentId;
-        if (id) void prepareStore().then((m) => m.prepare.arm(id, kind));
+    toolbar: [
+      {
+        id: "detectFields",
+        label: "Detect fields: find blank lines, underscores and boxes and add fields there",
+        caption: "Detect",
+        icon: "search",
+        run: (c: ToolContext) => {
+          const id = c.documentId;
+          if (id) void prepareActions().then((m) => m.detectAndAdd(c.wb, id));
+        },
+        enabled: (c: ToolContext) => hasDoc(c),
       },
-      enabled: (c: ToolContext) => hasDoc(c),
-    })),
+      ...(
+        [
+          ["text", "Text field", "fieldHighlight"],
+          ["checkbox", "Check box", "checkRequired"],
+          ["radio", "Radio button", "checkRequired"],
+          ["dropdown", "Dropdown", "form"],
+          ["date", "Date field", "form"],
+          ["signature", "Signature field", "form"],
+        ] as const
+      ).map(([kind, label, icon]) => ({
+        id: `add-${kind}`,
+        label: `Add a ${label.toLowerCase()}: click on the page to place it (Esc cancels)`,
+        caption: label,
+        icon,
+        run: (c: ToolContext) => {
+          const id = c.documentId;
+          if (id) void prepareStore().then((m) => m.prepare.arm(id, kind));
+        },
+        enabled: (c: ToolContext) => hasDoc(c),
+      })),
+    ],
   },
   planned("ocr", "Scan & OCR", "ocr", "#2e9e44", "Make scanned pages searchable", []),
   planned("protect", "Protect", "protect", "#3a6fd8", "Passwords and permissions", []),

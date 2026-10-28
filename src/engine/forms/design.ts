@@ -41,6 +41,8 @@ export interface NewField {
   name?: string;
   /** Radio only: add this button to the existing group with this name. */
   joinGroup?: string;
+  /** Text only: several lines (a notes box). */
+  multiline?: boolean;
 }
 
 /** Size of a field placed with one click, in points (Acrobat's defaults, roughly). */
@@ -212,6 +214,11 @@ function fixNewWidget(objs: PdfObjects, spec: NewField, name: string, nm: string
   }
   if (spec.kind === "date" && t)
     setFormat(objs, t.ref, { kind: "date", pattern: DEFAULT_DATE_PATTERN });
+  if (spec.multiline && spec.kind === "text" && t) {
+    const fd = objs.dict(t.ref) ?? {};
+    const ff = typeof fd["/Ff"] === "number" ? fd["/Ff"] : 0;
+    objs.set(t.ref, withKey(fd, "/Ff", ff | PDF_FORM_FIELD_FLAG.TEXT_MULTIPLINE));
+  }
   // A field created on its own leaves an empty stand-in after joining a group.
   if (spec.joinGroup) dropEmptyFields(objs);
 }
@@ -489,4 +496,20 @@ export async function removeOrphanFields(
       objs.set(objs.catalogRef, withKey(objs.catalog, "/AcroForm", withKey(form, "/Fields", keep)));
   }
   return { bytes: await apply(ctx, bytes, objs), removed };
+}
+
+/** Adds every field in `specs`, in order (Detect fields). One step for the app. */
+export async function addFields(
+  ctx: PagesCtx,
+  bytes: Uint8Array,
+  specs: NewField[],
+): Promise<{ bytes: Uint8Array; names: string[] }> {
+  let out = bytes;
+  const names: string[] = [];
+  for (const spec of specs) {
+    const r = await addField(ctx, out, spec);
+    out = r.bytes;
+    names.push(r.name);
+  }
+  return { bytes: out, names };
 }

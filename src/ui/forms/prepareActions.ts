@@ -81,3 +81,29 @@ export async function loadFieldProps(
     return null;
   }
 }
+
+/** Detect fields: finds likely fields on a flat document and adds them, one step. */
+export async function detectAndAdd(wb: WorkbenchApi, documentId: string): Promise<void> {
+  const bytes = await wb.docBytes(documentId);
+  if (!bytes) return;
+  try {
+    const taken = (await pageOp("formFields", bytes)).map((f) => f.name);
+    const found = await pageOp("detectFields", bytes, taken);
+    if (!found.length) {
+      wb.toast("No likely fields were found (blank lines, underscores, boxes).");
+      return;
+    }
+    const ok = await wb.edit(documentId, `Detect fields (${found.length})`, async (b) => {
+      const r = await pageOp("addFields", b, found);
+      return r.bytes;
+    });
+    if (!ok) return;
+    const boxes = found.filter((f) => f.kind === "checkbox").length;
+    wb.toast(
+      `Added ${found.length} field${found.length === 1 ? "" : "s"} (${boxes} check box${boxes === 1 ? "" : "es"}), ` +
+        "named from their labels. Check them, then move, rename or delete as needed. Ctrl+Z undoes it.",
+    );
+  } catch (e) {
+    wb.toast(`Detect fields failed: ${message(e)}`, "error");
+  }
+}

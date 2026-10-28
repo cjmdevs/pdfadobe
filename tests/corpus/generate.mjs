@@ -811,6 +811,63 @@ async function signedFake() {
  * A dynamic XFA form (XFA-only): /NeedsRendering true, an XFA template, no AcroForm
  * widgets. The page shows only the placeholder a non-XFA viewer would see. Synthetic.
  */
+/**
+ * A flat (non-fillable) intake form for Prepare Form > Detect fields: underscore blanks,
+ * a ruled line, square check boxes and an empty notes box. `FLAT_FORM_LAYOUT` lists
+ * what a detector should find. Synthetic; no fields.
+ */
+export const FLAT_FORM_LAYOUT = {
+  underscores: [
+    { label: "Client name", y: 700 },
+    { label: "Tax year", y: 670 },
+  ],
+  line: { label: "Preparer", y: 640, x: 160, w: 220 },
+  boxes: [
+    { label: "Married", y: 600, x: 72 },
+    { label: "Dependents", y: 600, x: 200 },
+  ],
+  notes: { label: "Notes", x: 72, y: 470, w: 400, h: 90 },
+};
+
+async function flatForm() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic flat intake form");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  const L = FLAT_FORM_LAYOUT;
+  page.drawText("Client Intake (synthetic)", { x: 72, y: 740, size: 16, font });
+  for (const u of L.underscores)
+    page.drawText(`${u.label}: ______________________________`, { x: 72, y: u.y, size: 11, font });
+  page.drawText(`${L.line.label}:`, { x: 72, y: L.line.y, size: 11, font });
+  page.drawLine({
+    start: { x: L.line.x, y: L.line.y - 2 },
+    end: { x: L.line.x + L.line.w, y: L.line.y - 2 },
+    thickness: 0.75,
+  });
+  for (const b of L.boxes) {
+    page.drawRectangle({
+      x: b.x,
+      y: b.y,
+      width: 10,
+      height: 10,
+      borderWidth: 0.75,
+      borderColor: rgb(0, 0, 0),
+    });
+    page.drawText(b.label, { x: b.x + 16, y: b.y + 1, size: 11, font });
+  }
+  const n = L.notes;
+  page.drawText(`${n.label}`, { x: n.x, y: n.y + n.h + 6, size: 11, font });
+  page.drawRectangle({
+    x: n.x,
+    y: n.y,
+    width: n.w,
+    height: n.h,
+    borderWidth: 0.75,
+    borderColor: rgb(0, 0, 0),
+  });
+  return doc.save();
+}
+
 async function xfaOnly() {
   const doc = await PDFDocument.create();
   stamp(doc, "Synthetic XFA-only form");
@@ -937,6 +994,7 @@ export async function generateCorpus({ force = false } = {}) {
   await write("corrupt.pdf", async () => corrupt());
   await write("acroform.pdf", acroForm);
   await write("xfa-only.pdf", xfaOnly);
+  await write("flat-form.pdf", flatForm);
   await write("scanned-image-only.pdf", async () =>
     scannedImageOnly(readFileSync(out("text-1p.pdf"))),
   );

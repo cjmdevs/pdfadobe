@@ -50,3 +50,10 @@ export function png(width: number, height: number, colorType: 0 | 6, pixels: Uin
 /** qpdf executable: $QPDF, PATH, or src-tauri/vendor/qpdf/qpdf.exe. Throws if none. */
 export function qpdfBin(): string;
 export function generateCorpus(opts?: { force?: boolean }): Promise<string[]>;
+/** What Prepare Form > Detect fields should find in generated/flat-form.pdf. */
+export const FLAT_FORM_LAYOUT: {
+  underscores: { label: string; y: number }[];
+  line: { label: string; y: number; x: number; w: number };
+  boxes: { label: string; y: number; x: number }[];
+  notes: { label: string; x: number; y: number; w: number; h: number };
+};
