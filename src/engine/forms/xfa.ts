@@ -43,6 +43,12 @@ export function formKind(m: PdfiumModule, bytes: Uint8Array): FormKind {
  */
 export type XfaPolicy = "strip" | "keep";
 
+/**
+ * What Save and Fill from CSV do until the owner's Acrobat check decides: "keep", which
+ * is what a PDFium save already does.
+ */
+export const DEFAULT_XFA_POLICY: XfaPolicy = "keep";
+
 export async function finishFormSave(
   ctx: PagesCtx,
   bytes: Uint8Array,

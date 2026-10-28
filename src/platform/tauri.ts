@@ -150,21 +150,25 @@ export const tauriPlatform: Platform = {
 
   async pickFiles(opts) {
     const picked = await open({
-      multiple: !opts?.pictures && !opts?.json,
+      multiple: !opts?.pictures && !opts?.json && !opts?.formData && !opts?.csv,
       directory: false,
-      filters: opts?.json
-        ? [{ name: "Workpaper settings (JSON)", extensions: ["json"] }]
-        : opts?.xfdf
-          ? [{ name: "Comments (XFDF)", extensions: ["xfdf"] }]
-          : opts?.pictures
-            ? [{ name: "Images (JPEG, PNG)", extensions: ["jpg", "jpeg", "png"] }]
-            : opts?.images
-              ? [
-                  { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
-                  { name: "PDF files", extensions: ["pdf"] },
-                  { name: "Images", extensions: IMAGE_EXTENSIONS },
-                ]
-              : [{ name: "PDF files", extensions: ["pdf"] }],
+      filters: opts?.formData
+        ? [{ name: "Form data (FDF, XFDF, JSON, CSV)", extensions: ["fdf", "xfdf", "json", "csv"] }]
+        : opts?.csv
+          ? [{ name: "CSV (Excel)", extensions: ["csv"] }]
+          : opts?.json
+            ? [{ name: "Workpaper settings (JSON)", extensions: ["json"] }]
+            : opts?.xfdf
+              ? [{ name: "Comments (XFDF)", extensions: ["xfdf"] }]
+              : opts?.pictures
+                ? [{ name: "Images (JPEG, PNG)", extensions: ["jpg", "jpeg", "png"] }]
+                : opts?.images
+                  ? [
+                      { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
+                      { name: "PDF files", extensions: ["pdf"] },
+                      { name: "Images", extensions: IMAGE_EXTENSIONS },
+                    ]
+                  : [{ name: "PDF files", extensions: ["pdf"] }],
     });
     if (!picked) return [];
     const paths = Array.isArray(picked) ? picked : [picked];
@@ -234,7 +238,9 @@ export const tauriPlatform: Platform = {
           ? { name: "Workpaper settings (JSON)", extensions: ["json"] }
           : kind === "csv"
             ? { name: "CSV (Excel)", extensions: ["csv"] }
-            : { name: "PDF files", extensions: ["pdf"] };
+            : kind === "fdf"
+              ? { name: "Form data (FDF)", extensions: ["fdf"] }
+              : { name: "PDF files", extensions: ["pdf"] };
     return save({ defaultPath: suggested, filters: [filter] });
   },
 

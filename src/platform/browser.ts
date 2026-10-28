@@ -27,20 +27,26 @@ function pickWithInput(
   xfdf = false,
   pictures = false,
   json = false,
+  formData = false,
+  csv = false,
 ): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = json
-      ? ".json,application/json"
-      : xfdf
-        ? ".xfdf,application/vnd.adobe.xfdf"
-        : pictures
-          ? "image/jpeg,image/png,.jpg,.jpeg,.png"
-          : images
-            ? "application/pdf,.pdf,image/jpeg,image/png,image/tiff,.tif,.tiff"
-            : "application/pdf,.pdf";
-    input.multiple = !pictures;
+    input.accept = formData
+      ? ".fdf,.xfdf,.json,.csv"
+      : csv
+        ? ".csv,text/csv"
+        : json
+          ? ".json,application/json"
+          : xfdf
+            ? ".xfdf,application/vnd.adobe.xfdf"
+            : pictures
+              ? "image/jpeg,image/png,.jpg,.jpeg,.png"
+              : images
+                ? "application/pdf,.pdf,image/jpeg,image/png,image/tiff,.tif,.tiff"
+                : "application/pdf,.pdf";
+    input.multiple = !pictures && !formData && !csv;
     input.onchange = () => resolve(Array.from(input.files ?? []));
     input.oncancel = () => resolve([]);
     input.click();
@@ -212,7 +218,16 @@ export const browserPlatform: Platform = {
 
   async pickFiles(opts) {
     return Promise.all(
-      (await pickWithInput(opts?.images, opts?.xfdf, opts?.pictures, opts?.json)).map(fileToOpened),
+      (
+        await pickWithInput(
+          opts?.images,
+          opts?.xfdf,
+          opts?.pictures,
+          opts?.json,
+          opts?.formData,
+          opts?.csv,
+        )
+      ).map(fileToOpened),
     );
   },
 

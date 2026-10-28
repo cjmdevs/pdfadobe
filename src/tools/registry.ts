@@ -20,6 +20,7 @@ import { ALL_SANITIZE } from "../engine/redact/sanitize";
 const markupFiles = () => import("../ui/markup/markupFiles");
 const flyerFiles = () => import("../ui/flyer/flyerFiles");
 const formActions = () => import("../ui/forms/formActions");
+const formDataFiles = () => import("../ui/forms/formDataFiles");
 
 /** What an action works on. */
 export interface ToolContext {
@@ -795,6 +796,37 @@ export const TOOLS: ToolDef[] = [
           if (id) void formActions().then((m) => m.resetForm(c.wb, id));
         },
         enabled: (c) => hasDoc(c),
+      },
+      {
+        id: "importData",
+        label: "Import form data from an FDF, XFDF, JSON or CSV file (Ctrl+Z undoes)",
+        caption: "Import",
+        icon: "importFile",
+        run: (c) => {
+          const id = c.documentId;
+          if (id) void formDataFiles().then((m) => m.importFormData(c.wb, id));
+        },
+        enabled: (c) => hasDoc(c),
+      },
+      {
+        id: "exportData",
+        label: "Export the form's field values",
+        caption: "Export",
+        icon: "exportFile",
+        run: (c) => {
+          const id = c.documentId;
+          if (id) void formDataFiles().then((m) => m.exportFormData(c.wb, id, "fdf"));
+        },
+        enabled: (c) => c.documentId !== null,
+        items: () =>
+          (["fdf", "xfdf", "json", "csv"] as const).map((f) => ({
+            id: f,
+            label: `Export to ${f.toUpperCase()}…`,
+            run: (cc: ToolContext) => {
+              const id = cc.documentId;
+              if (id) void formDataFiles().then((m) => m.exportFormData(cc.wb, id, f));
+            },
+          })),
       },
     ],
   },

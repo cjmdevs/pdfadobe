@@ -1964,3 +1964,22 @@ button.primary.danger-fill {
 .forms-panel .link:hover {
   text-decoration: underline;
 }
+.forms-heading {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.forms-csv {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.forms-csv p {
+  margin: 0;
+}
+.forms-csv select {
+  max-width: 100%;
+}

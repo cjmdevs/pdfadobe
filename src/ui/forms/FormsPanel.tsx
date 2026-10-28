@@ -1,11 +1,19 @@
 // Fill Forms panel (Phase 6), shown in the Tools pane while Fill Forms is open: the
 // required-field check, and the list of fields to pick for Clear. Values are not shown
 // here (only whether a field is filled), so nothing typed is repeated on screen.
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
 import { useFormCapability } from "@embedpdf/plugin-form/react";
 import { useWorkbench } from "../../app/workbench";
+import { looksSensitive, type CsvTable } from "../../engine/forms";
 import { clearFields, resetForm } from "./formActions";
+import {
+  exportFormData,
+  fillCopies,
+  importFormData,
+  pickCsvTable,
+  type BatchProgress,
+} from "./formDataFiles";
 import { useFormFields, type FieldRow } from "./useFormFields";
 
 export default function FormsPanel({ documentId }: { documentId: string }) {
@@ -15,7 +23,12 @@ export default function FormsPanel({ documentId }: { documentId: string }) {
   const { provides: form } = useFormCapability();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [checked, setChecked] = useState(false);
+  const [csv, setCsv] = useState<{ name: string; table: CsvTable } | null>(null);
+  const [nameColumn, setNameColumn] = useState<string>("");
+  const [progress, setProgress] = useState<BatchProgress | null>(null);
+  const cancel = useRef(false);
   const missing = useMemo(() => fields.filter((f) => f.required && f.empty), [fields]);
+  const fieldNames = useMemo(() => new Set(fields.map((f) => f.name)), [fields]);
   const busy = wb.busy !== null;
 
   const go = (f: FieldRow) => {
@@ -126,6 +139,96 @@ export default function FormsPanel({ documentId }: { documentId: string }) {
           Clear {chosen.length ? `${chosen.length} ` : ""}selected
         </button>
       </div>
+      <h3 className="forms-heading">Form data</h3>
+      <div className="forms-row">
+        <button type="button" disabled={busy} onClick={() => void importFormData(wb, documentId)}>
+          Import data…
+        </button>
+        {(["fdf", "xfdf", "json", "csv"] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            title={`Export the field values to ${f.toUpperCase()}`}
+            onClick={() => void exportFormData(wb, documentId, f)}
+          >
+            {f.toUpperCase()}
+          </button>
+        ))}
+      </div>
+      <h3 className="forms-heading">Fill copies from a CSV</h3>
+      {!csv ? (
+        <div className="forms-row">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void pickCsvTable(wb).then((t) => {
+                setCsv(t);
+                setNameColumn("");
+              })
+            }
+          >
+            Choose CSV…
+          </button>
+        </div>
+      ) : (
+        <div className="forms-csv" data-testid="forms-csv">
+          <p>
+            {csv.name}: {csv.table.rows.length} row{csv.table.rows.length === 1 ? "" : "s"},{" "}
+            {csv.table.names.filter((n) => fieldNames.has(n)).length} of {csv.table.names.length}{" "}
+            columns match fields in this form.
+          </p>
+          <label>
+            Name each file by{" "}
+            <select value={nameColumn} onChange={(e) => setNameColumn(e.target.value)}>
+              <option value="">row number</option>
+              {csv.table.names.map((n, k) => {
+                const sensitive = looksSensitive(csv.table.rows.map((r) => r[k] ?? ""));
+                return (
+                  <option key={n} value={n} disabled={sensitive}>
+                    {n}
+                    {sensitive ? " (holds SSNs or EINs: not allowed in file names)" : ""}
+                  </option>
+                );
+              })}
+            </select>
+          </label>
+          {progress && progress.done < progress.total ? (
+            <div className="forms-row" role="status">
+              <span>
+                Filling {progress.done + 1} of {progress.total}…
+              </span>
+              <button type="button" onClick={() => (cancel.current = true)}>
+                Stop
+              </button>
+            </div>
+          ) : (
+            <div className="forms-row">
+              <button
+                type="button"
+                className="primary"
+                disabled={busy || !csv.table.rows.length}
+                onClick={() => {
+                  cancel.current = false;
+                  void fillCopies(
+                    wb,
+                    documentId,
+                    csv.table,
+                    nameColumn || null,
+                    setProgress,
+                    () => cancel.current,
+                  ).finally(() => setProgress(null));
+                }}
+              >
+                Fill {csv.table.rows.length} cop{csv.table.rows.length === 1 ? "y" : "ies"}…
+              </button>
+              <button type="button" onClick={() => setCsv(null)}>
+                Cancel
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }

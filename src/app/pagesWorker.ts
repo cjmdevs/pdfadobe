@@ -34,7 +34,18 @@ import {
 } from "../engine/edit/document";
 import type { Placement } from "../engine/edit/images";
 import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
-import { resetFields, type ResetRequest } from "../engine/forms";
+import {
+  fillCopy,
+  fillForm,
+  formValues,
+  parseFormData,
+  readFields,
+  resetFields,
+  type DataFormat,
+  type FieldValues,
+  type ResetRequest,
+  type XfaPolicy,
+} from "../engine/forms";
 
 type Ctx = P.PagesCtx;
 
@@ -105,6 +116,23 @@ export const OPS = {
   ) => addTextBox(c.module, b, page, at, paragraphs, style, { subset: await subsetter() }),
   // Fill Forms (Phase 6): Reset form / Clear fields.
   resetFields: (c: Ctx, b: Uint8Array, req: ResetRequest) => resetFields(c, b, req),
+  // Form data import/export and fill-from-CSV.
+  formFields: async (c: Ctx, b: Uint8Array) => {
+    const doc = await c.engine
+      .openDocumentBuffer({ id: `fields-${crypto.randomUUID()}`, content: b.slice().buffer })
+      .toPromise();
+    try {
+      return await readFields(c.engine, doc);
+    } finally {
+      await c.engine.closeDocument(doc).toPromise();
+    }
+  },
+  formValues: (c: Ctx, b: Uint8Array) => formValues(c.engine, b),
+  fillForm: (c: Ctx, b: Uint8Array, values: FieldValues) => fillForm(c.engine, b, values),
+  fillCopy: (c: Ctx, b: Uint8Array, values: FieldValues, xfa: XfaPolicy) =>
+    fillCopy(c, b, values, xfa),
+  parseFormData: async (_c: Ctx, file: Uint8Array, format: DataFormat) =>
+    parseFormData(file, format),
   // Redaction (Phase 5). A leak is a result, not an error: errors cross the worker
   // boundary as text only, and the UI needs the hits to say where.
   redactSearch: async (c: Ctx, b: Uint8Array, spec: SearchSpec) =>

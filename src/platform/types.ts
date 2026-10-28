@@ -58,11 +58,14 @@ export interface Platform {
   readonly kind: "tauri" | "browser";
   /** Native open dialog (multi-select). Empty array when cancelled. `images` also offers JPG/PNG/TIFF. */
   /** `pictures`: JPEG and PNG only (Edit PDF images). `json`: workpaper settings files. */
+  /** `formData`: one FDF, XFDF, JSON or CSV file; `csv`: one CSV file (Phase 6). */
   pickFiles(opts?: {
     images?: boolean;
     xfdf?: boolean;
     pictures?: boolean;
     json?: boolean;
+    formData?: boolean;
+    csv?: boolean;
   }): Promise<OpenedFile[]>;
   /** Folder picker; null when cancelled. */
   pickFolder(): Promise<string | null>;
@@ -80,7 +83,10 @@ export interface Platform {
   userDisplayName(): Promise<string | null>;
   saveSettings(value: unknown): Promise<void>;
   /** Save dialog; null when cancelled. */
-  pickSavePath(suggested: string, kind?: "pdf" | "xfdf" | "json" | "csv"): Promise<string | null>;
+  pickSavePath(
+    suggested: string,
+    kind?: "pdf" | "xfdf" | "json" | "csv" | "fdf",
+  ): Promise<string | null>;
   /** Save over an opened file: temp file, previous version copied to `<path>.bak`, atomic
    * replace, then read back; the `.bak` is deleted when the file matches. */
   save(path: string, bytes: Uint8Array): Promise<void>;
