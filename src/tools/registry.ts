@@ -19,6 +19,7 @@ import { ALL_SANITIZE } from "../engine/redact/sanitize";
 /** File commands load the platform layer; imported on use so this list stays Node-safe. */
 const markupFiles = () => import("../ui/markup/markupFiles");
 const flyerFiles = () => import("../ui/flyer/flyerFiles");
+const formActions = () => import("../ui/forms/formActions");
 
 /** What an action works on. */
 export interface ToolContext {
@@ -765,7 +766,38 @@ export const TOOLS: ToolDef[] = [
       },
     ],
   },
-  planned("forms", "Fill Forms", "form", "#8a4fd8", "Fill and create form fields", []),
+  {
+    id: "forms",
+    name: "Fill Forms",
+    icon: "form",
+    color: "#8a4fd8",
+    description: "Fill, check and reset form fields",
+    comingIn: null,
+    open: "toolbar",
+    panel: () => import("../ui/forms/FormsPanel"),
+    toolbar: [
+      {
+        id: "highlight",
+        label: "Highlight fields: tint fillable fields, outline required ones",
+        caption: "Highlight",
+        icon: "fieldHighlight",
+        run: (c) => c.wb.updateSettings({ formHighlight: !c.wb.settings.formHighlight }),
+        pressed: (c) => c.wb.settings.formHighlight,
+        enabled: () => true,
+      },
+      {
+        id: "resetForm",
+        label: "Reset form: every field back to its default value (Ctrl+Z undoes)",
+        caption: "Reset",
+        icon: "resetForm",
+        run: (c) => {
+          const id = c.documentId;
+          if (id) void formActions().then((m) => m.resetForm(c.wb, id));
+        },
+        enabled: (c) => hasDoc(c),
+      },
+    ],
+  },
   planned("ocr", "Scan & OCR", "ocr", "#2e9e44", "Make scanned pages searchable", []),
   planned("protect", "Protect", "protect", "#3a6fd8", "Passwords and permissions", []),
 ];

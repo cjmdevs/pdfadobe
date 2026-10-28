@@ -77,6 +77,8 @@ export interface Settings {
   calc: CalcSettings;
   /** Floating calculator shown. */
   calcOpen: boolean;
+  /** Fill Forms (Phase 6): tint fillable fields, outline required ones (Acrobat's default). */
+  formHighlight: boolean;
 }
 
 export const MAX_RECENT = 15;
@@ -141,6 +143,7 @@ export const DEFAULT_SETTINGS: Settings = {
   connectorStyle: "arrow",
   calc: DEFAULT_CALC,
   calcOpen: false,
+  formHighlight: true,
 };
 
 const oneOf =
@@ -234,6 +237,7 @@ export function sanitizeSettings(raw: unknown): Settings {
         : d.connectorStyle,
     calc: sanitizeCalc(r.calc),
     calcOpen: typeof r.calcOpen === "boolean" ? r.calcOpen : d.calcOpen,
+    formHighlight: typeof r.formHighlight === "boolean" ? r.formHighlight : d.formHighlight,
   };
 }
 

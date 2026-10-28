@@ -2,4 +2,5 @@
 // by the app's worker and the MCP server.
 export * from "./fields";
 export * from "./fill";
+export * from "./reset";
 export * from "./xfa";

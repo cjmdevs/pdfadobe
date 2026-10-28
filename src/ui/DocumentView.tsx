@@ -189,7 +189,12 @@ function Viewer({ documentId }: { documentId: string }) {
 
   return (
     <GlobalPointerProvider documentId={documentId} style={{ height: "100%" }}>
-      <Viewport documentId={documentId} className="viewport" data-testid="viewport" tabIndex={-1}>
+      <Viewport
+        documentId={documentId}
+        className={settings.formHighlight ? "viewport forms-highlight" : "viewport"}
+        data-testid="viewport"
+        tabIndex={-1}
+      >
         {single ? (
           <div className="single-page">
             <PageLayers

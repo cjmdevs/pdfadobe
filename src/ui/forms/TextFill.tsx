@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { PDF_FORM_FIELD_FLAG, type PdfWidgetAnnoObject } from "@embedpdf/models";
 import type { AnnotationRendererProps } from "@embedpdf/plugin-annotation/react";
-import { useFormCapability } from "@embedpdf/plugin-form/react";
+import { useFormCapability, useFormDocumentState } from "@embedpdf/plugin-form/react";
 import { trackFormWrite } from "../../app/formWrites";
 
 export function TextFill(props: AnnotationRendererProps) {
@@ -26,6 +26,12 @@ export function TextFill(props: AnnotationRendererProps) {
   const original = useRef(field.value);
   const cancelled = useRef(false);
   const image = useWidgetImage(annotation, pageIndex, scale, documentId);
+  const inputRef = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  // Selected from elsewhere (the Forms panel, the plugin's next/previous field): focus.
+  const selected = useFormDocumentState(documentId).selectedFieldId === annotation.id;
+  useEffect(() => {
+    if (selected && document.activeElement !== inputRef.current) inputRef.current?.focus();
+  }, [selected]);
 
   // Commits what the element holds: a blur can arrive before React re-renders with the
   // last keystrokes, so the `text` state may be one render behind.
@@ -49,6 +55,7 @@ export function TextFill(props: AnnotationRendererProps) {
   };
 
   const common = {
+    ref: inputRef,
     "data-form-field": field.name,
     "aria-label": field.name,
     className: `form-fill-input${editing ? " editing" : ""}`,

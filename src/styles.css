@@ -1861,3 +1861,106 @@ button.primary.danger-fill {
   background: #fff;
   outline: 2px solid var(--accent, #2563eb);
 }
+
+/* Field highlighting (Fill Forms > Highlight fields): a light tint over every fillable
+   field, a red outline on required ones, like Acrobat. */
+.form-widget {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.forms-highlight .form-widget::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: rgba(204, 215, 255, 0.55);
+  mix-blend-mode: multiply;
+}
+.forms-highlight .form-widget[data-required]::after {
+  outline: 1px solid #d22;
+}
+
+/* Fill Forms panel (Phase 6). */
+.forms-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.forms-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.forms-note {
+  margin: 0;
+  color: var(--muted, #666);
+}
+.forms-check {
+  padding: 6px 8px;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 4px;
+}
+.forms-check p {
+  margin: 0 0 4px;
+}
+.forms-check ul,
+.forms-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.forms-list-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  color: var(--muted, #666);
+}
+.forms-list-head span {
+  flex: 1;
+}
+.forms-list {
+  max-height: 50vh;
+  overflow: auto;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 4px;
+}
+.forms-list li {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 6px;
+}
+.forms-list li.filled .link::after {
+  content: " ✓";
+  color: #2e9e44;
+}
+.forms-list .link,
+.forms-check .link {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+.forms-required {
+  color: #d22;
+  font-weight: 600;
+}
+.forms-page {
+  color: var(--muted, #666);
+  font-size: 12px;
+}
+.forms-panel .link {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent, #2563eb);
+  font: inherit;
+  cursor: pointer;
+}
+.forms-panel .link:hover {
+  text-decoration: underline;
+}

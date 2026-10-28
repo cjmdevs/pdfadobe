@@ -100,6 +100,9 @@ import exportFile from "@fluentui/svg-icons/icons/arrow_export_ltr_20_regular.sv
 import importFile from "@fluentui/svg-icons/icons/arrow_import_20_regular.svg?raw";
 import flatten from "@fluentui/svg-icons/icons/layer_20_regular.svg?raw";
 import summary from "@fluentui/svg-icons/icons/document_text_20_regular.svg?raw";
+import checkRequired from "@fluentui/svg-icons/icons/checkmark_circle_20_regular.svg?raw";
+import resetForm from "@fluentui/svg-icons/icons/arrow_reset_20_regular.svg?raw";
+import fieldHighlight from "@fluentui/svg-icons/icons/text_field_20_regular.svg?raw";
 
 const SVG = {
   open,
@@ -198,6 +201,9 @@ const SVG = {
   reply,
   filter,
   exportFile,
+  checkRequired,
+  resetForm,
+  fieldHighlight,
   importFile,
   flatten,
   summary,

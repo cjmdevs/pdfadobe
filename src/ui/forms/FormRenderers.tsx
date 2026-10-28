@@ -1,11 +1,15 @@
 // Registers the form plugin's field renderers with our text field in place of its own
-// (see TextFill.tsx). The annotation renderer registry keeps one entry per id, the last
-// registered wins, so this re-registers whenever the plugin's entry is the one in use.
+// (see TextFill.tsx), each wrapped in a `.form-widget` box that carries the field name
+// and the required flag (field highlighting, tests). The annotation renderer registry
+// keeps one entry per id and the last registered wins, so this re-registers whenever
+// the plugin's own entry is the one in use.
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, type ReactElement } from "react";
+import { PDF_FORM_FIELD_FLAG, type PdfWidgetAnnoObject } from "@embedpdf/models";
 import {
   useRegisteredRenderers,
   useRendererRegistry,
+  type AnnotationRendererProps,
   type BoxedAnnotationRenderer,
 } from "@embedpdf/plugin-annotation/react";
 import { formRenderers } from "@embedpdf/plugin-form/react";
@@ -13,14 +17,27 @@ import { TextFill } from "./TextFill";
 
 const TEXT_ID = "formTextField";
 
+function Widget({ props, children }: { props: AnnotationRendererProps; children: ReactElement }) {
+  const field = (props.currentObject as PdfWidgetAnnoObject).field;
+  const required = (field.flag & PDF_FORM_FIELD_FLAG.REQUIRED) !== 0;
+  return (
+    <div className="form-widget" data-field={field.name} data-required={required || undefined}>
+      {children}
+    </div>
+  );
+}
+
 export function FormRenderers() {
   const register = useRendererRegistry();
   const current = useRegisteredRenderers();
   const ours = useMemo<BoxedAnnotationRenderer[]>(
     () =>
-      formRenderers.map((r) =>
-        r.id === TEXT_ID ? { ...r, renderLocked: (p) => <TextFill {...p} /> } : r,
-      ),
+      formRenderers.map((r) => {
+        const inner =
+          r.id === TEXT_ID ? (p: AnnotationRendererProps) => <TextFill {...p} /> : r.renderLocked;
+        if (!inner) return r;
+        return { ...r, renderLocked: (p) => <Widget props={p}>{inner(p)}</Widget> };
+      }),
     [],
   );
   const inUse = current.find((r) => r.id === TEXT_ID)?.renderLocked;

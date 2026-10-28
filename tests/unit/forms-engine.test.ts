@@ -7,6 +7,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
+import { PDFDocument, PDFName, PDFString } from "pdf-lib";
 import { beforeAll, describe, expect, it } from "vitest";
 import { OUT_DIR, qpdfBin } from "../corpus/generate.mjs";
 import { nodePagesCtx } from "../helpers/pages-ctx";
@@ -19,6 +20,7 @@ import {
   missingRequired,
   planFill,
   readFields,
+  resetFields,
   type FieldValues,
   type FormField,
 } from "../../src/engine/forms";
@@ -235,5 +237,72 @@ describe("XFA policy", () => {
     const p = join(OUT, "fw9-keep.pdf");
     writeFileSync(p, kept);
     expect(xfaPresent(p)).toEqual({ xfa: true, perms: true });
+  });
+});
+
+describe("reset and clear", () => {
+  /** acroform.pdf with a default on the name (/DV) and on the radio group. */
+  async function withDefaults(): Promise<Uint8Array> {
+    const pdf = await PDFDocument.load(read(join(OUT_DIR, "acroform.pdf")));
+    const form = pdf.getForm();
+    form
+      .getTextField("taxpayer.name")
+      .acroField.dict.set(PDFName.of("DV"), PDFString.of("Default Name"));
+    form.getRadioGroup("filing.status").acroField.dict.set(PDFName.of("DV"), PDFName.of("0"));
+    return pdf.save();
+  }
+  const ALL: FieldValues = {
+    "taxpayer.name": "Jane Sample",
+    "tax.year": "2024",
+    "filing.status": "mfs",
+    "signed.8879": "Yes",
+    notes: "Some notes",
+  };
+
+  it("Reset puts every field back to its default (none = empty)", async () => {
+    const filled = (await fillForm(ctx.engine, await withDefaults(), ALL)).bytes;
+    const r = await resetFields(ctx, filled, { to: "default" });
+    expect(r.readOnly).toEqual([]);
+    expect(new Set(r.changed)).toEqual(new Set(Object.keys(ALL)));
+    const expected = {
+      "taxpayer.name": "Default Name",
+      "tax.year": "",
+      "filing.status": "single",
+      "signed.8879": "Off",
+      notes: "",
+    };
+    expect(await formValues(ctx.engine, r.bytes)).toEqual(expected);
+    const out = join(OUT, "acroform-reset.pdf");
+    writeFileSync(out, r.bytes);
+    // The cleared dropdown no longer draws its old option.
+    const qdf = execFileSync(qpdfBin(), ["--qdf", "--object-streams=disable", out, "-"]);
+    expect(qdf.toString("latin1")).not.toContain("(2024) Tj");
+    const js = await pdfjsValues(r.bytes);
+    expect(js["taxpayer.name"]).toBe("Default Name");
+    expect(js["filing.status"]).toBe("single");
+    expect(js["signed.8879"]).toBe("Off");
+    expect(js["notes"]).toBe("");
+  });
+
+  it("Clear empties only the chosen fields, ignoring defaults", async () => {
+    const filled = (await fillForm(ctx.engine, await withDefaults(), ALL)).bytes;
+    const r = await resetFields(ctx, filled, {
+      to: "empty",
+      names: ["taxpayer.name", "filing.status"],
+    });
+    expect(await formValues(ctx.engine, r.bytes)).toEqual({
+      ...ALL,
+      "taxpayer.name": "",
+      "filing.status": "Off",
+    });
+  });
+
+  it("Reset works on a hybrid IRS form", async () => {
+    const original = read(join(IRS, "fw9.pdf"));
+    const values = sampleValues(await fieldsOf(original));
+    const filled = (await fillForm(ctx.engine, original, values)).bytes;
+    const r = await resetFields(ctx, filled, { to: "default" });
+    const after = await formValues(ctx.engine, r.bytes);
+    for (const k of Object.keys(values)) expect.soft(after[k], k).toMatch(/^(|Off)$/);
   });
 });

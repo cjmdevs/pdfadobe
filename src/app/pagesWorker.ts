@@ -34,6 +34,7 @@ import {
 } from "../engine/edit/document";
 import type { Placement } from "../engine/edit/images";
 import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
+import { resetFields, type ResetRequest } from "../engine/forms";
 
 type Ctx = P.PagesCtx;
 
@@ -102,6 +103,8 @@ export const OPS = {
     paragraphs: string[],
     style: PlainStyle,
   ) => addTextBox(c.module, b, page, at, paragraphs, style, { subset: await subsetter() }),
+  // Fill Forms (Phase 6): Reset form / Clear fields.
+  resetFields: (c: Ctx, b: Uint8Array, req: ResetRequest) => resetFields(c, b, req),
   // Redaction (Phase 5). A leak is a result, not an error: errors cross the worker
   // boundary as text only, and the UI needs the hits to say where.
   redactSearch: async (c: Ctx, b: Uint8Array, spec: SearchSpec) =>
