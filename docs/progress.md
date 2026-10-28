@@ -45,7 +45,7 @@ Keep it under 2 pages; summarize older phases.
 - **B3 Edit PDF stage 1**: `src/engine/edit/` (PDFium chars -> boxes/paragraphs, one
   style per paragraph retypeset and read back, own sfnt reader + HarfBuzz subsetting,
   images add/move/resize/replace/delete); host `fonts.rs` (Windows/user/firm fonts,
-  firm share mirrored to `<config>ont-cacheirm\`); UI `src/ui/edit/`, each change one
+  firm share mirrored to `<config>\font-cache\firm\`); UI `src/ui/edit/`, each change one
   `wb.edit` undo step. Spike: `docs/edit-spike-report.md`.
 - **Phase 4** (spec `docs/phases/phase-04.md`): tickmarks drawn with pdf-lib as /Stamp
   (`src/engine/flyer/tickmarks.ts`), library built-in < firm < personal
