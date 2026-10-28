@@ -138,7 +138,7 @@ export const OPS = {
     c: Ctx,
     b: Uint8Array,
     ref: BoxRef,
-    paragraphs: string[],
+    paragraphs: (string | RichText)[],
     caret: Caret,
     styles: (Partial<PlainStyle> | undefined)[] = [],
   ) => spaced(c, splitBox(c.module, b, ref, paragraphs, caret, await textDeps(), styles), ref.page),

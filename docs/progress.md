@@ -41,7 +41,25 @@ Keep it under 2 pages; summarize older phases.
   ratio" (Shift while dragging does the other). **Deviation:** auto-fit, fixed height and
   padding are app-only for the session (a PDF has no text-box object); they only change
   the frame, its warning and the X/Y/W/H numbers. Handles show no resize cursors.
-  Steps 3-5 (formatting, objects panel, toolbar) not started.
+- **B3 stage 2 step 3 done: formatting.** Rich editor (contentEditable: a block per
+  paragraph, a span per run; `richModel.ts`); Format panel like Acrobat's: font, size,
+  colour, B/I/U, superscript/subscript, bulleted (• – o) and numbered (1. 1) a. A. i. I.)
+  lists with style dropdowns, decrease/increase indent (0.25 in), alignment, line
+  spacing (multiple of the size), paragraph spacing (after), horizontal scaling,
+  character spacing; "More": first-line/left/right indent, space before, word spacing,
+  kerning. With a selection, character formats apply to it; without, to the whole box;
+  paragraph formats apply to the paragraphs the selection touches. Engine: runs per
+  paragraph, generated list markers on a hanging indent (`lists.ts`), and **spike item 5
+  decided: own content-stream writer** — PDFium keeps Tc/Tw/TJ through later edits but
+  can't set them, so spaced runs carry their spacing on the `/PWBox` mark and
+  `spacing.ts` writes `Tc` + `TJ` arrays after save (qpdf update); Tz goes in the text
+  matrix. Kerning: HarfBuzz shaper (harfbuzz.wasm) for font files, AFM pairs for the
+  standard 14, none for a PDF's own subsets. Marks also keep each run's spacing settings
+  (/cs /ws /hs /kn) so the panel shows them again. **Deviations:** paste is plain text;
+  horizontal scaling isn't previewed while typing (exact after the edit); a new list
+  marker in a PDF's own subset font is drawn in Helvetica; simulated bold now reads back
+  as bold. New dependency: @pdf-lib/standard-fonts 1.0.0 (MIT, already installed).
+  Steps 4-5 (objects panel, toolbar) not started.
 - Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.

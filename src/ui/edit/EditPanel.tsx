@@ -16,6 +16,7 @@ import type {
   PlainStyle,
   RetypesetResult,
   Rgba,
+  RichText,
 } from "../../engine/edit";
 import { parsePdfFontName } from "../../engine/edit/fonts";
 import { pageOp } from "../../app/pages";
@@ -35,11 +36,12 @@ import {
   usePageInfo,
   useOverflowNote,
   usePendingImage,
-  useSessionFontKey,
-  useSessionStyle,
+  useCaretFormat,
   useShowBoxes,
 } from "./editStore";
-import { NEW_TEXT_STYLE } from "./TextEditor";
+import { fontNameOf, NEW_TEXT_STYLE } from "./TextEditor";
+import { BULLET_STYLES, NUMBER_STYLES, type NumberStyle } from "../../engine/edit/lists";
+import { INDENT_STEP, type CharFmt, type ParaFmt } from "./richModel";
 import { ImageFields, PushOption, TextBoxFields } from "./BoxFields";
 import { NumberField } from "./NumberField";
 import {
@@ -83,9 +85,25 @@ type Target =
   | { kind: "box"; box: EditTextBox; page: number };
 
 /** The style the panel shows: the target's, with the font as a picker key. */
-interface Format extends Omit<PlainParagraphStyle, "fontName"> {
+interface Format extends Omit<PlainParagraphStyle, "fontName" | "marker"> {
   fontKey: string;
+  script?: "super" | "sub" | undefined;
 }
+
+/** What a change sets on characters, and on paragraphs. */
+const CHAR_KEYS = [
+  "size",
+  "color",
+  "bold",
+  "italic",
+  "underline",
+  "script",
+  "hScale",
+  "charSpacing",
+  "wordSpacing",
+  "kerning",
+] as const;
+const PARA_KEYS = ["align", "leading", "indent", "spaceBefore", "spaceAfter", "list"] as const;
 
 export default function EditPanel({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
@@ -94,8 +112,7 @@ export default function EditPanel({ documentId }: { documentId: string }) {
   const adding = useAddingText(documentId);
   const placing = usePendingImage(documentId);
   const overflow = useOverflowNote(documentId);
-  const sessionStyle = useSessionStyle(documentId);
-  const sessionFontKey = useSessionFontKey(documentId);
+  const caret = useCaretFormat(documentId);
   const newText = useNewTextStyle();
   const info = usePageInfo(documentId, session?.page ?? sel?.page ?? null);
   const [fonts, setFonts] = useState<FontIndex | null>(null);
@@ -253,18 +270,30 @@ export default function EditPanel({ documentId }: { documentId: string }) {
           newText?.fontKey ??
           `standard:${squash(newBase.font.kind === "standard" ? newBase.font.name : "helvetica")}`,
       };
-  const format: Format =
-    target.kind === "editor"
-      ? { ...base, ...sessionStyle, fontKey: sessionFontKey ?? base.fontKey }
-      : base;
+  // While typing: the format where the caret is.
+  const fromCaret = (): Format => {
+    const c = caret?.char ?? {};
+    const { font: _f, fontName, fontKey, script, ...rest } = c;
+    void _f;
+    return {
+      ...base,
+      ...rest,
+      ...caret?.para,
+      ...(script ? { script } : { script: undefined }),
+      fontKey: fontKey ?? (fontName ? keyForPdfFont(fontName) : base.fontKey),
+    } as Format;
+  };
+  const format: Format = target.kind === "editor" && caret ? fromCaret() : base;
   const text = box ? box.paragraphs.join(" ") : "";
 
-  async function apply(change: Partial<Format>) {
+  /** Applies a change to the target: the editor, new text, or the selected box (one undo step). */
+  async function apply(change: Partial<Format>, step?: 1 | -1) {
     if (!target) return;
     const next = { ...format, ...change };
-    const override: Partial<PlainStyle> = {};
-    for (const k of ["size", "color", "bold", "italic", "underline", "align", "leading"] as const)
-      if (k in change) Object.assign(override, { [k]: next[k] });
+    const char: CharFmt = {};
+    for (const k of CHAR_KEYS) if (k in change) Object.assign(char, { [k]: next[k] });
+    const para: ParaFmt = {};
+    for (const k of PARA_KEYS) if (k in change) Object.assign(para, { [k]: next[k] });
     if ("fontKey" in change || "bold" in change || "italic" in change) {
       const option = options.find((o) => o.key === next.fontKey);
       if (!option || !fonts) return;
@@ -280,19 +309,71 @@ export default function EditPanel({ documentId }: { documentId: string }) {
       });
       setWarnings(r.warnings);
       if (!r.font || r.warnings.some((w) => w.level === "error")) return;
-      override.font = r.font;
+      char.font = r.font;
+      char.fontName = fontNameOf(r.font, own?.fontName ?? "Helvetica");
+      char.fontKey = next.fontKey;
     } else setWarnings([]);
 
     if (target.kind === "editor") {
-      editSession.setStyle(documentId, override, "fontKey" in change ? next.fontKey : null);
+      editSession.format(documentId, {
+        ...(Object.keys(char).length ? { char } : {}),
+        ...(Object.keys(para).length ? { para } : {}),
+        ...(step ? { indent: step } : {}),
+      });
       return;
     }
+    const { fontName: _n, fontKey: _k, script, ...plainChar } = char;
+    void _n;
+    void _k;
+    const override: Partial<PlainStyle> = {
+      ...plainChar,
+      ...(script !== undefined ? (script ? { script } : {}) : {}),
+      ...(para as Partial<PlainStyle>),
+    };
     if (target.kind === "new") {
-      newTextStyle.set({ style: { ...newBase, ...override }, fontKey: next.fontKey });
+      const ind = newBase.indent ?? { first: 0, left: 0 };
+      const by = step ? Math.max(step * INDENT_STEP, -Math.min(ind.first, ind.left)) : 0;
+      newTextStyle.set({
+        style: {
+          ...newBase,
+          ...override,
+          ...(step ? { indent: { ...ind, first: ind.first + by, left: ind.left + by } } : {}),
+        },
+        fontKey: next.fontKey,
+      });
       return;
     }
     const b = target.box;
     const page = target.page;
+    // The box's own runs stay, less what this change sets for all of it.
+    const changed = new Set(Object.keys(plainChar));
+    const rich: RichText[] = b.paragraphs.map((t, i) => ({
+      text: t,
+      runs: (b.runs[i] ?? []).map((r) => ({
+        start: r.start,
+        end: r.end,
+        style: Object.fromEntries(
+          Object.entries({
+            font: { kind: "original" as const, name: r.fontName },
+            size: r.size,
+            color: r.color,
+            bold: r.bold,
+            italic: r.italic,
+            ...(r.script ? { script: r.script } : {}),
+          }).filter(([k]) => !changed.has(k)),
+        ),
+      })),
+    }));
+    const styles = b.styles.map((s): Partial<PlainStyle> => {
+      if (!step) return override;
+      const ind = s.indent ?? { first: 0, left: 0 };
+      const by = Math.max(step * INDENT_STEP, -Math.min(ind.first, ind.left));
+      return {
+        ...override,
+        indent: { ...ind, first: ind.first + by, left: ind.left + by },
+        ...(s.marker ? { marker: { ...s.marker, at: s.marker.at + by } } : {}),
+      };
+    });
     setWorking(true);
     let hit: string | null = null;
     let result: RetypesetResult | null = null;
@@ -304,8 +385,8 @@ export default function EditPanel({ documentId }: { documentId: string }) {
           "editText",
           bytes,
           { page, id: b.id, preview: b.preview },
-          b.paragraphs,
-          b.paragraphs.map(() => override),
+          rich,
+          styles,
           undefined,
           textEditOpts(),
         );
@@ -330,10 +411,11 @@ export default function EditPanel({ documentId }: { documentId: string }) {
   const sections = (["document", "standard", "firm", "windows"] as const).filter((s) =>
     options.some((o) => o.section === s),
   );
+  const pressed = (on: boolean) => `format-toggle${on ? " pressed" : ""}`;
   const toggle = (name: string, prop: "bold" | "italic" | "underline", label: string) => (
     <button
       type="button"
-      className={`format-toggle${format[prop] ? " pressed" : ""}`}
+      className={pressed(format[prop])}
       aria-label={label}
       aria-pressed={format[prop]}
       title={label}
@@ -343,6 +425,22 @@ export default function EditPanel({ documentId }: { documentId: string }) {
       {name}
     </button>
   );
+  const scriptButton = (value: "super" | "sub", label: string, glyph: string) => (
+    <button
+      type="button"
+      className={pressed(format.script === value)}
+      aria-label={label}
+      aria-pressed={format.script === value}
+      title={label}
+      disabled={disabled}
+      onClick={() => void apply({ script: format.script === value ? undefined : value })}
+    >
+      {glyph}
+    </button>
+  );
+  const list = format.list ?? null;
+  const multiple = format.size > 0 ? Math.round((format.leading / format.size) * 100) / 100 : 1.2;
+  const ind = format.indent ?? { first: 0, left: 0 };
 
   return (
     <section className="tool-panel edit-format" aria-label="Edit PDF" data-testid="edit-panel">
@@ -351,7 +449,7 @@ export default function EditPanel({ documentId }: { documentId: string }) {
         {target.kind === "new"
           ? "New text: click on the page to place it, drag to set its width. Esc cancels."
           : target.kind === "editor"
-            ? "Editing: changes apply when you finish (Esc or a click elsewhere)."
+            ? "Editing: select text to format part of it (no selection: the whole box)."
             : "Changes apply now (Ctrl+Z undoes)."}
       </p>
       {target.kind !== "new" && (
@@ -414,6 +512,91 @@ export default function EditPanel({ documentId }: { documentId: string }) {
         {toggle("B", "bold", "Bold")}
         {toggle("I", "italic", "Italic")}
         {toggle("U", "underline", "Underline")}
+        {scriptButton("super", "Superscript", "T¹")}
+        {scriptButton("sub", "Subscript", "T₁")}
+      </div>
+
+      <div className="format-row" role="group" aria-label="Lists and indents">
+        <button
+          type="button"
+          className={pressed(list?.kind === "bullet")}
+          aria-label="Bulleted list"
+          aria-pressed={list?.kind === "bullet"}
+          title="Bulleted list"
+          disabled={disabled}
+          onClick={() =>
+            void apply({ list: list?.kind === "bullet" ? null : { kind: "bullet", glyph: "•" } })
+          }
+        >
+          •≡
+        </button>
+        <select
+          aria-label="Bullet style"
+          title="Bullet style"
+          value={list?.kind === "bullet" ? list.glyph : ""}
+          disabled={disabled}
+          onChange={(e) => void apply({ list: { kind: "bullet", glyph: e.target.value } })}
+        >
+          <option value="" disabled>
+            ▾
+          </option>
+          {BULLET_STYLES.map((g) => (
+            <option key={g} value={g}>
+              {g}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className={pressed(list?.kind === "number")}
+          aria-label="Numbered list"
+          aria-pressed={list?.kind === "number"}
+          title="Numbered list"
+          disabled={disabled}
+          onClick={() =>
+            void apply({ list: list?.kind === "number" ? null : { kind: "number", format: "1." } })
+          }
+        >
+          1≡
+        </button>
+        <select
+          aria-label="Number style"
+          title="Number style"
+          value={list?.kind === "number" ? list.format : ""}
+          disabled={disabled}
+          onChange={(e) =>
+            void apply({ list: { kind: "number", format: e.target.value as NumberStyle } })
+          }
+        >
+          <option value="" disabled>
+            ▾
+          </option>
+          {NUMBER_STYLES.map((f) => (
+            <option key={f} value={f}>
+              {f}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="format-toggle"
+          aria-label="Decrease indent"
+          title="Decrease indent"
+          disabled={disabled}
+          onClick={() => void apply({}, -1)}
+        >
+          ⇤
+        </button>
+        <button
+          type="button"
+          className="format-toggle"
+          aria-label="Increase indent"
+          title="Increase indent"
+          disabled={disabled}
+          onClick={() => void apply({}, 1)}
+        >
+          ⇥
+        </button>
       </div>
 
       <div className="format-row" role="group" aria-label="Alignment">
@@ -421,7 +604,7 @@ export default function EditPanel({ documentId }: { documentId: string }) {
           <button
             key={value}
             type="button"
-            className={`format-toggle${format.align === value ? " pressed" : ""}`}
+            className={pressed(format.align === value)}
             aria-label={label}
             aria-pressed={format.align === value}
             title={label}
@@ -433,18 +616,132 @@ export default function EditPanel({ documentId }: { documentId: string }) {
         ))}
       </div>
 
-      <label className="format-row">
-        <span>Line spacing (pt)</span>
-        <NumberField
-          label="Line spacing"
-          value={Math.round(format.leading * 100) / 100}
-          min={1}
-          max={300}
-          step={0.5}
-          disabled={disabled}
-          onCommit={(leading) => void apply({ leading })}
-        />
-      </label>
+      <div className="format-row format-grid">
+        <label title="Line spacing, as a multiple of the font size">
+          <span>Line spacing</span>
+          <NumberField
+            label="Line spacing"
+            value={multiple}
+            min={0.5}
+            max={5}
+            step={0.05}
+            disabled={disabled}
+            onCommit={(v) => void apply({ leading: Math.round(v * format.size * 100) / 100 })}
+          />
+        </label>
+        <label title="Space after each paragraph (points)">
+          <span>Paragraph spacing</span>
+          <NumberField
+            label="Paragraph spacing"
+            value={format.spaceAfter ?? 0}
+            min={0}
+            max={144}
+            step={1}
+            disabled={disabled}
+            onCommit={(spaceAfter) => void apply({ spaceAfter })}
+          />
+        </label>
+        <label title="Horizontal scaling (percent)">
+          <span>Scaling %</span>
+          <NumberField
+            label="Horizontal scaling"
+            value={format.hScale ?? 100}
+            min={10}
+            max={400}
+            step={1}
+            disabled={disabled}
+            onCommit={(hScale) => void apply({ hScale })}
+          />
+        </label>
+        <label title="Character spacing (thousandths of an em)">
+          <span>Char. spacing</span>
+          <NumberField
+            label="Character spacing"
+            value={format.charSpacing ?? 0}
+            min={-500}
+            max={2000}
+            step={10}
+            disabled={disabled}
+            onCommit={(charSpacing) => void apply({ charSpacing })}
+          />
+        </label>
+      </div>
+
+      <details className="format-more">
+        <summary>More spacing and indents</summary>
+        <div className="format-row format-grid">
+          <label title="First line, from the box's left edge (points)">
+            <span>First line</span>
+            <NumberField
+              label="First-line indent"
+              value={ind.first}
+              min={0}
+              max={600}
+              step={1}
+              disabled={disabled}
+              onCommit={(first) => void apply({ indent: { ...ind, first } })}
+            />
+          </label>
+          <label title="Other lines (a hanging indent when more than the first), points">
+            <span>Left</span>
+            <NumberField
+              label="Left indent"
+              value={ind.left}
+              min={0}
+              max={600}
+              step={1}
+              disabled={disabled}
+              onCommit={(left) => void apply({ indent: { ...ind, left } })}
+            />
+          </label>
+          <label title="Right indent (points)">
+            <span>Right</span>
+            <NumberField
+              label="Right indent"
+              value={ind.right ?? 0}
+              min={0}
+              max={600}
+              step={1}
+              disabled={disabled}
+              onCommit={(right) => void apply({ indent: { ...ind, right } })}
+            />
+          </label>
+          <label title="Space before the paragraph (points)">
+            <span>Space before</span>
+            <NumberField
+              label="Space before"
+              value={format.spaceBefore ?? 0}
+              min={0}
+              max={144}
+              step={1}
+              disabled={disabled}
+              onCommit={(spaceBefore) => void apply({ spaceBefore })}
+            />
+          </label>
+          <label title="Word spacing (thousandths of an em)">
+            <span>Word spacing</span>
+            <NumberField
+              label="Word spacing"
+              value={format.wordSpacing ?? 0}
+              min={-500}
+              max={2000}
+              step={10}
+              disabled={disabled}
+              onCommit={(wordSpacing) => void apply({ wordSpacing })}
+            />
+          </label>
+        </div>
+        <label className="format-row format-check">
+          <input
+            type="checkbox"
+            data-testid="edit-kerning"
+            checked={format.kerning ?? false}
+            disabled={disabled}
+            onChange={(e) => void apply({ kerning: e.target.checked })}
+          />
+          <span>Kerning (fonts from files and the standard fonts; not a PDF&apos;s own)</span>
+        </label>
+      </details>
 
       {target.kind === "editor" && target.box && (
         <div className="format-row">

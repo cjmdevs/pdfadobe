@@ -20,7 +20,7 @@ import {
   type RetypesetDeps,
   type RetypesetResult,
 } from "./retypeset";
-import { nextBoxId, setBoxId } from "./marks";
+import { nextBoxId, setBoxId, spacingOf } from "./marks";
 import { removeBoxText } from "./split";
 import { boxesBelow, groupNow, moveBoxText, pushDown } from "./move";
 import { findOverflow } from "./retypeset";
@@ -56,15 +56,16 @@ export type PlainStyle = Omit<ParagraphStyle, "font"> & { font: PlainFont };
 /** Character formatting that can cross to the worker. */
 export type PlainCharStyle = Omit<CharStyle, "font"> & { font: PlainFont };
 
-/** A paragraph with character runs (offsets into `text`). */
+/** A paragraph with character runs (offsets into `text`) and its own style changes. */
 export interface RichText {
   text: string;
   runs: { start: number; end: number; style: Partial<PlainCharStyle> }[];
+  style?: Partial<PlainStyle>;
 }
 
 /** Collapses white space like a plain paragraph, keeping the runs on their letters. */
 export function normalizeRich(p: string | RichText): RichText {
-  const src = typeof p === "string" ? { text: p, runs: [] } : p;
+  const src: RichText = typeof p === "string" ? { text: p, runs: [] } : p;
   let text = "";
   const at: number[] = [];
   for (let i = 0; i < src.text.length; i++) {
@@ -78,6 +79,7 @@ export function normalizeRich(p: string | RichText): RichText {
   const trimmed = text.replace(/ $/, "");
   const map = (i: number) => Math.min(at[i] ?? trimmed.length, trimmed.length);
   return {
+    ...(src.style ? { style: src.style } : {}),
     text: trimmed,
     runs: src.runs
       .map((r) => ({ ...r, start: map(r.start), end: map(r.end) }))
@@ -107,9 +109,11 @@ export function applyLists(paras: EditParagraph[]): EditParagraph[] {
       const { marker: _m, list: _l, ...rest } = st;
       void _m;
       void _l;
+      // The marker was in the text: the text moves to where the marker was. Otherwise
+      // (an editor sends text without markers) it keeps its indent.
       return {
         text: body,
-        style: { ...rest, indent: { ...st.indent, first: at, left: at } },
+        style: cut ? { ...rest, indent: { ...st.indent, first: at, left: at } } : rest,
         runs: shift(p.runs, -removed),
       };
     }
@@ -198,7 +202,7 @@ export function editBoxText(
             if (!own) throw new Error("box without paragraphs");
             return {
               text,
-              style: merge(own, styles[i]),
+              style: merge(own, { ...styles[i], ...rich[i]?.style }, box),
               runs: runs.map((r) => ({
                 start: r.start,
                 end: r.end,
@@ -362,7 +366,7 @@ export function splitBox(
   m: PdfiumModule,
   bytes: Uint8Array,
   ref: BoxRef,
-  paragraphs: string[],
+  paragraphs: (string | RichText)[],
   caret: Caret,
   deps: RetypesetDeps,
   styles: (Partial<PlainStyle> | undefined)[] = [],
@@ -379,40 +383,49 @@ export function splitBox(
         const own = (i: number) => {
           const st = found[Math.min(i, found.length - 1)];
           if (!st) throw new Error("box without paragraphs");
-          return merge(st, styles[i]);
+          const rich = paragraphs[i];
+          return merge(st, { ...styles[i], ...(typeof rich === "object" ? rich.style : {}) }, box);
         };
+        const src = paragraphs.map((x) => (typeof x === "string" ? { text: x, runs: [] } : x));
         const p = caret.paragraph;
-        const cut = paragraphs[p] ?? "";
-        const head = cut.slice(0, caret.offset).trim();
-        const tail = cut.slice(caret.offset).trim();
-        const before = [...paragraphs.slice(0, p).map((t, i) => ({ t, i })), { t: head, i: p }];
-        const after = [
-          { t: tail, i: p },
-          ...paragraphs.slice(p + 1).map((t, i) => ({ t, i: i + p + 1 })),
-        ];
-        const clean = (xs: { t: string; i: number }[]) =>
-          xs.map((x) => ({ ...x, t: x.t.replace(/\s+/g, " ").trim() })).filter((x) => x.t);
-        const a = clean(before);
-        const b = clean(after);
+        const cut = src[p] ?? { text: "", runs: [] };
+        const o = caret.offset;
+        const head: RichText = {
+          text: cut.text.slice(0, o),
+          runs: cut.runs.map((r) => ({ ...r, end: Math.min(r.end, o) })),
+        };
+        const tail: RichText = {
+          text: cut.text.slice(o),
+          runs: cut.runs.map((r) => ({ ...r, start: Math.max(0, r.start - o), end: r.end - o })),
+        };
+        const part = (x: RichText, i: number) => ({ ...normalizeRich(x), i });
+        const a = [...src.slice(0, p).map(part), part(head, p)].filter((x) => x.text);
+        const b = [part(tail, p), ...src.slice(p + 1).map((x, k) => part(x, p + 1 + k))].filter(
+          (x) => x.text,
+        );
         if (!a.length || !b.length)
           throw new EditRefused("Put the caret inside the text, where the new box should start.");
-        const paras = [
-          ...a.map((x) => ({ text: x.t, style: own(x.i) })),
+        const engineRuns = (x: RichText) =>
+          x.runs.map((r) => ({ start: r.start, end: r.end, style: runStyle(r.style, box) }));
+        const paras = applyLists([
+          ...a.map((x) => ({ text: x.text, style: own(x.i), runs: engineRuns(x) })),
           ...b.map((x, k) => {
             const st = own(x.i);
-            // Mid-paragraph: the second half starts like a continuation line.
-            if (k === 0 && caret.offset > 0) {
-              const { marker: _marker, ...rest } = st;
+            // Mid-paragraph: the second half starts like a continuation line (no marker).
+            if (k === 0 && o > 0) {
+              const { marker: _marker, list: _list, ...rest } = st;
               void _marker;
+              void _list;
               const left = st.indent?.left ?? 0;
               return {
-                text: x.t,
-                style: { ...rest, indent: { first: left, left }, spaceBefore: 0 },
+                text: x.text,
+                style: { ...rest, indent: { ...st.indent, first: left, left }, spaceBefore: 0 },
+                runs: engineRuns(x),
               };
             }
-            return { text: x.t, style: st };
+            return { text: x.text, style: st, runs: engineRuns(x) };
           }),
-        ];
+        ]);
         const r = retypeset(
           m,
           doc.ptr,
@@ -421,10 +434,10 @@ export function splitBox(
           paras,
           deps,
         );
-        // The second half becomes its own box.
+        // The second half becomes its own box (its spacing stays on its marks).
         const id = nextBoxId(m, page);
         for (const objs of r.objects.slice(a.length))
-          for (const o of objs) setBoxId(m, doc.ptr, o, id);
+          for (const ob of objs) setBoxId(m, doc.ptr, ob, id, spacingOf(m, ob));
         return r;
       },
       true,
@@ -465,9 +478,9 @@ export function addTextBox(
           p,
           { kind: "new", ...at, others, rules },
           applyLists(
-            texts.map(({ text, runs }) => ({
+            texts.map(({ text, runs, ...rest }) => ({
               text,
-              style: { ...style, font },
+              style: { ...style, ...plainOver(rest), font },
               runs: runs.map((r) => ({
                 start: r.start,
                 end: r.end,
@@ -486,14 +499,26 @@ export function addTextBox(
   }
 }
 
-function merge(own: ParagraphStyle, over: Partial<PlainStyle> | undefined): ParagraphStyle {
+function merge(
+  own: ParagraphStyle,
+  over: Partial<PlainStyle> | undefined,
+  box: TextBox | null = null,
+): ParagraphStyle {
   if (!over) return own;
   const { font, ...rest } = over;
+  const named = font?.kind === "original" ? runStyle({ font }, box).font : undefined;
   return {
     ...own,
     ...rest,
-    font: !font || font.kind === "original" ? own.font : font,
+    font: named ?? (!font || font.kind === "original" ? own.font : font),
   };
+}
+
+/** A new paragraph's own style changes (its font comes from the box's style). */
+function plainOver(rest: { style?: Partial<PlainStyle> }): Omit<Partial<PlainStyle>, "font"> {
+  const { font: _f, ...o } = rest.style ?? {};
+  void _f;
+  return o;
 }
 
 /** An image on a page, as editPageInfo listed it (its rect is checked before editing). */

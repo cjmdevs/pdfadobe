@@ -155,7 +155,7 @@ test.describe("Edit PDF", () => {
     await expect(box(page, "We selected sales")).toHaveClass(/hover/);
     await page.mouse.click(x, y);
     await expect(editor(page)).toBeFocused();
-    await expect(editor(page)).toHaveValue(/^We selected sales invoices/);
+    await expect(editor(page)).toHaveText(/^We selected sales invoices/);
     await expect(page.getByTestId("edit-selection")).toContainText("Text box on page 1");
 
     // Unchanged text: Escape just closes the editor (no edit, no reload).
@@ -422,7 +422,12 @@ test.describe("Edit PDF", () => {
       const [x, y] = await center(page, "Two invoices dated");
       await page.mouse.click(x, y);
       await expect(editor(page)).toBeFocused();
-      const size = () => editor(page).evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+      // The text's own size (each run is a span in the rich editor).
+      const size = () =>
+        editor(page)
+          .locator("span")
+          .first()
+          .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
       const before = await size();
       await panel(page).getByLabel("Font size").fill("16");
       await panel(page).getByLabel("Font size").press("Enter");
@@ -840,6 +845,86 @@ test.describe("Edit PDF", () => {
     });
   });
 
+  // B3 stage 2 step 3: formatting part of a paragraph, lists, indents, spacing.
+  test.describe("formatting", () => {
+    const panel = (page: Page) => page.getByTestId("edit-panel");
+
+    /** Selects `word` inside the open editor. */
+    async function pick(page: Page, word: string) {
+      await editor(page).evaluate((el, w) => {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          const at = n.textContent?.indexOf(w) ?? -1;
+          if (at < 0) continue;
+          const r = document.createRange();
+          r.setStart(n, at);
+          r.setEnd(n, at + w.length);
+          window.getSelection()?.removeAllRanges();
+          window.getSelection()?.addRange(r);
+          return;
+        }
+      }, word);
+    }
+    const spanOf = (page: Page, word: string) =>
+      editor(page).locator("span", { hasText: word }).first();
+
+    test("bold and a bigger size on one word only; it stays after the edit", async ({ page }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await expect(editor(page)).toBeFocused();
+      await pick(page, "invoices");
+      await panel(page).getByRole("button", { name: "Bold", exact: true }).click();
+      await panel(page).getByLabel("Font size").fill("14");
+      await panel(page).getByLabel("Font size").press("Enter");
+      await expect(spanOf(page, "invoices")).toHaveCSS("font-weight", "700");
+      await expect(spanOf(page, "selected")).not.toHaveCSS("font-weight", "700");
+      await editor(page).focus();
+      await page.keyboard.press("Escape");
+      await settled(page);
+      // Open again: the word is still its own bold run.
+      const [x2, y2] = await center(page, "We selected sales");
+      await page.mouse.click(x2, y2);
+      await expect(spanOf(page, "invoices")).toHaveCSS("font-weight", "700");
+      await expect(spanOf(page, "We selected")).not.toHaveCSS("font-weight", "700");
+    });
+
+    test("a numbered list from the panel, numbered on the page", async ({ page }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await expect(editor(page)).toBeFocused();
+      await panel(page).getByRole("button", { name: "Numbered list" }).click();
+      await expect(editor(page).locator(".rp").first()).toHaveAttribute("data-marker", "1.");
+      await editor(page).focus();
+      await page.keyboard.press("Escape");
+      await settled(page);
+      await expect(box(page, "1. We selected sales")).toHaveCount(1);
+    });
+
+    test("selected box: increase indent moves it right; character spacing widens it", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "Two invoices dated");
+      await page.mouse.click(x, y);
+      await page.keyboard.press("Escape");
+      const before = (await box(page, "Two invoices dated").boundingBox())!;
+      const scale = (await pageBox(page)).width / 612;
+      await panel(page).getByRole("button", { name: "Increase indent" }).click();
+      await settled(page);
+      const moved = (await box(page, "Two invoices dated").boundingBox())!;
+      expect(moved.x - before.x).toBeCloseTo(18 * scale, -1);
+
+      await panel(page).getByLabel("Character spacing").fill("200");
+      await panel(page).getByLabel("Character spacing").press("Enter");
+      await settled(page);
+      const wide = (await box(page, "Two invoices dated").boundingBox())!;
+      expect(wide.height).toBeGreaterThan(moved.height + 5);
+      await expect(panel(page).getByLabel("Character spacing")).toHaveValue("200");
+    });
+  });
+
   // B3 stage 2: Join / Split (kept in the file as marked content) and the outlines toggle.
   test.describe("join, split, bounding boxes", () => {
     test("Ctrl+click picks boxes; Join makes one paragraph (one undo step)", async ({
@@ -875,9 +960,16 @@ test.describe("Edit PDF", () => {
       const [x, y] = await center(page, "We selected sales");
       await page.mouse.click(x, y);
       await expect(editor(page)).toBeFocused();
-      await editor(page).evaluate((el: HTMLTextAreaElement) => {
-        const at = el.value.indexOf("For each invoice");
-        el.setSelectionRange(at, at);
+      // The caret just before "For each invoice" (a text position in the rich editor).
+      await editor(page).evaluate((el) => {
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+          const at = n.textContent?.indexOf("For each invoice") ?? -1;
+          if (at >= 0) {
+            window.getSelection()?.collapse(n, at);
+            return;
+          }
+        }
       });
       await page.getByTestId("edit-split").click();
       await settled(page);

@@ -2084,3 +2084,26 @@ button.primary.danger-fill {
   width: 100%;
   min-width: 0;
 }
+
+/* Edit PDF: the rich editor. One block per paragraph; list markers are drawn in the
+   hanging indent (they are generated, not typed). */
+.edit-editor.rich {
+  cursor: text;
+}
+.edit-editor.rich .rp {
+  margin: 0;
+}
+.edit-editor.rich .rp[data-marker]::before {
+  content: attr(data-marker);
+  display: inline-block;
+  width: var(--hang);
+  margin-left: calc(-1 * var(--hang));
+  user-select: none;
+}
+.format-more {
+  margin-top: 6px;
+}
+.format-more summary {
+  cursor: pointer;
+  font-size: 12px;
+}

@@ -3,6 +3,21 @@
 // and where to select again once an edited tab has reloaded.
 import { useSyncExternalStore } from "react";
 import type { EditPageInfo, EditTextBox, PlainStyle } from "../../engine/edit";
+import type { CharFmt, ParaFmt } from "./richModel";
+
+/** A change from the Format panel to the open editor. */
+export interface FormatChange {
+  char?: CharFmt;
+  para?: ParaFmt;
+  /** Increase (1) or decrease (-1) the indent. */
+  indent?: 1 | -1;
+}
+
+/** The format where the editor's caret is (what the panel shows). */
+export interface CaretFormat {
+  char: CharFmt;
+  para: ParaFmt;
+}
 
 /** Interaction mode while the Edit tool is on (EditLayer handles the pointer). */
 export const EDIT_MODE = "editPdf";
@@ -34,10 +49,8 @@ interface DocEditState {
   selection: EditSelection | null;
   session: EditSession | null;
   adding: boolean;
-  /** Style picked in the panel while the editor is open (applied when it commits). */
-  sessionStyle: Partial<PlainStyle> | null;
-  /** The font picker's choice for that style ("section:family"). */
-  sessionFontKey: string | null;
+  /** The format at the open editor's caret. */
+  caret: CaretFormat | null;
   /** editPageInfo per page, as the layers last read it. */
   pages: ReadonlyMap<number, EditPageInfo>;
   /** The box an edit left running into other text or a rule, and what it hits. */
@@ -50,8 +63,7 @@ const EMPTY: DocEditState = {
   selection: null,
   session: null,
   adding: false,
-  sessionStyle: null,
-  sessionFontKey: null,
+  caret: null,
   pages: new Map(),
   overflow: null,
   nudge: null,
@@ -87,20 +99,25 @@ export const editSelection = {
 const committers = new Map<string, () => void>();
 /** Splits the open editor's box at its caret (registered like the committer). */
 const splitters = new Map<string, () => void>();
+/** Applies a Format panel change to the open editor (registered like the committer). */
+const formatters = new Map<string, (c: FormatChange) => void>();
 
 export const editSession = {
   get: (documentId: string) => get(documentId).session,
   open: (documentId: string, session: EditSession) =>
-    patch(documentId, { session, adding: false, sessionStyle: null, sessionFontKey: null }),
-  close: (documentId: string) =>
-    patch(documentId, { session: null, sessionStyle: null, sessionFontKey: null }),
-  style: (documentId: string) => get(documentId).sessionStyle,
-  setStyle(documentId: string, style: Partial<PlainStyle>, fontKey: string | null) {
-    const old = get(documentId);
-    patch(documentId, {
-      sessionStyle: { ...old.sessionStyle, ...style },
-      sessionFontKey: fontKey ?? old.sessionFontKey,
-    });
+    patch(documentId, { session, adding: false, caret: null }),
+  close: (documentId: string) => patch(documentId, { session: null, caret: null }),
+  setCaret: (documentId: string, caret: CaretFormat | null) => patch(documentId, { caret }),
+  registerFormatter(documentId: string, fn: ((c: FormatChange) => void) | null) {
+    if (fn) formatters.set(documentId, fn);
+    else formatters.delete(documentId);
+  },
+  /** Applies a panel change to the open editor. True when there is one. */
+  format(documentId: string, change: FormatChange): boolean {
+    const fn = formatters.get(documentId);
+    if (!fn) return false;
+    fn(change);
+    return true;
   },
   registerCommit(documentId: string, fn: (() => void) | null) {
     if (fn) committers.set(documentId, fn);
@@ -280,8 +297,7 @@ export function resetEdit(documentId: string) {
     selection: null,
     session: null,
     adding: false,
-    sessionStyle: null,
-    sessionFontKey: null,
+    caret: null,
     overflow: null,
     nudge: null,
   });
@@ -295,12 +311,8 @@ export function useEditSession(documentId: string): EditSession | null {
   return useSyncExternalStore(subscribe, () => get(documentId).session);
 }
 
-export function useSessionStyle(documentId: string) {
-  return useSyncExternalStore(subscribe, () => get(documentId).sessionStyle);
-}
-
-export function useSessionFontKey(documentId: string) {
-  return useSyncExternalStore(subscribe, () => get(documentId).sessionFontKey);
+export function useCaretFormat(documentId: string) {
+  return useSyncExternalStore(subscribe, () => get(documentId).caret);
 }
 
 export function usePageInfo(documentId: string, page: number | null): EditPageInfo | null {

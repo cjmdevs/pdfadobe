@@ -21,7 +21,7 @@ import type { Subsetter } from "./fonts/subset";
 import type { Paragraph, TextBox } from "./group";
 import { heap } from "../pages/raw";
 import { EditRefused } from "./refusal";
-import { nextBoxId, setBoxId, type Spacing } from "./marks";
+import { lookOf, nextBoxId, setBoxId, type Look, type Spacing } from "./marks";
 import { kernCache, standardKerner, type Kerner } from "./fonts/kern";
 import { listOf, type ListStyle } from "./lists";
 import { removeBoxText, type Removal } from "./split";
@@ -289,6 +289,8 @@ export function retypeset(
   const created: number[] = [];
   /** Spacing each text object still needs from the content-stream pass (`spacing.ts`). */
   const spacing = new Map<number, Spacing>();
+  /** Each object's spacing settings, for its mark (`Look`). */
+  const looks = new Map<number, Look>();
   try {
     let fakeBold = false;
     let fakeItalic = false;
@@ -327,6 +329,12 @@ export function retypeset(
               created.push(obj);
               const sp = spacingOf(font, s, part);
               if (sp) spacing.set(obj, sp);
+              looks.set(obj, {
+                ...(s.charSpacing ? { charSpacing: s.charSpacing } : {}),
+                ...(s.wordSpacing ? { wordSpacing: s.wordSpacing } : {}),
+                ...(s.hScale !== undefined && s.hScale !== 100 ? { hScale: s.hScale } : {}),
+                ...(s.kerning ? { kerning: true } : {}),
+              });
             }
             x += measure(run.piece, part) + measure(run.piece, " ");
           }
@@ -363,7 +371,8 @@ export function retypeset(
     // The written text is one box from now on (`marks.ts`), keeping the box's id.
     const id = target.boxId ?? box?.id ?? nextBoxId(m, page);
     for (const o of created)
-      if (m.FPDFPageObj_GetType(o) === FPDF_PAGEOBJ_TEXT) setBoxId(m, doc, o, id, spacing.get(o));
+      if (m.FPDFPageObj_GetType(o) === FPDF_PAGEOBJ_TEXT)
+        setBoxId(m, doc, o, id, spacing.get(o), looks.get(o) ?? {});
     if (!m.FPDFPage_GenerateContent(page)) throw new Error("PDFium could not regenerate the page");
 
     // Each line as tall as its largest text (a bigger run-in head, say).
@@ -932,8 +941,12 @@ export function detectStyle(m: PdfiumModule, box: TextBox, rules: Rules): Paragr
       font: { kind: "original", obj: main.obj },
       size: Math.round(main.size * 100) / 100,
       color,
-      bold: /bold|black|heavy|semibold|demi/.test(style),
+      bold:
+        /bold|black|heavy|semibold|demi/.test(style) ||
+        m.FPDFTextObj_GetTextRenderMode(main.obj) === FPDF_TEXTRENDERMODE_FILL_STROKE,
       italic: /italic|oblique/.test(style),
+      // Spacing settings our own edits wrote (PDFium can't read them from the text).
+      ...lookOf(m, main.obj),
       underline: p.lines.some((l) => underlined.some((h) => h.y < l.y && h.y > l.y - 0.3 * l.size)),
       // A lone amount is right-aligned (it grows to the left); otherwise as found.
       align:
@@ -979,6 +992,16 @@ export interface DetectedRun {
  */
 export function detectRuns(m: PdfiumModule, box: TextBox): DetectedRun[][] {
   const colors = new Map<number, Rgba>();
+  const stroked = new Map<number, boolean>();
+  /** Simulated bold: filled and stroked (how an edit draws bold without a bold face). */
+  const fakeBold = (obj: number) => {
+    let b = stroked.get(obj);
+    if (b === undefined) {
+      b = m.FPDFTextObj_GetTextRenderMode(obj) === FPDF_TEXTRENDERMODE_FILL_STROKE;
+      stroked.set(obj, b);
+    }
+    return b;
+  };
   const colorOf = (obj: number) => {
     let c = colors.get(obj);
     if (!c) {
@@ -1023,7 +1046,7 @@ export function detectRuns(m: PdfiumModule, box: TextBox): DetectedRun[][] {
         // A script's size is shown as its line's (the engine makes it smaller again).
         size: Math.round((script ? lineSize : c.size) * 100) / 100,
         color,
-        bold: /bold|black|heavy|semibold|demi/.test(style),
+        bold: /bold|black|heavy|semibold|demi/.test(style) || fakeBold(c.obj),
         italic: /italic|oblique/.test(style),
         ...(script ? { script } : {}),
       };
@@ -1031,6 +1054,7 @@ export function detectRuns(m: PdfiumModule, box: TextBox): DetectedRun[][] {
       const same =
         last &&
         last.fontName === run.fontName &&
+        last.bold === run.bold &&
         Math.abs(last.size - run.size) < 0.05 &&
         last.script === run.script &&
         last.color.r === color.r &&
@@ -1040,8 +1064,11 @@ export function detectRuns(m: PdfiumModule, box: TextBox): DetectedRun[][] {
       if (same) last.end = run.end;
       else runs.push(run);
     }
+    const mainBold =
+      fakeBold(main.obj) || /bold|black|heavy|semibold|demi/.test(main.font.toLowerCase());
     const plain = (r: DetectedRun) =>
       r.fontName === main.font &&
+      r.bold === mainBold &&
       Math.abs(r.size - Math.round(main.size * 100) / 100) < 0.05 &&
       !r.script &&
       r.color.r === mainColor.r &&
