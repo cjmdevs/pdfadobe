@@ -60,7 +60,9 @@ function plugins(settings: Settings) {
       defaultStrategy: ScrollStrategy.Vertical,
       defaultPageGap: 12,
     }),
-    createPluginRegistration(RenderPluginPackage),
+    // Draw form fields (their appearance streams) like Acrobat does. Without this every
+    // field was blank paper, so a field could not be seen to be redacted (Phase 5).
+    createPluginRegistration(RenderPluginPackage, { withForms: true }),
     // 768 px tiles with one extra ring pre-rendered: scrolling shows sharp pages sooner.
     createPluginRegistration(TilingPluginPackage, { tileSize: 768, overlapPx: 2.5, extraRings: 1 }),
     createPluginRegistration(ZoomPluginPackage, {

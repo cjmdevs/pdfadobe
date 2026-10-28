@@ -5,8 +5,8 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 5 (redaction) built 2026-10-27, waiting for the owner check**
-  (`docs/testing/phase-05-test-guide.md`); tag `phase-05-done` after it passes. On the
+- **Phase 5 (redaction) done: owner check passed 2026-10-28**, tagged `phase-05-done`
+  (`docs/testing/phase-05-test-guide.md`). On the
   build PC: `npm run check` (376 Vitest + 1 intended skip, 44 Rust, license-check),
   124 Playwright (one Phase 4 connector test flaked once under load, 3/3 alone).
   GitHub Actions `redaction` workflow green.
@@ -90,7 +90,8 @@ Sanitize's hidden text includes OCR layers; leak secrets are search hits plus 6+
 runs under boxes (plain words are not checked); Apply/Sanitize show their own progress
 (no shared busy wrapper). No confirm dialog before Apply (nothing is overwritten).
 
-Owner check 2026-10-28: steps 0-8 passed; step 9 wording was unclear (rewritten).
+Owner check 2026-10-28: all steps passed. Step 9 first failed because the app never
+drew form fields (render plugin `withForms` defaulted to false): now on in `App.tsx`.
 Owner: the Redact panel looks ugly and is a little confusing; redesign later.
 
 Known gaps: paths inside form XObjects partly under a box are removed whole (PDFium
