@@ -14,6 +14,8 @@ export interface EditSelection {
   id: number;
   /** Accessible description ("Text: Two invoices dated…", "Image"). */
   label: string;
+  /** Other text boxes on the same page picked with Ctrl+click (for Join). */
+  more?: number[];
 }
 
 /** The in-place editor: an existing box, or new text placed with Add Text. */
@@ -80,6 +82,8 @@ export const editSelection = {
  * elsewhere and the tool closing all call this.
  */
 const committers = new Map<string, () => void>();
+/** Splits the open editor's box at its caret (registered like the committer). */
+const splitters = new Map<string, () => void>();
 
 export const editSession = {
   get: (documentId: string) => get(documentId).session,
@@ -98,6 +102,17 @@ export const editSession = {
   registerCommit(documentId: string, fn: (() => void) | null) {
     if (fn) committers.set(documentId, fn);
     else committers.delete(documentId);
+  },
+  registerSplit(documentId: string, fn: (() => void) | null) {
+    if (fn) splitters.set(documentId, fn);
+    else splitters.delete(documentId);
+  },
+  /** Splits the open editor's box at the caret, if an existing box is open. */
+  split(documentId: string): boolean {
+    const fn = splitters.get(documentId);
+    if (!fn) return false;
+    fn();
+    return true;
   },
   /** Commits the open editor, if any. True when there was one. */
   commit(documentId: string): boolean {
@@ -170,6 +185,26 @@ export function useNewTextStyle() {
       return () => newTextListeners.delete(cb);
     },
     () => newText,
+  );
+}
+
+/** "Show bounding boxes": outline every box and image, not only the hovered one. */
+let showBoxes = true;
+const showBoxesListeners = new Set<() => void>();
+export const boundingBoxes = {
+  get: () => showBoxes,
+  set(v: boolean) {
+    showBoxes = v;
+    for (const l of showBoxesListeners) l();
+  },
+};
+export function useShowBoxes() {
+  return useSyncExternalStore(
+    (cb) => {
+      showBoxesListeners.add(cb);
+      return () => showBoxesListeners.delete(cb);
+    },
+    () => showBoxes,
   );
 }
 

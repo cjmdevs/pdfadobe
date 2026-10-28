@@ -4,6 +4,7 @@
 // Coordinates are PDF user space: points, bottom-left origin.
 
 import type { PdfiumModule } from "../pdfium";
+import { boxIdOf } from "./marks";
 
 const FPDF_PAGEOBJ_PATH = 2;
 
@@ -28,6 +29,8 @@ export interface PageChar {
   font: string;
   /** The text object that draws it (a PDFium handle, valid while the page is loaded). */
   obj: number;
+  /** Box id from our marked content (`marks.ts`): text we wrote as one box. */
+  box?: number | null;
 }
 
 export interface HRule {
@@ -79,6 +82,7 @@ export function pageChars(m: PdfiumModule, textPage: number): PageChar[] {
   const f32 = (p: number, k: number) => m.pdfium.getValue(p + k * 4, "float");
   try {
     const out: PageChar[] = [];
+    const ids = new Map<number, number | null>();
     const n = m.FPDFText_CountChars(textPage);
     for (let i = 0; i < n; i++) {
       m.FPDFText_GetCharOrigin(textPage, i, origin, origin + 8);
@@ -94,6 +98,8 @@ export function pageChars(m: PdfiumModule, textPage: number): PageChar[] {
         const d = f32(mtx, 3);
         scale = Math.sqrt(Math.abs(a * d - b * c)) || 1;
       }
+      const obj = m.FPDFText_GetTextObject(textPage, i);
+      if (obj && !ids.has(obj)) ids.set(obj, boxIdOf(m, obj));
       out.push({
         index: i,
         ch: String.fromCodePoint(m.FPDFText_GetUnicode(textPage, i)),
@@ -107,7 +113,8 @@ export function pageChars(m: PdfiumModule, textPage: number): PageChar[] {
         b: f32(box, 3),
         size: m.FPDFText_GetFontSize(textPage, i) * scale,
         font: fontLen > 0 ? m.pdfium.UTF8ToString(fontBuf) : "",
-        obj: m.FPDFText_GetTextObject(textPage, i),
+        obj,
+        box: obj ? (ids.get(obj) ?? null) : null,
       });
     }
     return out;

@@ -17,7 +17,9 @@ import {
   type RetypesetDeps,
   type RetypesetResult,
 } from "./retypeset";
+import { nextBoxId, setBoxId } from "./marks";
 import { removeBoxText } from "./split";
+import type { TextBox } from "./group";
 import type { Rect } from "./chars";
 import {
   addImage,
@@ -106,6 +108,174 @@ export function editBoxText(
           paras,
           deps,
         );
+      },
+      true,
+    );
+    return { bytes: doc.save(), result };
+  } finally {
+    doc.close();
+  }
+}
+
+/** The page's chars, rules and boxes, as grouping sees them now. */
+function groupNow(m: PdfiumModule, page: number) {
+  const tp = m.FPDFText_LoadPage(page);
+  const chars = pageChars(m, tp);
+  m.FPDFText_ClosePage(tp);
+  const rules = pageRules(m, page);
+  return { chars, rules, boxes: groupChars(chars, rules) };
+}
+
+const STALE = "The page changed since this text was selected. Select it again.";
+const previewOf = (b: TextBox) => (b.paragraphs[0]?.text ?? "").slice(0, 60);
+
+/**
+ * Joins boxes on one page into one paragraph, in the top box's place and style, as
+ * wide as all of them together. One undo step.
+ */
+export function joinBoxes(
+  m: PdfiumModule,
+  bytes: Uint8Array,
+  refs: BoxRef[],
+  deps: RetypesetDeps,
+): EditOutcome {
+  const page = refs[0]?.page ?? 0;
+  if (refs.length < 2 || refs.some((r) => r.page !== page))
+    throw new EditRefused("Select two or more text boxes on the same page to join them.");
+  const doc = RawDoc.open(m, bytes);
+  try {
+    const result = doc.withPage(
+      page,
+      (p) => {
+        const g = groupNow(m, p);
+        const picked = refs.map((r) => {
+          const b = g.boxes[r.id];
+          if (!b || previewOf(b) !== r.preview) throw new EditRefused(STALE);
+          return b;
+        });
+        picked.sort((a, b) => b.t - a.t || a.l - b.l);
+        const [top, ...rest] = picked as [TextBox, ...TextBox[]];
+        const text = picked
+          .flatMap((b) => b.paragraphs.map((x) => x.text))
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim();
+        const style = detectStyle(m, top, g.rules)[0];
+        if (!style) throw new Error("box without paragraphs");
+        const width = Math.max(...picked.map((b) => b.r)) - top.l;
+        // Lines after the first start at the leftmost box's edge (a split first-line
+        // indent comes back whole).
+        const indent = {
+          first: style.indent?.first ?? 0,
+          left: Math.min(...picked.map((b) => b.l)) - top.l,
+        };
+        const at = { l: top.l, t: top.t, preview: previewOf(top) };
+        // The other boxes' text goes first; the top box is found again (a shared text
+        // object may have been rewritten).
+        for (const b of rest) removeBoxText(m, doc.ptr, p, b, g.chars).commit();
+        const h = groupNow(m, p);
+        const again = h.boxes.find(
+          (b) =>
+            previewOf(b) === at.preview && Math.abs(b.l - at.l) < 1 && Math.abs(b.t - at.t) < 1,
+        );
+        if (!again) throw new EditRefused(STALE);
+        return retypeset(
+          m,
+          doc.ptr,
+          p,
+          { kind: "box", box: again, chars: h.chars, rules: h.rules, others: h.boxes, width },
+          [{ text, style: { ...style, indent, spaceBefore: 0 } }],
+          deps,
+        );
+      },
+      true,
+    );
+    return { bytes: doc.save(), result };
+  } finally {
+    doc.close();
+  }
+}
+
+/** A caret in a box's text: paragraph index and character offset in it. */
+export interface Caret {
+  paragraph: number;
+  offset: number;
+}
+
+/**
+ * Splits a box at the caret into two boxes: the text before stays, the text after
+ * starts a new box on the next line (same left edge, width and style). `paragraphs`
+ * is the box's current text (the editor's, which may hold unsaved typing). One undo
+ * step; both boxes keep their own id, so they stay apart when the file is reopened.
+ */
+export function splitBox(
+  m: PdfiumModule,
+  bytes: Uint8Array,
+  ref: BoxRef,
+  paragraphs: string[],
+  caret: Caret,
+  deps: RetypesetDeps,
+  styles: (Partial<PlainStyle> | undefined)[] = [],
+): EditOutcome {
+  const doc = RawDoc.open(m, bytes);
+  try {
+    const result = doc.withPage(
+      ref.page,
+      (page) => {
+        const g = groupNow(m, page);
+        const box = g.boxes[ref.id];
+        if (!box || previewOf(box) !== ref.preview) throw new EditRefused(STALE);
+        const found = detectStyle(m, box, g.rules);
+        const own = (i: number) => {
+          const st = found[Math.min(i, found.length - 1)];
+          if (!st) throw new Error("box without paragraphs");
+          return merge(st, styles[i]);
+        };
+        const p = caret.paragraph;
+        const cut = paragraphs[p] ?? "";
+        const head = cut.slice(0, caret.offset).trim();
+        const tail = cut.slice(caret.offset).trim();
+        const before = [...paragraphs.slice(0, p).map((t, i) => ({ t, i })), { t: head, i: p }];
+        const after = [
+          { t: tail, i: p },
+          ...paragraphs.slice(p + 1).map((t, i) => ({ t, i: i + p + 1 })),
+        ];
+        const clean = (xs: { t: string; i: number }[]) =>
+          xs.map((x) => ({ ...x, t: x.t.replace(/\s+/g, " ").trim() })).filter((x) => x.t);
+        const a = clean(before);
+        const b = clean(after);
+        if (!a.length || !b.length)
+          throw new EditRefused("Put the caret inside the text, where the new box should start.");
+        const paras = [
+          ...a.map((x) => ({ text: x.t, style: own(x.i) })),
+          ...b.map((x, k) => {
+            const st = own(x.i);
+            // Mid-paragraph: the second half starts like a continuation line.
+            if (k === 0 && caret.offset > 0) {
+              const { marker: _marker, ...rest } = st;
+              void _marker;
+              const left = st.indent?.left ?? 0;
+              return {
+                text: x.t,
+                style: { ...rest, indent: { first: left, left }, spaceBefore: 0 },
+              };
+            }
+            return { text: x.t, style: st };
+          }),
+        ];
+        const r = retypeset(
+          m,
+          doc.ptr,
+          page,
+          { kind: "box", box, chars: g.chars, rules: g.rules, others: g.boxes },
+          paras,
+          deps,
+        );
+        // The second half becomes its own box.
+        const id = nextBoxId(m, page);
+        for (const objs of r.objects.slice(a.length))
+          for (const o of objs) setBoxId(m, doc.ptr, o, id);
+        return r;
       },
       true,
     );

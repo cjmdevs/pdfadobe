@@ -2046,3 +2046,9 @@ button.primary.danger-fill {
 .signature-box.filling {
   cursor: default;
 }
+
+/* Edit PDF: "Show bounding boxes" off: only the hovered, selected or overflowing box
+   keeps its outline. */
+.edit-layer.hide-boxes .edit-item:not(.hover):not(.selected):not(.overflow) {
+  border-color: transparent;
+}

@@ -10,6 +10,8 @@ export interface LayoutFrame {
   /** Left and right edge of the text area. */
   l: number;
   r: number;
+  /** Where the first line starts (a first-line or hanging indent); `l` when absent. */
+  first?: number;
   /** Wrap at the frame width (false: a one-line box grows instead of wrapping). */
   wrap: boolean;
 }
@@ -29,14 +31,22 @@ export interface PlacedLine {
   runs: PlacedRun[];
 }
 
-/** Splits `text` into lines no wider than `width` (a word longer than that gets its own line). */
-export function wrapWords(text: string, width: number, measure: (s: string) => number): string[] {
+/**
+ * Splits `text` into lines no wider than `width` (a word longer than that gets its own
+ * line). The first line may have its own width (an indent).
+ */
+export function wrapWords(
+  text: string,
+  width: number,
+  measure: (s: string) => number,
+  firstWidth = width,
+): string[] {
   const words = text.split(/ +/).filter(Boolean);
   const lines: string[] = [];
   let cur = "";
   for (const w of words) {
     const next = cur ? `${cur} ${w}` : w;
-    if (cur && measure(next) > width + 1e-6) {
+    if (cur && measure(next) > (lines.length ? width : firstWidth) + 1e-6) {
       lines.push(cur);
       cur = w;
     } else cur = next;
@@ -58,30 +68,29 @@ export function layoutParagraph(
   leading: number,
   measure: (s: string) => number,
 ): PlacedLine[] {
-  const width = frame.r - frame.l;
-  const lines = frame.wrap ? wrapWords(text, width, measure) : [text.replace(/ +/g, " ").trim()];
+  const first = frame.first ?? frame.l;
+  const lines = frame.wrap
+    ? wrapWords(text, frame.r - frame.l, measure, frame.r - first)
+    : [text.replace(/ +/g, " ").trim()];
   return lines.map((line, i) => {
     const y = firstBaseline - i * leading;
+    const l = i ? frame.l : first;
+    const width = frame.r - l;
     const w = measure(line);
     const last = i === lines.length - 1;
     const words = line.split(" ");
     if (align === "justify" && frame.wrap && !last && words.length > 1) {
       const natural = words.reduce((a, word) => a + measure(word), 0);
       const gap = (width - natural) / (words.length - 1);
-      let x = frame.l;
+      let x = l;
       const runs = words.map((word) => {
         const run = { text: word, x, y };
         x += measure(word) + gap;
         return run;
       });
-      return { text: line, x: frame.l, y, width, runs };
+      return { text: line, x: l, y, width, runs };
     }
-    const x =
-      align === "right"
-        ? frame.r - w
-        : align === "center"
-          ? (frame.l + frame.r) / 2 - w / 2
-          : frame.l;
+    const x = align === "right" ? frame.r - w : align === "center" ? (l + frame.r) / 2 - w / 2 : l;
     return { text: line, x, y, width: w, runs: [{ text: line, x, y }] };
   });
 }

@@ -18,6 +18,7 @@ import { fontIndex, type FontIndex } from "../../app/fontIndex";
 import { platform } from "../../platform";
 import { fontOptions, resolveFont, type Section, type Warning } from "./fontChoices";
 import {
+  boundingBoxes,
   editSession,
   newTextStyle,
   useAddingText,
@@ -29,9 +30,16 @@ import {
   usePendingImage,
   useSessionFontKey,
   useSessionStyle,
+  useShowBoxes,
 } from "./editStore";
 import { NEW_TEXT_STYLE } from "./TextEditor";
-import { afterTextEdit, deleteSelection, placeImageEdit, replaceImageEdit } from "./editActions";
+import {
+  afterTextEdit,
+  deleteSelection,
+  joinSelection,
+  placeImageEdit,
+  replaceImageEdit,
+} from "./editActions";
 
 const SECTION_LABEL: Record<Section, string> = {
   document: "In this document",
@@ -123,6 +131,30 @@ export default function EditPanel({ documentId }: { documentId: string }) {
     [info, fonts],
   );
 
+  // Several text boxes picked with Ctrl+click: they can be joined.
+  if (!session && sel?.kind === "text" && sel.more?.length) {
+    return (
+      <section className="tool-panel" aria-label="Edit PDF" data-testid="edit-panel">
+        <h3 className="tool-panel-title">Edit PDF</h3>
+        <p data-testid="edit-selection">
+          {sel.more.length + 1} text boxes selected on page {sel.page + 1}. Ctrl+click a box to add
+          or remove it.
+        </p>
+        <div className="format-row">
+          <button
+            type="button"
+            data-testid="edit-join"
+            disabled={wb.busy !== null}
+            onClick={() => void joinSelection(wb, documentId, sel)}
+          >
+            Join into one paragraph
+          </button>
+        </div>
+        <BoxesToggle />
+      </section>
+    );
+  }
+
   if (!target) {
     const image = sel?.kind === "image" ? info?.images[sel.id] : undefined;
     return (
@@ -184,9 +216,10 @@ export default function EditPanel({ documentId }: { documentId: string }) {
         ) : (
           <p className="muted">
             Click text to edit it (Esc or a click elsewhere finishes), or click an image to select
-            it.
+            it. Ctrl+click text boxes to select several and join them.
           </p>
         )}
+        <BoxesToggle />
       </section>
     );
   }
@@ -386,6 +419,22 @@ export default function EditPanel({ documentId }: { documentId: string }) {
         />
       </label>
 
+      {target.kind === "editor" && target.box && (
+        <div className="format-row">
+          <button
+            type="button"
+            data-testid="edit-split"
+            title="The text after the caret becomes a new text box"
+            disabled={disabled}
+            // Keep the caret where it is in the editor.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editSession.split(documentId)}
+          >
+            Split at caret
+          </button>
+        </div>
+      )}
+
       {target.kind === "box" && overflow?.page === target.page && overflow.id === target.box.id && (
         <p className="format-overflow" role="alert" data-testid="overflow-note">
           This text runs into {overflow.text}. Drag the handle on the box&apos;s right edge to
@@ -401,7 +450,24 @@ export default function EditPanel({ documentId }: { documentId: string }) {
           ))}
         </ul>
       )}
+      <BoxesToggle />
     </section>
+  );
+}
+
+/** Acrobat's "Show bounding boxes": outlines on every box, or only the hovered one. */
+function BoxesToggle() {
+  const on = useShowBoxes();
+  return (
+    <label className="format-row format-check">
+      <input
+        type="checkbox"
+        data-testid="edit-show-boxes"
+        checked={on}
+        onChange={(e) => boundingBoxes.set(e.target.checked)}
+      />
+      <span>Show bounding boxes</span>
+    </label>
   );
 }
 

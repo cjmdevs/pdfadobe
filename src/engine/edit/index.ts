@@ -53,5 +53,20 @@ export function groupPage(
 
 export { editPageInfo, hitTest } from "./pageInfo";
 export type { EditImage, EditPageInfo, EditTextBox, PlainParagraphStyle } from "./pageInfo";
-export { addImageToPage, addTextBox, editBoxText, editImage } from "./document";
-export type { BoxRef, EditOutcome, ImageEdit, ImageRef, PlainFont, PlainStyle } from "./document";
+export {
+  addImageToPage,
+  addTextBox,
+  editBoxText,
+  editImage,
+  joinBoxes,
+  splitBox,
+} from "./document";
+export type {
+  BoxRef,
+  Caret,
+  EditOutcome,
+  ImageEdit,
+  ImageRef,
+  PlainFont,
+  PlainStyle,
+} from "./document";

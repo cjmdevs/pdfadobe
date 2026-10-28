@@ -460,3 +460,50 @@ describe("add text", () => {
     }
   });
 });
+
+// B3 stage 2: a box written back unchanged keeps its shape: indents, list markers,
+// space between items, centred / right alignment, double spacing.
+describe("word-processor layouts keep their shape", () => {
+  const shape = (b: TextBox) => ({
+    align: b.align,
+    lines: b.lines.length,
+    paragraphs: b.paragraphs.map((p) => ({
+      lines: p.lines.length,
+      marker: p.marker,
+      first: Math.round(p.firstL - b.l),
+      body: Math.round(p.bodyL - b.l),
+      space: Math.round(p.spaceBefore),
+    })),
+  });
+  it.each([
+    "Sample & Partners CPAs",
+    "ENGAGEMENT SUMMARY",
+    "We have completed",
+    "Please review the adjustments",
+    "• Depreciation",
+    "1. Sign the consent",
+    "Note A.",
+    "The guaranteed payments",
+  ])("%s", async (target) => {
+    const o = await edit(join(REAL, "word-layouts.pdf"), target, (t, s) =>
+      t.map((text, i) => ({ text, style: s[i]! })),
+    );
+    const again = findBox(o, o.box.paragraphs.map((p) => p.text).join(" "));
+    expect(again && shape(again)).toEqual(shape(o.box));
+    expect(o.changedOutside).toBe(0);
+    expect(o.result.overflow).toEqual([]);
+  });
+
+  it("wraps a lengthened list item at its hanging indent", async () => {
+    const more = " Travel meals while away overnight were also limited to fifty percent.";
+    const o = await edit(join(REAL, "word-layouts.pdf"), "• Depreciation", (t, s) =>
+      t.map((text, i) => ({ text: text.startsWith("• Meals") ? text + more : text, style: s[i]! })),
+    );
+    const box = o.boxes.find((b) => b.paragraphs.some((p) => p.text.startsWith("• Meals")))!;
+    const item = box.paragraphs.find((p) => p.text.startsWith("• Meals"))!;
+    expect(box.paragraphs.length).toBe(3);
+    expect(item.lines.length).toBe(2);
+    expect(item.bodyL).toBeCloseTo(item.firstL, 0);
+    expect(item.lines[0]!.l).toBeLessThan(item.firstL - 10);
+  });
+});

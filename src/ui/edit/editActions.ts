@@ -69,6 +69,33 @@ export async function resizeTextBox(
   return ok;
 }
 
+/** Joins the selected text boxes (Ctrl+click) into one paragraph: one undo step. */
+export async function joinSelection(wb: WorkbenchApi, documentId: string, sel: EditSelection) {
+  const info = pageInfos.get(documentId, sel.page);
+  const boxes = [sel.id, ...(sel.more ?? [])].flatMap((id) => {
+    const b = info?.boxes[id];
+    return b ? [b] : [];
+  });
+  if (sel.kind !== "text" || boxes.length < 2) return false;
+  let hit: string | null = null;
+  const ok = await wb.edit(
+    documentId,
+    "Join text boxes",
+    async (bytes) => {
+      const r = await pageOp(
+        "joinText",
+        bytes,
+        boxes.map((b) => ({ page: sel.page, id: b.id, preview: b.preview })),
+      );
+      hit = afterTextEdit(wb, documentId, sel.page, r.result);
+      return r.bytes;
+    },
+    { page: sel.page },
+  );
+  if (ok && hit) wb.toast(`The joined text runs into ${hit as string}.`);
+  return ok;
+}
+
 function selectAfter(wb: WorkbenchApi, documentId: string, page: number, x: number, y: number) {
   reselect.set(wb.meta[documentId]?.storeId, { page, x, y });
 }

@@ -21,10 +21,12 @@ import type { Subsetter } from "./fonts/subset";
 import type { Paragraph, TextBox } from "./group";
 import { heap } from "../pages/raw";
 import { EditRefused } from "./refusal";
+import { nextBoxId, setBoxId } from "./marks";
 import { removeBoxText, type Removal } from "./split";
 import { layoutParagraph, type Align, type PlacedLine } from "./typeset";
 
 const FPDF_FONT_TRUETYPE = 2;
+const FPDF_PAGEOBJ_TEXT = 1;
 const FPDF_TEXTRENDERMODE_FILL_STROKE = 2;
 const FPDF_FILLMODE_WINDING = 2;
 /** Fake italic: 12 degree slant. */
@@ -59,6 +61,15 @@ export interface ParagraphStyle {
   align: Align;
   /** Baseline to baseline, points. */
   leading: number;
+  /**
+   * Where the text starts, in points from the box's left edge: `first` for the first
+   * line (after a list marker), `left` for the others. Absent: both 0.
+   */
+  indent?: { first: number; left: number };
+  /** A list marker ("•", "1.") drawn `at` points from the box's left edge. */
+  marker?: { text: string; at: number };
+  /** Extra space above the paragraph (not the first), points. */
+  spaceBefore?: number;
 }
 
 export interface EditParagraph {
@@ -76,9 +87,19 @@ export type EditTarget =
       others: TextBox[];
       /** New width (points from the box's left edge): the text wraps at it. */
       width?: number;
+      /** Box id to mark the text with (default: the box's own, else a new one). */
+      boxId?: number;
     }
   /** Add a new box: first baseline at (x, y); `width` wraps, null grows. */
-  | { kind: "new"; x: number; y: number; width: number | null; others: TextBox[]; rules: Rules };
+  | {
+      kind: "new";
+      x: number;
+      y: number;
+      width: number | null;
+      others: TextBox[];
+      rules: Rules;
+      boxId?: number;
+    };
 
 export interface WrittenFont {
   name: string;
@@ -103,6 +124,8 @@ export interface RetypesetResult {
   fakeItalic: boolean;
   /** Text or rules the new text runs into (not pushed down: the user resizes). */
   overflow: Overflow[];
+  /** Text objects written for each paragraph (PDFium handles, valid while the page is loaded). */
+  objects: number[][];
 }
 
 export interface RetypesetDeps {
@@ -123,7 +146,13 @@ export function retypeset(
 
   // Layout first (refusals here leave the page untouched).
   const box = target.kind === "box" ? target.box : null;
-  const left = box ? (box.lines[0]?.chars[0]?.x ?? box.l) : target.kind === "new" ? target.x : 0;
+  // The box's left edge, at glyph origins (a loose box can start a hair before one).
+  const first = box?.lines[0];
+  const left = box
+    ? box.l + ((first?.chars[0]?.x ?? box.l) - (first?.l ?? box.l))
+    : target.kind === "new"
+      ? target.x
+      : 0;
   const newWidth = target.kind === "box" ? target.width : undefined;
   const right =
     box !== null
@@ -141,19 +170,28 @@ export function retypeset(
     : target.kind === "new" && target.width !== null;
   let baseline = box ? (box.lines[0]?.y ?? 0) : target.kind === "new" ? target.y : 0;
   const placed: { para: EditParagraph; lines: PlacedLine[]; font: LoadedFont }[] = [];
-  for (const para of paragraphs) {
+  paragraphs.forEach((para, i) => {
     const font = fonts.get(para.style.font);
+    const st = para.style;
+    if (i) baseline -= st.spaceBefore ?? 0;
+    // A list marker the text still starts with is drawn on its own at its place; the
+    // text after it starts at the indent. Without it, the text starts at the marker.
+    const marker = st.marker && para.text.startsWith(st.marker.text + " ") ? st.marker : null;
+    const text = marker ? para.text.slice(marker.text.length + 1) : para.text;
+    const firstX = left + (st.marker && !marker ? st.marker.at : (st.indent?.first ?? 0));
     const lines = layoutParagraph(
-      para.text,
-      { l: left, r: right, wrap },
-      para.style.align,
+      text,
+      { l: left + (st.indent?.left ?? 0), r: right, first: firstX, wrap },
+      st.align,
       baseline,
-      para.style.leading,
-      (s) => font.width(s, para.style.size),
+      st.leading,
+      (s) => font.width(s, st.size),
     );
+    const top = lines[0];
+    if (marker && top) top.runs.unshift({ text: marker.text, x: left + marker.at, y: top.y });
     placed.push({ para, lines, font });
-    baseline -= lines.length * para.style.leading;
-  }
+    baseline -= lines.length * st.leading;
+  });
 
   const removal: Removal | null =
     box && target.kind === "box" ? removeBoxText(m, doc, page, box, target.chars) : null;
@@ -161,7 +199,9 @@ export function retypeset(
   try {
     let fakeBold = false;
     let fakeItalic = false;
+    const perParagraph: number[][] = [];
     for (const { para, lines, font } of placed) {
+      const from = created.length;
       const s = para.style;
       const boldFake = s.bold && !font.bold;
       const italicFake = s.italic && !font.italic;
@@ -189,6 +229,9 @@ export function retypeset(
           );
         }
       }
+      perParagraph.push(
+        created.slice(from).filter((o) => m.FPDFPageObj_GetType(o) === FPDF_PAGEOBJ_TEXT),
+      );
     }
     // Read every letter back before anything is final.
     const want = placed.flatMap((p) => p.lines.flatMap((l) => l.runs.map((r) => r.text))).join("");
@@ -208,6 +251,10 @@ export function retypeset(
     }
     removal?.commit();
     if (box && target.kind === "box") removeUnderlines(m, page, box, target.rules);
+    // The written text is one box from now on (`marks.ts`), keeping the box's id.
+    const id = target.boxId ?? box?.id ?? nextBoxId(m, page);
+    for (const o of created)
+      if (m.FPDFPageObj_GetType(o) === FPDF_PAGEOBJ_TEXT) setBoxId(m, doc, o, id);
     if (!m.FPDFPage_GenerateContent(page)) throw new Error("PDFium could not regenerate the page");
 
     const lineRects = placed.flatMap(({ para, lines }) =>
@@ -220,6 +267,7 @@ export function retypeset(
       fonts: fonts.written(),
       fakeBold,
       fakeItalic,
+      objects: perParagraph,
       overflow: findOverflow(lineRects, box, others, target.rules),
     };
   } catch (e) {
@@ -556,14 +604,14 @@ function placeRect(
   return obj;
 }
 
-/** Underline rules drawn under the box's lines (an earlier underlined edit). */
+/** Underline rules drawn under the box's lines (an earlier underlined edit; a list marker isn't underlined). */
 export function underlinesOf(box: TextBox, rules: Rules): Rules["h"] {
   return rules.h.filter((h) =>
     box.lines.some(
       (l) =>
         h.y < l.y &&
         h.y > l.y - 0.3 * l.size &&
-        h.l < l.l + 0.5 * l.size &&
+        h.l < l.textL + 0.5 * l.size &&
         h.r > l.r - 0.5 * l.size,
     ),
   );
@@ -643,7 +691,9 @@ export function mainChar(p: Paragraph): PageChar {
 /** Current style of each paragraph in `box`, for the properties panel and edits. */
 export function detectStyle(m: PdfiumModule, box: TextBox, rules: Rules): ParagraphStyle[] {
   const underlined = underlinesOf(box, rules);
-  return box.paragraphs.map((p) => {
+  const left = box.l;
+  const round = (v: number) => Math.round(v * 100) / 100;
+  return box.paragraphs.map((p, i) => {
     const main = mainChar(p);
     const style = main.font.replace(/^[A-Z]{6}\+/, "").toLowerCase();
     const color = fillColor(m, main.obj);
@@ -659,10 +709,20 @@ export function detectStyle(m: PdfiumModule, box: TextBox, rules: Rules): Paragr
       align:
         single && /^\$?\s?\(?-?\d[\d,]*\.?\d*\)?%?$/.test(p.text)
           ? "right"
-          : box.justified
-            ? "justify"
-            : "left",
+          : box.align !== "left"
+            ? box.align
+            : box.justified
+              ? "justify"
+              : "left",
       leading: box.leading ?? Math.round(main.size * 1.2 * 100) / 100,
+      // Centred / right-aligned lines have no indent: each line sits on the shared edge.
+      ...(box.align === "left"
+        ? { indent: { first: round(p.firstL - left), left: round(p.bodyL - left) } }
+        : {}),
+      ...(p.marker
+        ? { marker: { text: p.marker, at: round((p.lines[0]?.l ?? left) - left) } }
+        : {}),
+      ...(i && p.spaceBefore ? { spaceBefore: p.spaceBefore } : {}),
     };
   });
 }

@@ -13,6 +13,7 @@
 import type { PdfiumModule } from "../pdfium";
 import type { PageChar } from "./chars";
 import { pageChars } from "./chars";
+import { boxIdOf, setBoxId } from "./marks";
 import type { TextBox } from "./group";
 import { EditRefused } from "./refusal";
 
@@ -184,6 +185,9 @@ function writeRun(
     m.FPDFPageObj_SetMatrix(obj, buf);
     copyColours(m, src, obj, buf);
     m.FPDFTextObj_SetTextRenderMode(obj, m.FPDFTextObj_GetTextRenderMode(src));
+    // The leftover part stays in the box it belonged to.
+    const id = boxIdOf(m, src);
+    if (id !== null) setBoxId(m, doc, obj, id);
     if (at < 0 || !m.FPDFPage_InsertObjectAtIndex(page, obj, at)) {
       m.FPDFPage_InsertObject(page, obj);
     }

@@ -27,7 +27,10 @@ import {
   addTextBox,
   editBoxText,
   editImage,
+  joinBoxes,
+  splitBox,
   type BoxRef,
+  type Caret,
   type ImageEdit,
   type ImageRef,
   type PlainStyle,
@@ -116,6 +119,16 @@ export const OPS = {
     styles: (Partial<PlainStyle> | undefined)[] = [],
     width?: number,
   ) => editBoxText(c.module, b, ref, paragraphs, { subset: await subsetter() }, styles, width),
+  joinText: async (c: Ctx, b: Uint8Array, refs: BoxRef[]) =>
+    joinBoxes(c.module, b, refs, { subset: await subsetter() }),
+  splitText: async (
+    c: Ctx,
+    b: Uint8Array,
+    ref: BoxRef,
+    paragraphs: string[],
+    caret: Caret,
+    styles: (Partial<PlainStyle> | undefined)[] = [],
+  ) => splitBox(c.module, b, ref, paragraphs, caret, { subset: await subsetter() }, styles),
   editImage: async (c: Ctx, b: Uint8Array, ref: ImageRef, op: ImageEdit) =>
     editImage(c.module, b, ref, op),
   addImage: async (c: Ctx, b: Uint8Array, page: number, data: Uint8Array, at: Placement) =>

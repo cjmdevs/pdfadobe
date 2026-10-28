@@ -18,7 +18,19 @@ Keep it under 2 pages; summarize older phases.
 - **B3 Edit PDF, stage 1 done: owner check passed 2026-10-27** (all 11 steps of
   `docs/testing/b3-stage1-test-guide.md`, including the Acrobat check and firm fonts
   offline via `\\localhost`). On the build PC:
-  117/117 Playwright at the time. Stage 2 (mixed styles, spacing, kerning, push-down) not started.
+  117/117 Playwright at the time.
+- **B3 stage 2 (plan approved 2026-10-28), step 1 done: paragraph grouping.** Grouping
+  now joins first-line and hanging indents, list markers across a tab ("1." + text),
+  spaced list items (one box, a paragraph per item, same marker kind), centred and
+  right-aligned blocks, double-spaced prose (not form rows: lines must be alone on their
+  row), bigger run-in heads and superscripts. Re-typeset keeps indents, markers, item
+  spacing and alignment. New sample `real-format/word-layouts.pdf`; expectations can
+  name a `group` (one box per group, groups never share). **Join** (Ctrl+click boxes)
+  and **Split at caret**, one undo step each. Decision: every box we write is wrapped in
+  marked content `/PWBox <</id N>> BDC … EMC` (`src/engine/edit/marks.ts`); grouping keeps
+  one id in one box, so Join/Split survive save + reopen. Standard PDF, ignored by other
+  viewers; no sidecar. **Show bounding boxes** toggle (default on, as stage 1).
+  Steps 2-5 (box controls, formatting, objects panel, toolbar) not started.
 - Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.

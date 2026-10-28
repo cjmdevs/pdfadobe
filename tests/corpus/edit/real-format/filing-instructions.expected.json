@@ -78,16 +78,19 @@
   {
     "kind": "list-item",
     "text": "Sign and date the return. Both spouses must sign a joint return.",
-    "lines": 1
+    "lines": 1,
+    "group": "list"
   },
   {
     "kind": "list-item",
     "text": "Attach Forms W-2 and any Form 1099 that shows federal income tax withheld to the front of the return.",
-    "lines": 1
+    "lines": 1,
+    "group": "list"
   },
   {
     "kind": "list-item",
     "text": "Use the envelope provided, with enough postage. Returns mailed without postage are sent back to you.",
-    "lines": 1
+    "lines": 1,
+    "group": "list"
   }
 ]

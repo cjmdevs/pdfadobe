@@ -711,4 +711,71 @@ test.describe("Edit PDF", () => {
       expect(undone.width).toBeCloseTo(before.width, -1);
     });
   });
+
+  // B3 stage 2: Join / Split (kept in the file as marked content) and the outlines toggle.
+  test.describe("join, split, bounding boxes", () => {
+    test("Ctrl+click picks boxes; Join makes one paragraph (one undo step)", async ({
+      page,
+      mockfs,
+    }) => {
+      await openEdit(page);
+      const [x1, y1] = await center(page, "We selected sales");
+      const [x2, y2] = await center(page, "Two invoices dated");
+      // (page.mouse.click has no modifiers option: hold Control on the keyboard.)
+      await page.keyboard.down("Control");
+      await page.mouse.click(x1, y1);
+      await expect(editor(page)).toHaveCount(0);
+      await page.mouse.click(x2, y2);
+      await page.keyboard.up("Control");
+      await expect(page.locator("[data-testid=edit-box].selected")).toHaveCount(2);
+      await expect(page.getByTestId("edit-selection")).toContainText("2 text boxes selected");
+      await page.getByTestId("edit-join").click();
+      await settled(page);
+      await expect(box(page, "Two invoices dated")).toHaveCount(0);
+      expect(await savedText(page, mockfs)).toMatch(/correct period\.\s*Two invoices dated/);
+
+      await page.keyboard.press("Control+z");
+      await settled(page);
+      await expect(box(page, "Two invoices dated")).toHaveCount(1);
+    });
+
+    test("Split at caret starts a new box that stays apart after saving", async ({
+      page,
+      mockfs,
+    }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await expect(editor(page)).toBeFocused();
+      await editor(page).evaluate((el: HTMLTextAreaElement) => {
+        const at = el.value.indexOf("For each invoice");
+        el.setSelectionRange(at, at);
+      });
+      await page.getByTestId("edit-split").click();
+      await settled(page);
+      await expect(box(page, "We selected sales")).toHaveCount(1);
+      await expect(box(page, "For each invoice")).toHaveCount(1);
+
+      // Saved and reopened, the two boxes are still two.
+      await savedText(page, mockfs);
+      await page.keyboard.press("Control+w");
+      await openEdit(page);
+      await expect(box(page, "For each invoice")).toHaveCount(1);
+    });
+
+    test("Show bounding boxes off keeps only the hovered outline", async ({ page }) => {
+      await openEdit(page);
+      const toggle = page.getByTestId("edit-show-boxes");
+      await expect(toggle).toBeChecked();
+      await toggle.uncheck();
+      await expect(page.getByTestId("edit-layer")).toHaveClass(/hide-boxes/);
+      const colour = (start: string) =>
+        box(page, start).evaluate((el) => getComputedStyle(el).borderTopColor);
+      expect(await colour("MEMORANDUM")).toBe("rgba(0, 0, 0, 0)");
+      const [x, y] = await center(page, "MEMORANDUM");
+      await page.mouse.move(x, y);
+      expect(await colour("MEMORANDUM")).not.toBe("rgba(0, 0, 0, 0)");
+      await toggle.check();
+    });
+  });
 });

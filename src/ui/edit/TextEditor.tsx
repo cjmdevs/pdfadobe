@@ -108,13 +108,51 @@ export function TextEditor({
       });
   };
 
+  /** Split at the caret: the text before stays in this box, the rest starts a new one. */
+  const split = () => {
+    if (committed.current || session.kind !== "box") return;
+    const el = ref.current;
+    if (!el) return;
+    committed.current = true;
+    const restyled = editSession.style(documentId);
+    editSession.registerCommit(documentId, null);
+    editSession.close(documentId);
+    const paragraphs = el.value.split("\n");
+    // Caret as (paragraph, offset) in the editor's text.
+    let left = el.selectionStart;
+    let paragraph = 0;
+    while (paragraph < paragraphs.length - 1 && left > (paragraphs[paragraph]?.length ?? 0)) {
+      left -= (paragraphs[paragraph]?.length ?? 0) + 1;
+      paragraph++;
+    }
+    const page = session.page;
+    void wb.edit(
+      documentId,
+      "Split text box",
+      async (bytes) => {
+        const r = await pageOp(
+          "splitText",
+          bytes,
+          { page, id: session.box.id, preview: session.box.preview },
+          paragraphs,
+          { paragraph, offset: left },
+          paragraphs.map(() => restyled ?? undefined),
+        );
+        afterTextEdit(wb, documentId, page, r.result);
+        return r.bytes;
+      },
+      { page },
+    );
+  };
+
   // The latest commit for Escape, the tool closing and clicks on the page.
-  const latest = useRef(commit);
+  const latest = useRef({ commit, split });
   useEffect(() => {
-    latest.current = commit;
+    latest.current = { commit, split };
   });
   useEffect(() => {
-    editSession.registerCommit(documentId, () => latest.current());
+    editSession.registerCommit(documentId, () => latest.current.commit());
+    editSession.registerSplit(documentId, () => latest.current.split());
     // Focus after the click that opened it (its mousedown would take focus back).
     const t = window.setTimeout(() => {
       const el = ref.current;
@@ -125,6 +163,7 @@ export function TextEditor({
     return () => {
       window.clearTimeout(t);
       editSession.registerCommit(documentId, null);
+      editSession.registerSplit(documentId, null);
     };
   }, [documentId]);
 

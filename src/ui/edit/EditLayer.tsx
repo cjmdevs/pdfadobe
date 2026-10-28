@@ -27,6 +27,7 @@ import {
   useOverflowNote,
   useEditSession,
   usePendingImage,
+  useShowBoxes,
   type EditSelection,
 } from "./editStore";
 import { TextEditor } from "./TextEditor";
@@ -93,6 +94,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
   const selection = useEditSelection(documentId);
   const session = useEditSession(documentId);
   const adding = useAddingText(documentId);
+  const showBoxes = useShowBoxes();
   const latest = useRef({ info, busy: wb.busy, drag, imgDrag, widthDrag, selection, scale, wb });
   useEffect(() => {
     latest.current = { info, busy: wb.busy, drag, imgDrag, widthDrag, selection, scale, wb };
@@ -191,6 +193,19 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           : null;
         const hit = handle && selected ? selected : at(pos);
         if (!hit) return editSelection.set(documentId, null);
+        // Ctrl / Shift + click picks several text boxes (for Join) without editing.
+        if (hit.kind === "text" && (evt.ctrlKey || evt.metaKey || evt.shiftKey)) {
+          const had =
+            sel?.kind === "text" && sel.page === pageIndex ? [sel.id, ...(sel.more ?? [])] : [];
+          const ids = had.includes(hit.id) ? had.filter((x) => x !== hit.id) : [...had, hit.id];
+          const [first, ...more] = ids;
+          const box = first === undefined ? undefined : i?.boxes[first];
+          editSelection.set(
+            documentId,
+            box ? { ...selectionOf(pageIndex, box), ...(more.length ? { more } : {}) } : null,
+          );
+          return;
+        }
         editSelection.set(documentId, selectionOf(pageIndex, hit));
         if (hit.kind === "text")
           editSession.open(documentId, { kind: "box", page: pageIndex, box: hit });
@@ -275,21 +290,27 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     width: (r.r - r.l) * scale,
     height: (r.t - r.b) * scale,
   });
+  const picked = (it: Item) =>
+    selection?.page === pageIndex &&
+    selection.kind === it.kind &&
+    (selection.id === it.id || (it.kind === "text" && !!selection.more?.includes(it.id)));
   const state = (it: Item) =>
-    selection?.page === pageIndex && selection.kind === it.kind && selection.id === it.id
-      ? " selected"
-      : hover?.kind === it.kind && hover.id === it.id
-        ? " hover"
-        : "";
+    picked(it) ? " selected" : hover?.kind === it.kind && hover.id === it.id ? " hover" : "";
   const editingHere = session?.page === pageIndex ? session : null;
   const selectedImage =
     selection?.kind === "image" && selection.page === pageIndex ? info.images[selection.id] : null;
   const framed = imgDrag?.now ?? selectedImage?.placement ?? null;
+  // The width handle is for one box at a time.
   const selectedBox =
-    selection?.kind === "text" && selection.page === pageIndex ? info.boxes[selection.id] : null;
+    selection?.kind === "text" && selection.page === pageIndex && !selection.more?.length
+      ? info.boxes[selection.id]
+      : null;
   const ghostSize = pending ? naturalSize(pending.px, info.width) : null;
   return (
-    <div className={`edit-layer${adding ? " adding" : ""}`} data-testid="edit-layer">
+    <div
+      className={`edit-layer${adding ? " adding" : ""}${showBoxes ? "" : " hide-boxes"}`}
+      data-testid="edit-layer"
+    >
       {info.images.map((img) => (
         <div
           key={`i${img.id}`}

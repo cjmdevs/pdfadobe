@@ -1,0 +1,88 @@
+[
+  {
+    "kind": "right",
+    "text": "Sample & Partners CPAs",
+    "lines": 1,
+    "group": "right"
+  },
+  {
+    "kind": "right",
+    "text": "February 14, 2025",
+    "lines": 1,
+    "group": "right"
+  },
+  {
+    "kind": "centre",
+    "text": "ENGAGEMENT SUMMARY",
+    "lines": 1,
+    "group": "centre"
+  },
+  {
+    "kind": "centre",
+    "text": "Sample Holdings LP",
+    "lines": 1,
+    "group": "centre"
+  },
+  {
+    "kind": "centre",
+    "text": "Tax Year 2024",
+    "lines": 1,
+    "group": "centre"
+  },
+  {
+    "kind": "paragraph",
+    "text": "We have completed the review of the partnership records you sent for the year. The schedules agree with the general ledger, and the differences we found are listed below with the adjustments we propose.",
+    "lines": 3
+  },
+  {
+    "kind": "paragraph",
+    "text": "Please review the adjustments and sign the enclosed consent form so that we can finish the returns before the extended due date of the partnership return.",
+    "lines": 2
+  },
+  {
+    "kind": "list-item",
+    "text": "Depreciation on the new equipment was figured under the half-year convention for the first year of service.",
+    "lines": 2,
+    "group": "bullets"
+  },
+  {
+    "kind": "list-item",
+    "text": "Meals were limited to fifty percent.",
+    "lines": 1,
+    "group": "bullets"
+  },
+  {
+    "kind": "list-item",
+    "text": "The loan from the general partner was reclassified from income to a liability, with interest accrued at the stated rate.",
+    "lines": 2,
+    "group": "bullets"
+  },
+  {
+    "kind": "list-item",
+    "text": "1. Sign the consent form and return it with the bank statements for December.",
+    "lines": 1,
+    "group": "numbers"
+  },
+  {
+    "kind": "list-item",
+    "text": "2. Confirm the ending inventory count.",
+    "lines": 1,
+    "group": "numbers"
+  },
+  {
+    "kind": "list-item",
+    "text": "3. Send the closing statement for the property sold in August, including the settlement charges.",
+    "lines": 1,
+    "group": "numbers"
+  },
+  {
+    "kind": "paragraph",
+    "text": "Note A. The partnership changed its accounting method for inventory during the year, and the adjustment is spread over four years as the rules allow.",
+    "lines": 2
+  },
+  {
+    "kind": "paragraph",
+    "text": "The guaranteed payments1 were moved to the partners' capital accounts at year end, as shown in the attached workpaper.",
+    "lines": 2
+  }
+]

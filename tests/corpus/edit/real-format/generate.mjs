@@ -132,8 +132,15 @@ class Sample {
     this.ops.push(`${w} w ${n2(x1)} ${n2(y1)} m ${n2(x2)} ${n2(y2)} l S`);
   }
 
-  expect(kind, text, lines = 1, box = false) {
-    this.expected.push(box ? { kind, text, lines, box: true } : { kind, text, lines });
+  /** `group`: entries with the same group must land in one box (a list, a centred block). */
+  expect(kind, text, lines = 1, box = false, group = undefined) {
+    this.expected.push({
+      kind,
+      text,
+      lines,
+      ...(box ? { box: true } : {}),
+      ...(group ? { group } : {}),
+    });
   }
 
   async save(name) {
@@ -433,7 +440,7 @@ async function filingInstructions() {
     const lines = s.wrap(item, 9, 450, H, { tz: 95 });
     s.run("•", 80, y, 9, H, tm);
     lines.forEach((l, i) => s.run(l, 90, y - i * 11, 9, H, { tm: true, tz: 95 }));
-    s.expect("list-item", item, lines.length);
+    s.expect("list-item", item, lines.length, false, "list");
     y -= lines.length * 11 + 4;
   }
   await s.save("filing-instructions");
@@ -528,6 +535,103 @@ async function printDriverPerChar() {
   await s.save("print-driver-per-char");
 }
 
+/**
+ * Word-processor letter layouts that used to open as one box per line (B3 stage 2):
+ * right-aligned and centred blocks, first-line indent, double spacing, hanging-indent
+ * bullet and numbered lists with space between items, a bigger bold run-in head, and a
+ * superscript footnote mark inside a line.
+ */
+async function wordLayouts() {
+  const s = await Sample.create("Synthetic word-processor layouts");
+  const { T, TB } = s.f;
+  const R = 540;
+  const right = ["Sample & Partners CPAs", "February 14, 2025"];
+  right.forEach((l, i) => s.run(l, R - s.width(l, 11, T), 740 - i * 13, 11, T));
+  right.forEach((l) => s.expect("right", l, 1, false, "right"));
+
+  const centre = ["ENGAGEMENT SUMMARY", "Sample Holdings LP", "Tax Year 2024"];
+  centre.forEach((l, i) => s.run(l, 306 - s.width(l, 11, TB) / 2, 700 - i * 13, 11, TB));
+  centre.forEach((l) => s.expect("centre", l, 1, false, "centre"));
+
+  const width = 468;
+  let y = 650;
+  // First-line indent of 0.5 in.
+  const indented =
+    "We have completed the review of the partnership records you sent for the year. The schedules agree with the general ledger, and the differences we found are listed below with the adjustments we propose.";
+  const first = s.wrap(indented, 11, width - 36, T)[0];
+  const rest = s.wrap(indented.slice(first.length + 1), 11, width, T);
+  s.run(first, 108, y, 11, T);
+  rest.forEach((l, i) => s.run(l, 72, y - 13 * (i + 1), 11, T));
+  s.expect("paragraph", indented, 1 + rest.length);
+  y -= 13 * (1 + rest.length) + 14;
+
+  // Double spaced (leading 2.2x the size).
+  const double =
+    "Please review the adjustments and sign the enclosed consent form so that we can finish the returns before the extended due date of the partnership return.";
+  const dl = s.wrap(double, 11, width, T);
+  dl.forEach((l, i) => s.run(l, 72, y - 24 * i, 11, T));
+  s.expect("paragraph", double, dl.length);
+  y -= 24 * dl.length + 8;
+
+  // Hanging-indent lists with 5 pt between items.
+  const list = (marker, items, group) => {
+    items.forEach((item, n) => {
+      const m = marker(n);
+      const lines = s.wrap(item, 11, R - 112, T);
+      s.run(m, 90, y, 11, T);
+      lines.forEach((l, i) => s.run(l, 112, y - 13 * i, 11, T));
+      s.expect("list-item", m === "•" ? item : `${m} ${item}`, lines.length, false, group);
+      y -= 13 * lines.length + 5;
+    });
+    y -= 10;
+  };
+  list(
+    () => "•",
+    [
+      "Depreciation on the new equipment was figured under the half-year convention for the first year of service.",
+      "Meals were limited to fifty percent.",
+      "The loan from the general partner was reclassified from income to a liability, with interest accrued at the stated rate.",
+    ],
+    "bullets",
+  );
+  list(
+    (n) => `${n + 1}.`,
+    [
+      "Sign the consent form and return it with the bank statements for December.",
+      "Confirm the ending inventory count.",
+      "Send the closing statement for the property sold in August, including the settlement charges.",
+    ],
+    "numbers",
+  );
+
+  // A bigger bold run-in head, then the body at 11 pt.
+  const head = "Note A.";
+  const body =
+    "The partnership changed its accounting method for inventory during the year, and the adjustment is spread over four years as the rules allow.";
+  const headW = s.width(head + " ", 12, TB);
+  const b1 = s.wrap(body, 11, width - headW, T)[0];
+  const b2 = s.wrap(body.slice(b1.length + 1), 11, width, T);
+  s.run(head, 72, y, 12, TB);
+  s.run(b1, 72 + headW, y, 11, T);
+  b2.forEach((l, i) => s.run(l, 72, y - 13 * (i + 1), 11, T));
+  s.expect("paragraph", `${head} ${body}`, 1 + b2.length);
+  y -= 13 * (1 + b2.length) + 14;
+
+  // A superscript footnote mark in the middle of the first line.
+  const pre = "The guaranteed payments";
+  const post =
+    "were moved to the partners' capital accounts at year end, as shown in the attached workpaper.";
+  s.run(pre, 72, y, 11, T);
+  const markX = 72 + s.width(pre, 11, T);
+  s.run("1", markX, y + 4, 7, T);
+  const after = s.wrap(post, 11, width - (markX + 4 - 72 + s.width(" ", 11, T)), T)[0];
+  s.run(after, markX + 4 + s.width(" ", 11, T), y, 11, T);
+  const more = s.wrap(post.slice(after.length + 1), 11, width, T);
+  more.forEach((l, i) => s.run(l, 72, y - 13 * (i + 1), 11, T));
+  s.expect("paragraph", `${pre}1 ${post}`, 1 + more.length);
+  await s.save("word-layouts");
+}
+
 for (const make of [
   form9999,
   statementCourier,
@@ -535,6 +639,7 @@ for (const make of [
   filingInstructions,
   k1Supplemental,
   printDriverPerChar,
+  wordLayouts,
 ])
   await make();
 console.log(`real-format samples written to ${here}`);
