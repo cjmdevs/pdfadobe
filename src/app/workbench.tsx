@@ -799,6 +799,12 @@ export function WorkbenchProvider({
     [queued],
   );
 
+  /** What Save writes: the store's bytes, a hybrid form without its XFA twin (Phase 6). */
+  const bytesToWrite = useCallback(
+    async (sid: string) => pageOp("bytesForSave", await storeBytes(sid)),
+    [storeBytes],
+  );
+
   const docBytes = useCallback(
     async (id: string) => {
       const doc = core?.documents[id]?.document;
@@ -953,7 +959,7 @@ export function WorkbenchProvider({
       }
       try {
         await commitMarkup(id);
-        await platform.saveAs(target, source, await storeBytes(m.storeId));
+        await platform.saveAs(target, source, await bytesToWrite(m.storeId));
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
         toast(`Could not save: ${describeOpenError(err)}`, "error");
@@ -972,7 +978,7 @@ export function WorkbenchProvider({
       toast(`Saved as ${name}.`);
       return true;
     },
-    [commitMarkup, queued, resolveId, setInfo, settled, storeBytes, toast, updateSettings],
+    [bytesToWrite, commitMarkup, queued, resolveId, setInfo, settled, toast, updateSettings],
   );
 
   const save = useCallback(
@@ -984,7 +990,7 @@ export function WorkbenchProvider({
       if (m.source.kind !== "path") return saveAs(id);
       try {
         await commitMarkup(id);
-        await platform.save(m.source.path, await storeBytes(m.storeId));
+        await platform.save(m.source.path, await bytesToWrite(m.storeId));
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
         if (err.kind === "unverified") {
@@ -1000,7 +1006,7 @@ export function WorkbenchProvider({
       toast(`Saved ${m.name}.`);
       return true;
     },
-    [commitMarkup, queued, resolveId, saveAs, setInfo, settled, storeBytes, toast],
+    [bytesToWrite, commitMarkup, queued, resolveId, saveAs, setInfo, settled, toast],
   );
 
   const openNew = useCallback(

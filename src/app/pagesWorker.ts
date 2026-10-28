@@ -50,6 +50,7 @@ import {
   fillCopy,
   flattenForm,
   formKind,
+  bytesForSave,
   formValues,
   parseFormData,
   readFields,
@@ -143,6 +144,8 @@ export const OPS = {
   formValues: (c: Ctx, b: Uint8Array) => formValues(c.engine, b),
   flattenForm: (c: Ctx, b: Uint8Array) => flattenForm(c, b),
   formKind: async (c: Ctx, b: Uint8Array) => formKind(c.module, b),
+  // Save / Save As: a hybrid form is written without its XFA twin and /Perms.
+  bytesForSave: (c: Ctx, b: Uint8Array) => bytesForSave(c, b),
   // Prepare Form.
   addField: (c: Ctx, b: Uint8Array, spec: NewField) => addField(c, b, spec),
   readFieldProps: (c: Ctx, b: Uint8Array, name: string) => readFieldProps(c, b, name),

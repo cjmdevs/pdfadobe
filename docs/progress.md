@@ -5,10 +5,11 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 6 (forms) built; owner check 2026-10-28 passed steps 2-11, fixes pushed** (`docs/testing/phase-06-test-
-guide.md`), not tagged yet. Open: the owner's Acrobat check of the three 1040 XFA
-  samples decides `DEFAULT_XFA_POLICY` (keep or strip). On the build PC: `npm run check`
-  (473 Vitest + 1 intended skip, 47 Rust, license-check), 144 Playwright.
+- **Phase 6 (forms) built; owner check 2026-10-28 passed steps 2-11, fixes pushed**
+  (`docs/testing/phase-06-test-guide.md`). Not tagged yet: waits for a quick recheck of
+  steps 2 and 9. XFA decided 2026-10-28: Save, Save As and Fill from CSV strip a hybrid
+  form's XFA twin and /Perms (`bytesForSave`). On the build PC: `npm run check` (475
+  Vitest + 1 intended skip, 47 Rust, license-check), 147 Playwright.
 - **Phase 5 (redaction) done: owner check passed 2026-10-28**, tagged `phase-05-done`.
 - **Phase 4 stages 1-3 + fixes: owner check passed 2026-10-27** (combined run A-J and
   `docs/testing/phase-04-fixes-test-guide.md`). Stage 4 (PDFlyer marks in old
@@ -89,8 +90,9 @@ only"); max length is written on the field and mirrored on its widget (EmbedPDF 
 the widget); file names from a CSV column refuse SSN/EIN columns.
 
 Owner check 2026-10-28: steps 2-11 passed. Step 1 (XFA): Acrobat showed the AcroForm
-values in all three samples ("SP" for SPIKE 3 is the narrow middle-initial box); keep or
-strip still to confirm. Fixed after the check: a deleted field left its picture behind
+values in all three samples ("SP" for SPIKE 3 is the narrow middle-initial box). Owner
+left the choice to us: strip (the XFA twin keeps a stale copy of the data; our save has
+broken /UR3 anyway; page operations already strip both). Fixed after the check: a deleted field left its picture behind
 (fields were also baked into the page tiles: render `withForms` is now false, the form
 plugin draws every field); signature fields were invisible and could not be selected
 (own renderer, `SignatureBox.tsx`); a number field with a max length showed its
@@ -98,8 +100,8 @@ formatted text cut ("12,34": the plain number is kept when the formatted text wo
 fit); the corpus Notes field asked for 69 pt text (now 10 pt; automatic size wraps at
 12 pt); a field deleted while a push was running stayed in the field tree.
 
-Known gaps: `DEFAULT_XFA_POLICY` is "keep" until the owner's Acrobat check; any save of an
-IRS form breaks its /UR3 usage rights (PDFium full rewrite); a live recalculation is one
+Known gaps: a saved IRS form loses its XFA twin and Reader-extension rights (by design,
+above); a live recalculation is one
 undo step per changed calculated field; date formats are written for Acrobat but not
 applied or validated here (numbers are); keystroke filters are not enforced; the undo
 label says "Markup" for form edits too; a flattened dropdown keeps its arrow; multiline

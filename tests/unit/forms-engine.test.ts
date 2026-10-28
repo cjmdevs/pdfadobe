@@ -13,6 +13,7 @@ import { OUT_DIR, qpdfBin } from "../corpus/generate.mjs";
 import { nodePagesCtx } from "../helpers/pages-ctx";
 import type { PagesCtx } from "../../src/engine/pages";
 import {
+  bytesForSave,
   fillForm,
   finishFormSave,
   formKind,
@@ -304,5 +305,18 @@ describe("reset and clear", () => {
     const r = await resetFields(ctx, filled, { to: "default" });
     const after = await formValues(ctx.engine, r.bytes);
     for (const k of Object.keys(values)) expect.soft(after[k], k).toMatch(/^(|Off)$/);
+  });
+});
+
+describe("bytesForSave", () => {
+  it("strips the XFA twin and usage rights from a hybrid form only", async () => {
+    const irs = read(join(IRS, "fw9.pdf"));
+    const p = join(OUT, "fw9-saved.pdf");
+    writeFileSync(p, await bytesForSave(ctx, irs));
+    expect(xfaPresent(p)).toEqual({ xfa: false, perms: false });
+    // A plain AcroForm and the "keep" policy are written untouched.
+    const plain = read(join(OUT_DIR, "acroform.pdf"));
+    expect(await bytesForSave(ctx, plain)).toBe(plain);
+    expect(await bytesForSave(ctx, irs, "keep")).toBe(irs);
   });
 });

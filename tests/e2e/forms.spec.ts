@@ -3,7 +3,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName } from "pdf-lib";
 import { parseFdf } from "../../src/engine/forms/data";
 import {
   CORPUS,
@@ -576,4 +576,28 @@ test("calculated fields update as inputs are typed; numbers show their format", 
     Total: "1234.5",
     Net: "-1765.5",
   });
+});
+
+test("saving a filled IRS form drops its XFA twin and usage rights, values kept", async ({
+  page,
+  mockfs,
+}) => {
+  const IRS = String.raw`C:\Corpus\fw9.pdf`;
+  mockfs.entries[IRS] = { bytes: readFileSync(join(CORPUS, "..", "irs", "fw9.pdf")) };
+  await boot(page);
+  await openPaths(page, [IRS]);
+  await waitForPainted(page, 0);
+  await idle(page);
+  const name = page.getByRole("textbox", { name: "topmostSubform[0].Page1[0].f1_01[0]" });
+  await name.click();
+  await page.keyboard.type("Jane Sample");
+  await page.keyboard.press("Tab");
+  const writes = mockfs.writes.length;
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => mockfs.writes.length, { timeout: 15_000 }).toBe(writes + 1);
+  const saved = bytesAt(mockfs, IRS);
+  const pdf = await PDFDocument.load(saved, { updateMetadata: false });
+  expect(pdf.getForm().acroForm.dict.has(PDFName.of("XFA"))).toBe(false);
+  expect(pdf.catalog.has(PDFName.of("Perms"))).toBe(false);
+  expect((await valuesOf(saved))["topmostSubform[0].Page1[0].f1_01[0]"]).toBe("Jane Sample");
 });

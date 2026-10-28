@@ -44,10 +44,22 @@ export function formKind(m: PdfiumModule, bytes: Uint8Array): FormKind {
 export type XfaPolicy = "strip" | "keep";
 
 /**
- * What Save and Fill from CSV do until the owner's Acrobat check decides: "keep", which
- * is what a PDFium save already does.
+ * What Save, Save As and Fill from CSV do with a hybrid form: "strip" (owner decision
+ * 2026-10-28, after the Acrobat check showed our AcroForm values either way). The XFA
+ * twin keeps its own, now stale, copy of the data, and our full-rewrite save has broken
+ * the usage-rights signature anyway; page operations already strip both.
  */
-export const DEFAULT_XFA_POLICY: XfaPolicy = "keep";
+export const DEFAULT_XFA_POLICY: XfaPolicy = "strip";
+
+/** The bytes to write for a save: a hybrid form loses its XFA twin and /Perms. */
+export async function bytesForSave(
+  ctx: PagesCtx,
+  bytes: Uint8Array,
+  policy: XfaPolicy = DEFAULT_XFA_POLICY,
+): Promise<Uint8Array> {
+  if (policy === "keep" || formKind(ctx.module, bytes) !== "hybrid") return bytes;
+  return finishFormSave(ctx, bytes, policy);
+}
 
 export async function finishFormSave(
   ctx: PagesCtx,
