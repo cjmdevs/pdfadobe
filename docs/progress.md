@@ -5,6 +5,11 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
+- **Phase 5 (redaction) built 2026-10-27, waiting for the owner check**
+  (`docs/testing/phase-05-test-guide.md`); tag `phase-05-done` after it passes. On the
+  build PC: `npm run check` (376 Vitest + 1 intended skip, 44 Rust, license-check),
+  124 Playwright (one Phase 4 connector test flaked once under load, 3/3 alone).
+  GitHub Actions `redaction` workflow green.
 - **Phase 4 stages 1-3 + fixes: owner check passed 2026-10-27** (combined run A-J and
   `docs/testing/phase-04-fixes-test-guide.md`). Stage 4 (PDFlyer marks in old
   workpapers) waits for a synthetic PDFlyer sample in `tests/corpus/pdflyer/`; after it,
@@ -12,8 +17,7 @@ Keep it under 2 pages; summarize older phases.
 - **B3 Edit PDF, stage 1 done: owner check passed 2026-10-27** (all 11 steps of
   `docs/testing/b3-stage1-test-guide.md`, including the Acrobat check and firm fonts
   offline via `\\localhost`). On the build PC:
-  `npm run check` (296 Vitest + 6 expected-fail redaction pins, 44 Rust, license-check),
-  117/117 Playwright. Stage 2 (mixed styles, spacing, kerning, push-down) not started.
+  117/117 Playwright at the time. Stage 2 (mixed styles, spacing, kerning, push-down) not started.
 - Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.
@@ -36,79 +40,62 @@ Keep it under 2 pages; summarize older phases.
   "Markup" store revision before any page operation/save. Deviations: free text uses
   standard PDF fonts only; XFDF import is one undo step per comment.
 
-## B3 Edit PDF, stage 1 (2026-10-26, summary)
+## Earlier detail (summary; full text in git history of this file)
 
-Spike: `docs/edit-spike-report.md`. Engine `src/engine/edit/` (Node-safe, page worker):
-PDFium chars grouped into boxes/paragraphs, `removeBoxText` split transaction, one style
-per paragraph retypeset with read-back of every letter, own sfnt reader + HarfBuzz
-subsetting (`ABCDEF+Name`), font index cache, images add/move/resize/replace/delete.
-Host `fonts.rs` lists Windows/user/firm fonts (firm share mirrored to
-`<config>\font-cache\firm\`). UI `src/ui/edit/`: outlines, click-to-edit, Add Text/Image,
-Format panel, handles; each change is one `wb.edit` undo step. Deviations: fourth font
-group "Standard PDF fonts (not embedded)", line spacing in points, corner resize keeps
-proportions (Shift: free), text over an image wins the click.
+- **B3 Edit PDF stage 1**: `src/engine/edit/` (PDFium chars -> boxes/paragraphs, one
+  style per paragraph retypeset and read back, own sfnt reader + HarfBuzz subsetting,
+  images add/move/resize/replace/delete); host `fonts.rs` (Windows/user/firm fonts,
+  firm share mirrored to `<config>ont-cacheirm\`); UI `src/ui/edit/`, each change one
+  `wb.edit` undo step. Spike: `docs/edit-spike-report.md`.
+- **Phase 4** (spec `docs/phases/phase-04.md`): tickmarks drawn with pdf-lib as /Stamp
+  (`src/engine/flyer/tickmarks.ts`), library built-in < firm < personal
+  (`src/flyer/library.ts`), tags in EmbedPDF custom data (`pwType`, not `/PWType`);
+  sections and letter/number picks (`src/flyer/sections.ts`), matching letters linked by
+  /Link with /IRT (`src/flyer/tickLinks.ts`). Connectors are /Line with `pwFrom`/`pwTo`,
+  re-routed by FlyerOverlay; cross-page ends are "p. N" markers + /Link. Sign-off stamps
+  (`userStamps.ts`) and workpaper notes (free-text clone). Calculator (`src/flyer/calc.ts`,
+  10-key + standard), amounts from PDFium chars (`engine/flyer/numbers.ts`), foot /
+  cross-foot, tape as /Stamp (`pwTape`; Update tape makes a new annotation).
+  Deviations: same-page connectors attach only in our app; items repeat until Esc; notes
+  are visible text boxes; standard calculator has no precedence.
 
-## Phase 4 stage 1: tickmarks (2026-10-27, summary)
+## Phase 5: redaction (2026-10-27)
 
-Spec and owner decisions: `docs/phases/phase-04.md`. `src/engine/flyer/tickmarks.ts`: 14
-firm tickmarks + counting letters/numbers + image tickmarks drawn with pdf-lib as /Stamp
-appearances; legend box. `src/flyer/library.ts`: built-in < firm file < personal, the
-workpaper settings JSON (`format: "pdf-workbench-workpaper"`). `src/flyer/items.ts`: tags,
-Stamp Summary rows, CSV. UI `src/ui/flyer/`: tool `flyer`, toolbar dropdowns (shell now
-supports `items`/`menuOnly`), palette (1-9), place until Esc. Deviation: the tag lives in
-EmbedPDF's custom data (`/EPDFCustom` JSON, `pwType`), not a `/PWType` name key.
+Engine `src/engine/redact/` (Node-safe; worker ops `redactSearch`, `redactPageMarks`,
+`redactApply`, `sanitize`). Pre-check: area redaction over a scan overwrites the image
+pixels in the stream (`tests/redaction/scanned-area.test.ts`). Pipeline
+(`redactDocument`): `apply.ts` (PDFium `EPDFText_RedactInQuads` removes text, also in
+form XObjects, covered vectors and pixels; we remove covered images/shadings, give
+partly covered images a private stream first (GetBitmap/SetBitmap: a shared stream
+drawn elsewhere lost pixels too), clip partly covered paths (owner choice A: fills
+Sutherland-Hodgman on 4 strips, strokes split exactly, dash phase kept), draw the
+overlay into content) -> `objects.ts` (qpdf JSON: annotations touching a box, /Redact
+marks, whole fields with every widget, /Fields, /Kids, /CO; inline annotations too) ->
+`sanitize.ts` scrub (XMP, thumbnails, XFA, /Info and tagged text holding a redacted
+string) -> optional Sanitize -> qpdf full rewrite (`--object-streams=generate
+--remove-unreferenced-resources=yes`) -> `leak.ts` (PDFium page text, raw + qpdf-decoded
+bytes in 6 encodings, render of each box); any hit throws `RedactionLeakError` (hits
+name pages, never text). Patterns in `patterns.ts`. UI `src/ui/redact/`: tool `redact`
+(Draw Box, Mark Text, Mark Page, Apply, Sanitize), panel (Search & Redact, review,
+overlay, Apply, Sanitize). Marks are /Redact annotations; accepted state and found
+text live in memory only. Output: `<name>_Redacted.pdf` / `_Sanitized.pdf` via
+`writeNewFile`, opened in a new tab. Leak suite `tests/redaction/leak-suite.test.ts`
+over `LEAK_FILES` + the SSN fixture (pdf.js, qpdf, Tesseract OCR psm 6 + 11); CI
+`.github/workflows/redaction.yml`; `.githooks/pre-push` (enable with
+`git config core.hooksPath .githooks`). All six Phase 0 `it.fails` pins now pass.
 
-## Phase 4 stage 2: connectors, sign-off stamps, notes (2026-10-27)
+Deviations: account numbers and dates of birth match only after a label; added an
+"Any date" pattern (off); ITINs are also caught by the SSN pattern; Apply drops XMP whole;
+Sanitize's hidden text includes OCR layers; leak secrets are search hits plus 6+ digit
+runs under boxes (plain words are not checked); Apply/Sanitize show their own progress
+(no shared busy wrapper). No confirm dialog before Apply (nothing is overwritten).
 
-Connectors (`src/flyer/connectors.ts`): /Line with styles (arrow, line, double, dashed,
-dot-to-arrow), red 1.5 pt, restyled with the Phase 3 properties bar. A click on an
-annotation attaches that end (`pwFrom`/`pwTo` = its /NM); FlyerOverlay re-routes attached
-lines whenever annotations change (`reroutes()`), ends stop 8 pt short of the target
-(EmbedPDF's 20 px line hit area would otherwise swallow clicks on the tickmark). Two pages:
-a "p. N" marker /Stamp at each end plus a /Link (GoTo, XYZ) over it, `pwPair`/`pwEnd`;
-links follow their marker and go when it is deleted; in our app a selected end offers
-"Go to the other end". Sign-off stamps (`src/engine/flyer/userStamps.ts`): Prepared by,
-Reviewed by, Final, Initials + own templates (title, color, time, W/P ref, extra fields);
-reference and fields asked before placing, name/initials/time fixed at each click.
-Notes: EmbedPDF free-text tool clone `workpaperNote` (pale yellow, tagged Note), listed
-in a Notes tab next to Stamp Summary. Settings file now carries `stamps` (stage 1 files
-still read); settings `stampTemplates`, `firmStampsCache`, `userInitials`,
-`connectorStyle`.
-
-Deviations: same-page connectors are attached only in our app (Acrobat sees a plain
-line); every workpaper item repeats until Esc (sign-off stamps too); notes are visible
-text boxes (not sticky notes) so a reviewer sees them on the page.
-
-## Phase 4 stage 3: calculator tape, foot/cross-foot (2026-10-27)
-
-`src/flyer/calc.ts` (pure): 10-key adding machine (+ - x / = S T, repeat add, add mode)
-and standard (left to right), decimals 0/2/floating, `foot()`/`footTape()`. Amounts on a
-page: `src/engine/flyer/numbers.ts` (PDFium chars split into words, `parseAmount` reads
-"$1,234.56", "(1,234.56)", "1,234.56-"), worker op `pageNumbers`, cached per document id
-(`src/ui/flyer/pageNumbers.ts`; clicks wait for it). Floating calculator
-(`CalculatorPanel`, keyboard while open), "Click amounts on page" (Shift subtracts),
-Foot / cross-foot (drag a box; wider than tall = cross-foot; then click the total; "No
-total"), Mark total (Footed / Cross-footed when it agrees, UD when not). Tape: /Stamp
-drawn by `src/engine/flyer/tape.ts` (Courier, ruled totals), `pwType: "Tape"`, lines in
-`pwTape`; "Open this tape in the calculator" + Update tape. New corpus file
-`generated/footing.pdf` (synthetic schedule, Q1 vs general ledger 0.50 off). Settings
-`calc`, `calcOpen`; the settings file carries `calculator`.
-
-Deviations: Update tape makes a new annotation in the same corner (an appearance cannot be
-replaced in place; re-using the id after a delete drops it) and moves attached
-connectors to it. Standard mode has no operator precedence (like a desk calculator).
-
-## Phase 4 fixes after the owner run (2026-10-27)
-
-Letter (A-Z) and Number (1-99) tickmarks keep the picked value at every click (picks are
-refs like `letter:A`; counting up stays as its own pick). Matching ones (`pwLink`) get a
-/Link to the next one in page order (`src/flyer/tickLinks.ts`, kept in step by
-FlyerOverlay); links carry /IRT to their tickmark so EmbedPDF lets clicks through and
-deletes them with it (also used for cross-page connector links). Toolbar sections
-(`TickSection` on each tickmark, `src/flyer/sections.ts`): one button per section with a
-red symbol, last pick per section (`sectionLast`), letter/number grids. Clear Recent also
-stops placing and says so (owner's report not reproduced; this was the likely cause).
-Library in three tabs with "New…" forms, field help and a live preview.
+Known gaps: paths inside form XObjects partly under a box are removed whole (PDFium
+cannot insert into a form; reported); clipped paths lose blend mode and spot colours
+(RGB); the in-app leak scan has no OCR (the suite does); scans need OCR or Draw Box
+(search cannot see pixels); bookmark titles holding a redacted string make Apply refuse
+(no bookmark scrub); embedded index location (/PieceInfo) assumed from Acrobat
+practice, not verified in a spec; encrypted files cannot be redacted (no bytes).
 
 ## Dependency versions and licenses
 
@@ -117,6 +104,9 @@ annotation/history 2.15.1 (MIT), pdf-lib 1.17.1 runtime (MIT), fast-xml-parser 5
 (MIT). **B3: harfbuzzjs 1.6.4 runtime (MIT; HarfBuzz "Old MIT", owner-approved
 2026-10-26)**; dev-only @pdf-lib/fontkit 1.1.1 (MIT) for spike samples. No new crates.
 Phase 4 stage 1: no new dependencies (four more Fluent icons from the existing package).
+Phase 5: no new npm or crate dependencies. Test/CI only: Tesseract OCR 5.4.0 (Apache-2.0;
+build PC via winget `UB-Mannheim.TesseractOCR`, CI via choco), qpdf 12.4.2 (Apache-2.0,
+already vendored).
 
 ## Known gaps / notes for later phases
 
