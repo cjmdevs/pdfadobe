@@ -64,9 +64,12 @@ Install `src-tauri\target\release\bundle\nsis\PDF Workbench_0.1.0_x64-setup.exe`
    Pass: the message lists what went; in Acrobat, `leak-sanitize_Sanitized.pdf` has no
    attachment (paperclip panel empty), no Subject, and the visible text is unchanged.
 
-9. **Forms.** Open `acroform.pdf`, Draw Box over one radio button of Filing status,
-   Accept all, Apply. Pass: in the new file the whole Filing status group is gone (all
-   three buttons), the other fields still work, in our app and in Acrobat.
+9. **Forms.** Open `acroform.pdf`. Near the top is a row labelled **Filing status** with
+   three small round buttons. Click **Draw Box** and drag a small box around only the
+   middle round button, then **Accept all** and **Apply**.
+   Pass: in `acroform_Redacted.pdf` all three round buttons are gone, not just the one
+   you boxed (they are one field sharing one answer). Taxpayer name, Tax year, the
+   checkbox and Notes are still there and still work, in our app and in Acrobat.
 
 ## Checklist
 

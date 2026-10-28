@@ -90,6 +90,9 @@ Sanitize's hidden text includes OCR layers; leak secrets are search hits plus 6+
 runs under boxes (plain words are not checked); Apply/Sanitize show their own progress
 (no shared busy wrapper). No confirm dialog before Apply (nothing is overwritten).
 
+Owner check 2026-10-28: steps 0-8 passed; step 9 wording was unclear (rewritten).
+Owner: the Redact panel looks ugly and is a little confusing; redesign later.
+
 Known gaps: paths inside form XObjects partly under a box are removed whole (PDFium
 cannot insert into a form; reported); clipped paths lose blend mode and spot colours
 (RGB); the in-app leak scan has no OCR (the suite does); scans need OCR or Draw Box
