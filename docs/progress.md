@@ -5,11 +5,11 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 6 (forms) built; owner check 2026-10-28 passed steps 2-11, fixes pushed**
-  (`docs/testing/phase-06-test-guide.md`). Not tagged yet: waits for a quick recheck of
-  steps 2 and 9. XFA decided 2026-10-28: Save, Save As and Fill from CSV strip a hybrid
-  form's XFA twin and /Perms (`bytesForSave`). On the build PC: `npm run check` (475
-  Vitest + 1 intended skip, 47 Rust, license-check), 147 Playwright.
+- **Phase 6 (forms) done: owner check passed 2026-10-28**, tagged `phase-06-done`
+  (`docs/testing/phase-06-test-guide.md`; steps 2 and 9 rechecked after the fixes). XFA
+  decided 2026-10-28: Save, Save As and Fill from CSV strip a hybrid form's XFA twin and
+  /Perms (`bytesForSave`). On the build PC: `npm run check` (475 Vitest + 1 intended
+  skip, 47 Rust, license-check), 147 Playwright.
 - **Phase 5 (redaction) done: owner check passed 2026-10-28**, tagged `phase-05-done`.
 - **Phase 4 stages 1-3 + fixes: owner check passed 2026-10-27** (combined run A-J and
   `docs/testing/phase-04-fixes-test-guide.md`). Stage 4 (PDFlyer marks in old
