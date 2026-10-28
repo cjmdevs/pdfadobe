@@ -4,5 +4,6 @@ export * from "./batch";
 export * from "./data";
 export * from "./fields";
 export * from "./fill";
+export * from "./flatten";
 export * from "./reset";
 export * from "./xfa";

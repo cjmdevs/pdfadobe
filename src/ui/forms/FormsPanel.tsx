@@ -10,6 +10,7 @@ import { clearFields, resetForm } from "./formActions";
 import {
   exportFormData,
   fillCopies,
+  flattenFormToNewFile,
   importFormData,
   pickCsvTable,
   type BatchProgress,
@@ -65,6 +66,14 @@ export default function FormsPanel({ documentId }: { documentId: string }) {
         </button>
         <button type="button" disabled={busy} onClick={() => void resetForm(wb, documentId)}>
           Reset form
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          title="Fields become part of the page in a new file; the original is unchanged"
+          onClick={() => void flattenFormToNewFile(wb, documentId)}
+        >
+          Flatten to new file
         </button>
       </div>
       {checked && (

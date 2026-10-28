@@ -798,6 +798,18 @@ export const TOOLS: ToolDef[] = [
         enabled: (c) => hasDoc(c),
       },
       {
+        id: "flattenForm",
+        label:
+          "Flatten form into a new file: fields become part of the page, the original is unchanged",
+        caption: "Flatten",
+        icon: "flatten",
+        run: (c) => {
+          const id = c.documentId;
+          if (id) void formDataFiles().then((m) => m.flattenFormToNewFile(c.wb, id));
+        },
+        enabled: (c) => c.documentId !== null,
+      },
+      {
         id: "importData",
         label: "Import form data from an FDF, XFDF, JSON or CSV file (Ctrl+Z undoes)",
         caption: "Import",

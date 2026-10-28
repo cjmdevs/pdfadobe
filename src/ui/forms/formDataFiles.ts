@@ -210,3 +210,36 @@ export async function fillCopies(
     skips ? "error" : undefined,
   );
 }
+
+/** Flatten form: "<name> (flattened form).pdf" next to the document, opened in a new tab. */
+export async function flattenFormToNewFile(wb: WorkbenchApi, documentId: string): Promise<void> {
+  const bytes = await wb.docBytes(documentId);
+  const m = wb.meta[documentId];
+  if (!bytes || !m) {
+    wb.toast("This document cannot be flattened (it is password-protected).", "error");
+    return;
+  }
+  try {
+    const r = await pageOp("flattenForm", bytes);
+    if (r.drawn + r.hidden + r.empty === 0) {
+      wb.toast("This document has no form fields to flatten.");
+      return;
+    }
+    const name = safeFileName(`${stem(m.name)} (flattened form).pdf`);
+    let path: string | null;
+    if (m.source.kind === "path")
+      path = await platform.writeNewFile(dirName(m.source.path), name, r.bytes);
+    else {
+      path = await platform.pickSavePath(name);
+      if (path) await platform.saveAs(path, null, r.bytes);
+    }
+    if (!path) return;
+    const hidden = r.hidden ? ` ${plural(r.hidden, "hidden field")} removed without printing.` : "";
+    wb.toast(
+      `Flattened ${plural(r.drawn, "field")} into a new file.${hidden} The original is unchanged.`,
+    );
+    await wb.openPaths([path]);
+  } catch (e) {
+    wb.toast(`Flatten failed: ${message(e)}`, "error");
+  }
+}

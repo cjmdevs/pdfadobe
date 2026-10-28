@@ -302,3 +302,42 @@ test.describe("Form data", () => {
     await expect(field(page, "taxpayer.name")).toHaveValue("");
   });
 });
+
+test("Flatten to new file: the typed value is page text, no fields, original unchanged", async ({
+  page,
+  mockfs,
+}) => {
+  mockfs.entries[FORM] = { bytes: readFileSync(join(CORPUS, "acroform.pdf")) };
+  await boot(page);
+  await openPaths(page, [FORM]);
+  await waitForPainted(page, 0);
+  await idle(page);
+  await page.getByRole("button", { name: "Fill Forms", exact: true }).click();
+  await field(page, "taxpayer.name").click();
+  await page.keyboard.type("Jane Flat");
+  await page.keyboard.press("Tab");
+  await page.getByRole("combobox", { name: "tax.year" }).selectOption("2025");
+  await page.locator('.form-widget[data-field="signed.8879"]').click();
+  await page.locator('.form-widget[data-field="filing.status"]').nth(1).click();
+  await page
+    .getByTestId("forms-panel")
+    .getByRole("button", { name: "Flatten to new file" })
+    .click();
+  const out = String.raw`C:\Corpus\acroform (flattened form).pdf`;
+  await expect.poll(() => mockfs.writes.map((w) => w.path)).toContain(out);
+  const flat = new Uint8Array(bytesAt(mockfs, out));
+  const task = getDocument({ data: flat.slice() });
+  const pdf = await task.promise;
+  const text = (await (await pdf.getPage(1)).getTextContent()).items
+    .map((i) => ("str" in i ? i.str : ""))
+    .join(" ");
+  expect(text).toContain("Jane Flat");
+  expect(text).toContain("2025");
+  expect((await pdf.getFieldObjects()) ?? {}).toEqual({});
+  await task.destroy();
+  // The flattened copy opens in its own tab; the form's own file was not written.
+  await expect(page.getByRole("tab", { name: /flattened form/ })).toBeVisible();
+  expect(mockfs.writes.filter((w) => w.path === FORM)).toEqual([]);
+  await waitForPainted(page, 0);
+  await page.screenshot({ path: join(CORPUS, "..", "out", "forms", "flattened-tab.png") });
+});

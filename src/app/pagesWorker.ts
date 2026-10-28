@@ -37,6 +37,7 @@ import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
 import {
   fillCopy,
   fillForm,
+  flattenForm,
   formValues,
   parseFormData,
   readFields,
@@ -128,6 +129,7 @@ export const OPS = {
     }
   },
   formValues: (c: Ctx, b: Uint8Array) => formValues(c.engine, b),
+  flattenForm: (c: Ctx, b: Uint8Array) => flattenForm(c, b),
   fillForm: (c: Ctx, b: Uint8Array, values: FieldValues) => fillForm(c.engine, b, values),
   fillCopy: (c: Ctx, b: Uint8Array, values: FieldValues, xfa: XfaPolicy) =>
     fillCopy(c, b, values, xfa),
