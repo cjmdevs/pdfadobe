@@ -25,8 +25,17 @@ jobs:
       # qpdf.exe (pinned by SHA-256) into src-tauri/vendor/qpdf.
       - run: node scripts/fetch-win-binaries.mjs
       # Tesseract for the OCR check (Apache-2.0, test-only).
-      - run: choco install tesseract --no-progress -y
-      - run: echo "TESSERACT=C:\Program Files\Tesseract-OCR\tesseract.exe" >> $env:GITHUB_ENV
+      # The Chocolatey feed sometimes answers 503: retry, then fail here, not in the tests.
+      - name: Install Tesseract
+        run: |
+          $exe = "C:\Program Files\Tesseract-OCR\tesseract.exe"
+          for ($i = 1; $i -le 3 -and -not (Test-Path $exe); $i++) {
+            choco install tesseract --no-progress -y
+            if (-not (Test-Path $exe)) { Start-Sleep -Seconds (20 * $i) }
+          }
+          if (-not (Test-Path $exe)) { throw "Tesseract did not install" }
+          & $exe --version
+          echo "TESSERACT=$exe" >> $env:GITHUB_ENV
       - run: npm run corpus
       - run: npx vitest run tests/redaction
       - run: npx vitest run
