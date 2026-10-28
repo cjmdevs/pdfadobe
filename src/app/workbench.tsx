@@ -33,6 +33,7 @@ import {
   type FileSource,
   type OpenedFile,
 } from "../platform";
+import { flushFormWrites } from "./formWrites";
 import type { DocInfo } from "./docstore";
 import { FALLBACK_AUTHOR } from "../markup/config";
 import {
@@ -225,6 +226,9 @@ let toastSeq = 0;
 
 /** EmbedPDF's history topic for annotation changes (plugin-annotation 2.15.1). */
 const MARKUP_TOPIC = "annotations";
+// Form fills (EmbedPDF form plugin, Phase 6) record on their own history topic; they
+// live in the tab's PDFium document like markup and are pushed with it.
+const LIVE_TOPICS = [MARKUP_TOPIC, "form-fields"];
 
 export function WorkbenchProvider({
   engine,
@@ -325,8 +329,9 @@ export function WorkbenchProvider({
       const doc = core?.documents[id]?.document;
       const h = history?.forDocument(id);
       if (!sid || !doc || !h) return;
-      const changed = h.canUndo(MARKUP_TOPIC);
-      if (!changed && !h.canRedo(MARKUP_TOPIC)) return;
+      await flushFormWrites();
+      const changed = LIVE_TOPICS.some((t) => h.canUndo(t));
+      if (!changed && !LIVE_TOPICS.some((t) => h.canRedo(t))) return;
       if (changed) {
         // EmbedPDF's commit() returns at once while an earlier commit is still running,
         // leaving newer changes (e.g. a quick Ctrl+Y) pending, and saveAsCopy may run
@@ -344,7 +349,7 @@ export function WorkbenchProvider({
         const bytes = new Uint8Array(await engine.saveAsCopy(doc).toPromise());
         setInfo(await queued(sid, () => platform.docs.push(sid, bytes, "Markup")));
       }
-      h.purgeByMetadata(() => true, MARKUP_TOPIC);
+      for (const t of LIVE_TOPICS) h.purgeByMetadata(() => true, t);
       setMarkup((s) => ({ ...s, [id]: { canUndo: false, canRedo: false } }));
       setInfo(await queued(sid, () => platform.docs.setMarkupPending(sid, false)));
     },
@@ -355,7 +360,11 @@ export function WorkbenchProvider({
   useEffect(() => {
     if (!history) return;
     return history.onHistoryChange(({ documentId, state }) => {
-      const t = state.topics[MARKUP_TOPIC] ?? { canUndo: false, canRedo: false };
+      const ts = LIVE_TOPICS.map((k) => state.topics[k]);
+      const t = {
+        canUndo: ts.some((x) => x?.canUndo ?? false),
+        canRedo: ts.some((x) => x?.canRedo ?? false),
+      };
       setMarkup((s) => ({ ...s, [documentId]: { canUndo: t.canUndo, canRedo: t.canRedo } }));
       const sid = metaRef.current[documentId]?.storeId;
       const pending = t.canUndo;
@@ -895,9 +904,9 @@ export function WorkbenchProvider({
         if (!sid) return true;
         // Markup steps first (they sit on top of the store's current revision).
         const h = history?.forDocument(now);
-        if (h && (which === "undo" ? h.canUndo(MARKUP_TOPIC) : h.canRedo(MARKUP_TOPIC))) {
-          if (which === "undo") h.undo(MARKUP_TOPIC);
-          else h.redo(MARKUP_TOPIC);
+        if (h && LIVE_TOPICS.some((t) => (which === "undo" ? h.canUndo(t) : h.canRedo(t)))) {
+          if (which === "undo") h.undo();
+          else h.redo();
           toast(`${which === "undo" ? "Undid" : "Redid"}: Markup`);
           return true;
         }

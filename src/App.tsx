@@ -3,9 +3,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPluginRegistration } from "@embedpdf/core";
 import { EmbedPDF } from "@embedpdf/core/react";
 import type { PdfEngine } from "@embedpdf/models";
+import { LockModeType } from "@embedpdf/plugin-annotation";
 import { AnnotationPluginPackage } from "@embedpdf/plugin-annotation/react";
 import { AttachmentPluginPackage } from "@embedpdf/plugin-attachment/react";
 import { BookmarkPluginPackage } from "@embedpdf/plugin-bookmark/react";
+import { FormPluginPackage } from "@embedpdf/plugin-form/react";
 import {
   DocumentManagerPluginPackage,
   useActiveDocument,
@@ -42,6 +44,7 @@ import { PropertiesBar } from "./ui/markup/PropertiesBar";
 import { MarkupBridge } from "./ui/markup/MarkupBridge";
 import { EditBridge } from "./ui/edit/EditBridge";
 import { CommentsPanel } from "./ui/markup/CommentsPanel";
+import { FormRenderers } from "./ui/forms/FormRenderers";
 
 import { markupConfig } from "./markup/config";
 import { readFirmTickmarks } from "./ui/flyer/flyerFiles";
@@ -79,7 +82,13 @@ function plugins(settings: Settings) {
     // (autoCommit) and recorded in the history plugin; the workbench pushes it to the
     // document store as one "Markup" revision before anything that needs the bytes.
     createPluginRegistration(HistoryPluginPackage),
-    createPluginRegistration(AnnotationPluginPackage, markupConfig(settings)),
+    createPluginRegistration(AnnotationPluginPackage, {
+      ...markupConfig(settings),
+      // Form widgets locked = fill mode (Phase 6). Unlocked would be form design.
+      locked: { type: LockModeType.Include, categories: ["form"] },
+    }),
+    // Form filling in the viewer (Phase 6), with our own text field (ui/forms/TextFill).
+    createPluginRegistration(FormPluginPackage),
     createPluginRegistration(ThumbnailPluginPackage, {
       width: 132,
       gap: 10,
@@ -267,6 +276,7 @@ function Shell({ ready }: { ready: boolean }) {
       )}
       <Commands />
       {ready && <MarkupBridge author={wb.author} />}
+      {ready && <FormRenderers />}
       <Dialogs />
       <Toasts />
       {/* EmbedPDF auto-mounts its PrintFrame and CopyToClipboard utilities; mounting them
