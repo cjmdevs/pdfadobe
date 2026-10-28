@@ -1,6 +1,7 @@
 // Main-thread client for the page-engine worker (src/app/pagesWorker.ts).
 import wasmUrl from "@embedpdf/pdfium/pdfium.wasm?url";
 import subsetWasmUrl from "harfbuzzjs/dist/harfbuzz-subset.wasm?url";
+import shapeWasmUrl from "harfbuzzjs/dist/harfbuzz.wasm?url";
 import { platform } from "../platform";
 import type { Ops, WorkerRequest, WorkerResponse } from "./pagesWorker";
 
@@ -38,6 +39,7 @@ function start(): Worker {
     type: "init",
     wasmUrl: new URL(wasmUrl, window.location.href).href,
     subsetWasmUrl: new URL(subsetWasmUrl, window.location.href).href,
+    shapeWasmUrl: new URL(shapeWasmUrl, window.location.href).href,
   });
   return w;
 }

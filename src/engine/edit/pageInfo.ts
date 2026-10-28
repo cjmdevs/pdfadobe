@@ -8,8 +8,9 @@ import { RawDoc } from "../pages/raw";
 import { pageChars, pageRules, type Rect } from "./chars";
 import { groupChars } from "./group";
 import { pageImages } from "./images";
-import { detectStyle, mainChar, type Rgba } from "./retypeset";
+import { detectRuns, detectStyle, mainChar, type DetectedRun, type Rgba } from "./retypeset";
 import type { Align } from "./typeset";
+import type { ListStyle } from "./lists";
 
 export interface EditTextBox {
   kind: "text";
@@ -30,6 +31,8 @@ export interface EditTextBox {
   grows: boolean;
   /** Box id from our marked content (stable across edits), or null. */
   boxId: number | null;
+  /** Each paragraph's character runs that differ from its style (none: one style). */
+  runs: DetectedRun[][];
 }
 
 /** A paragraph's style as plain data. */
@@ -43,6 +46,15 @@ export interface PlainParagraphStyle {
   underline: boolean;
   align: Align;
   leading: number;
+  indent?: { first: number; left: number; right?: number };
+  marker?: { text: string; at: number };
+  list?: ListStyle | null;
+  spaceBefore?: number;
+  spaceAfter?: number;
+  hScale?: number;
+  charSpacing?: number;
+  wordSpacing?: number;
+  kerning?: boolean;
 }
 
 export interface EditImage {
@@ -84,6 +96,7 @@ export function editPageInfo(m: PdfiumModule, bytes: Uint8Array, pageIndex: numb
           baseline: b.lines[0]?.y ?? b.b,
           grows: b.paragraphs.every((p) => p.lines.length === 1),
           boxId: b.id,
+          runs: detectRuns(m, b),
           styles: detectStyle(m, b, rules).map(({ font: _font, ...s }, i) => {
             void _font;
             const p = b.paragraphs[i];

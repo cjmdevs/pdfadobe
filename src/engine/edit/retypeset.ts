@@ -21,9 +21,17 @@ import type { Subsetter } from "./fonts/subset";
 import type { Paragraph, TextBox } from "./group";
 import { heap } from "../pages/raw";
 import { EditRefused } from "./refusal";
-import { nextBoxId, setBoxId } from "./marks";
+import { nextBoxId, setBoxId, type Spacing } from "./marks";
+import { kernCache, standardKerner, type Kerner } from "./fonts/kern";
+import { listOf, type ListStyle } from "./lists";
 import { removeBoxText, type Removal } from "./split";
-import { layoutParagraph, type Align, type PlacedLine } from "./typeset";
+import {
+  layoutRuns,
+  type Align,
+  type Fragment,
+  type PieceMeasure,
+  type PlacedLine,
+} from "./typeset";
 
 const FPDF_FONT_TRUETYPE = 2;
 const FPDF_PAGEOBJ_TEXT = 1;
@@ -49,7 +57,8 @@ export type FontChoice =
   /** A face from the font index and its file's bytes. */
   | { kind: "file"; face: IndexedFace; bytes: Uint8Array };
 
-export interface ParagraphStyle {
+/** Character formatting: a whole paragraph's, or a run's inside it. */
+export interface CharStyle {
   font: FontChoice;
   /** Points. */
   size: number;
@@ -58,6 +67,18 @@ export interface ParagraphStyle {
   bold: boolean;
   italic: boolean;
   underline: boolean;
+  /** Superscript or subscript: smaller and raised or lowered. */
+  script?: "super" | "sub";
+  /** Horizontal scaling, percent (100: none). */
+  hScale?: number;
+  /** Extra space after every character / every word space, thousandths of an em. */
+  charSpacing?: number;
+  wordSpacing?: number;
+  /** Pair kerning from the font (fonts from files and the standard 14). */
+  kerning?: boolean;
+}
+
+export interface ParagraphStyle extends CharStyle {
   align: Align;
   /** Baseline to baseline, points. */
   leading: number;
@@ -65,16 +86,34 @@ export interface ParagraphStyle {
    * Where the text starts, in points from the box's left edge: `first` for the first
    * line (after a list marker), `left` for the others. Absent: both 0.
    */
-  indent?: { first: number; left: number };
-  /** A list marker ("•", "1.") drawn `at` points from the box's left edge. */
-  marker?: { text: string; at: number };
+  indent?: { first: number; left: number; right?: number };
+  /**
+   * A list marker ("•", "1.") drawn `at` points from the box's left edge, in the
+   * paragraph's font unless `font` is given (a new marker the PDF's own subset lacks).
+   */
+  marker?: { text: string; at: number; font?: FontChoice };
+  /**
+   * The paragraph's list: its marker is generated (numbers count up) and the text hangs
+   * after it. Null takes a list off; absent keeps what the page has.
+   */
+  list?: ListStyle | null;
   /** Extra space above the paragraph (not the first), points. */
   spaceBefore?: number;
+  /** Extra space below the paragraph (before the next one), points. */
+  spaceAfter?: number;
+}
+
+/** Character formatting over `text.slice(start, end)`; the rest is the paragraph's. */
+export interface CharRun {
+  start: number;
+  end: number;
+  style: Partial<CharStyle>;
 }
 
 export interface EditParagraph {
   text: string;
   style: ParagraphStyle;
+  runs?: CharRun[];
 }
 
 export type EditTarget =
@@ -131,12 +170,16 @@ export interface RetypesetResult {
   /** Boxes pushed down below the edited one (`push`), and how many went off the page. */
   pushed?: number;
   pushedOff?: number;
+  /** Some text needs the content-stream pass for its spacing (`spacing.ts`). */
+  spaced?: boolean;
   /** Text objects written for each paragraph (PDFium handles, valid while the page is loaded). */
   objects: number[][];
 }
 
 export interface RetypesetDeps {
   subset: Subsetter;
+  /** Pair kerning for fonts from files (HarfBuzz); without it they are not kerned. */
+  kerner?: Kerner;
 }
 
 /** Replaces the target's text with `paragraphs` and regenerates the page content. */
@@ -149,7 +192,40 @@ export function retypeset(
   deps: RetypesetDeps,
 ): RetypesetResult {
   if (!paragraphs.length) throw new Error("nothing to write");
-  const fonts = new FontLoader(m, doc, page, deps, paragraphs);
+
+  // Character styles: every run of every paragraph, resolved against its paragraph.
+  const pieces: CharStyle[] = [];
+  const pieceKey = new Map<string, number>();
+  const pieceOf = (s: CharStyle): number => {
+    const k = JSON.stringify({ ...s, font: keyOf(s.font) });
+    let i = pieceKey.get(k);
+    if (i === undefined) {
+      i = pieces.push(s) - 1;
+      pieceKey.set(k, i);
+    }
+    return i;
+  };
+  const fragsOf = paragraphs.map((para) => fragments(para, pieceOf));
+  // A list marker the text still starts with is drawn on its own at its place, in the
+  // paragraph's style; the text after it starts at the indent.
+  const markers = paragraphs.map((para) =>
+    para.style.marker && para.text.startsWith(para.style.marker.text + " ")
+      ? {
+          ...para.style.marker,
+          piece: pieceOf(markerStyle(para.style)),
+        }
+      : null,
+  );
+  const fonts = new FontLoader(m, doc, page, deps);
+  for (const [i, frags] of fragsOf.entries()) {
+    const mk = markers[i];
+    for (const f of mk ? [{ text: mk.text, piece: mk.piece }, ...frags] : frags) {
+      const st = pieces[f.piece];
+      if (st) fonts.need(st.font, f.text);
+    }
+  }
+  const measures = pieces.map((st) => pieceMeasure(fonts.get(st.font), st));
+  const measure: PieceMeasure = (p, s) => measures[p]?.(s) ?? 0;
 
   // Layout first (refusals here leave the page untouched).
   const box = target.kind === "box" ? target.box : null;
@@ -181,64 +257,85 @@ export function retypeset(
     : target.kind === "new"
       ? target.y
       : 0;
-  const placed: { para: EditParagraph; lines: PlacedLine[]; font: LoadedFont }[] = [];
+  const placed: { para: EditParagraph; lines: PlacedLine[] }[] = [];
   paragraphs.forEach((para, i) => {
-    const font = fonts.get(para.style.font);
     const st = para.style;
-    if (i) baseline -= st.spaceBefore ?? 0;
-    // A list marker the text still starts with is drawn on its own at its place; the
-    // text after it starts at the indent. Without it, the text starts at the marker.
-    const marker = st.marker && para.text.startsWith(st.marker.text + " ") ? st.marker : null;
-    const text = marker ? para.text.slice(marker.text.length + 1) : para.text;
+    if (i) baseline -= (st.spaceBefore ?? 0) + (paragraphs[i - 1]?.style.spaceAfter ?? 0);
+    const marker = markers[i] ?? null;
     const firstX = left + (st.marker && !marker ? st.marker.at : (st.indent?.first ?? 0));
-    const lines = layoutParagraph(
-      text,
-      { l: left + (st.indent?.left ?? 0), r: right, first: firstX, wrap },
+    const lines = layoutRuns(
+      fragsOf[i] ?? [],
+      {
+        l: left + (st.indent?.left ?? 0),
+        // A right indent only narrows wrapped text (a growing line has no right edge).
+        r: wrap ? right - (st.indent?.right ?? 0) : right,
+        first: firstX,
+        wrap,
+      },
       st.align,
       baseline,
       st.leading,
-      (s) => font.width(s, st.size),
+      measure,
     );
     const top = lines[0];
-    if (marker && top) top.runs.unshift({ text: marker.text, x: left + marker.at, y: top.y });
-    placed.push({ para, lines, font });
+    if (marker && top)
+      top.runs.unshift({ text: marker.text, x: left + marker.at, y: top.y, piece: marker.piece });
+    placed.push({ para, lines });
     baseline -= lines.length * st.leading;
   });
 
   const removal: Removal | null =
     box && target.kind === "box" ? removeBoxText(m, doc, page, box, target.chars) : null;
   const created: number[] = [];
+  /** Spacing each text object still needs from the content-stream pass (`spacing.ts`). */
+  const spacing = new Map<number, Spacing>();
   try {
     let fakeBold = false;
     let fakeItalic = false;
     const perParagraph: number[][] = [];
-    for (const { para, lines, font } of placed) {
+    for (const { lines } of placed) {
       const from = created.length;
-      const s = para.style;
-      const boldFake = s.bold && !font.bold;
-      const italicFake = s.italic && !font.italic;
-      fakeBold ||= boldFake;
-      fakeItalic ||= italicFake;
       for (const line of lines) {
         for (const run of line.runs) {
-          if (!run.text) continue;
+          const s = pieces[run.piece];
+          if (!s || !run.text) continue;
+          const font = fonts.get(s.font);
+          const boldFake = s.bold && !font.bold;
+          const italicFake = s.italic && !font.italic;
+          fakeBold ||= boldFake;
+          fakeItalic ||= italicFake;
+          const size = scriptSize(s);
+          const y = run.y + scriptRise(s);
           // No space glyph: each word on its own, at the spaced position.
-          const pieces = font.noSpace ? run.text.split(" ") : [run.text];
+          const parts = font.noSpace ? run.text.split(" ") : [run.text];
           let x = run.x;
-          for (const piece of pieces) {
-            if (piece)
-              created.push(
-                placeText(m, doc, page, font.handle, piece, x, run.y, s, boldFake, italicFake),
+          for (const part of parts) {
+            if (part) {
+              const obj = placeText(
+                m,
+                doc,
+                page,
+                font.handle,
+                part,
+                x,
+                y,
+                s,
+                size,
+                boldFake,
+                italicFake,
               );
-            x += font.width(piece, s.size) + font.spaceWidth * s.size;
+              created.push(obj);
+              const sp = spacingOf(font, s, part);
+              if (sp) spacing.set(obj, sp);
+            }
+            x += measure(run.piece, part) + measure(run.piece, " ");
           }
-        }
-        if (s.underline && line.text) {
-          const pos = font.underline.position * s.size;
-          const thick = Math.max(0.5, font.underline.thickness * s.size);
-          created.push(
-            placeRect(m, page, line.x, line.y + pos - thick / 2, line.width, thick, s.color),
-          );
+          if (s.underline && run.text.trim()) {
+            const pos = font.underline.position * size;
+            const thick = Math.max(0.5, font.underline.thickness * size);
+            const w = measure(run.piece, run.text.trimEnd());
+            created.push(placeRect(m, page, run.x, y + pos - thick / 2, w, thick, s.color));
+          }
         }
       }
       perParagraph.push(
@@ -266,11 +363,21 @@ export function retypeset(
     // The written text is one box from now on (`marks.ts`), keeping the box's id.
     const id = target.boxId ?? box?.id ?? nextBoxId(m, page);
     for (const o of created)
-      if (m.FPDFPageObj_GetType(o) === FPDF_PAGEOBJ_TEXT) setBoxId(m, doc, o, id);
+      if (m.FPDFPageObj_GetType(o) === FPDF_PAGEOBJ_TEXT) setBoxId(m, doc, o, id, spacing.get(o));
     if (!m.FPDFPage_GenerateContent(page)) throw new Error("PDFium could not regenerate the page");
 
+    // Each line as tall as its largest text (a bigger run-in head, say).
     const lineRects = placed.flatMap(({ para, lines }) =>
-      lines.filter((l) => l.text).map((l) => textRect(l.x, l.y, l.width, para.style.size)),
+      lines
+        .filter((l) => l.text)
+        .map((l) =>
+          textRect(
+            l.x,
+            l.y,
+            l.width,
+            Math.max(para.style.size, ...l.runs.map((r) => pieces[r.piece]?.size ?? 0)),
+          ),
+        ),
     );
     const others = target.others.filter((o) => o !== box);
     return {
@@ -280,6 +387,7 @@ export function retypeset(
       fakeBold,
       fakeItalic,
       objects: perParagraph,
+      spaced: spacing.size > 0,
       overflow: findOverflow(lineRects, box, others, target.rules),
     };
   } catch (e) {
@@ -289,6 +397,104 @@ export function retypeset(
     removal?.rollback();
     throw e;
   }
+}
+
+/** A list marker's style: the paragraph's (or its own font), never raised, spaced or kerned. */
+function markerStyle(s: ParagraphStyle): CharStyle {
+  const { font, size, color, bold, italic, underline } = s;
+  return {
+    font: s.marker?.font ?? font,
+    size,
+    color,
+    bold,
+    italic,
+    underline,
+    ...(s.hScale !== undefined ? { hScale: s.hScale } : {}),
+  };
+}
+
+/** The character part of a paragraph style. */
+function charStyleOf(s: ParagraphStyle): CharStyle {
+  const out: CharStyle = {
+    font: s.font,
+    size: s.size,
+    color: s.color,
+    bold: s.bold,
+    italic: s.italic,
+    underline: s.underline,
+  };
+  for (const k of ["script", "hScale", "charSpacing", "wordSpacing", "kerning"] as const)
+    if (s[k] !== undefined) Object.assign(out, { [k]: s[k] });
+  return out;
+}
+
+/** The paragraph's text as fragments in their pieces (after its list marker, if any). */
+function fragments(para: EditParagraph, pieceOf: (s: CharStyle) => number): Fragment[] {
+  const base = charStyleOf(para.style);
+  const mk = para.style.marker;
+  const skip = mk && para.text.startsWith(mk.text + " ") ? mk.text.length + 1 : 0;
+  const text = para.text;
+  // Cut points: every run edge; each stretch takes the last run covering it.
+  const runs = (para.runs ?? []).filter((r) => r.end > r.start);
+  const cuts = [...new Set([skip, text.length, ...runs.flatMap((r) => [r.start, r.end])])]
+    .filter((c) => c >= skip && c <= text.length)
+    .sort((a, b) => a - b);
+  const out: Fragment[] = [];
+  for (let i = 0; i + 1 < cuts.length; i++) {
+    const a = cuts[i] ?? 0;
+    const b = cuts[i + 1] ?? 0;
+    const over = runs.filter((r) => r.start <= a && r.end >= b);
+    const style = over.reduce<CharStyle>((s, r) => ({ ...s, ...r.style }), base);
+    const piece = pieceOf(style);
+    const prev = out.at(-1);
+    if (prev && prev.piece === piece) prev.text += text.slice(a, b);
+    else out.push({ text: text.slice(a, b), piece });
+  }
+  return out;
+}
+
+/** Superscript / subscript: smaller, raised or lowered (fractions of the size). */
+const SCRIPT_SIZE = 0.6;
+const RISE = { super: 0.35, sub: -0.12 };
+const scriptSize = (s: CharStyle) => (s.script ? s.size * SCRIPT_SIZE : s.size);
+const scriptRise = (s: CharStyle) => (s.script ? RISE[s.script] * s.size : 0);
+
+/**
+ * Width of `text` in a piece: glyph advances, pair kerning, character and word
+ * spacing (thousandths of an em), all times the horizontal scale.
+ */
+function pieceMeasure(font: LoadedFont, s: CharStyle): (text: string) => number {
+  const size = scriptSize(s);
+  const h = (s.hScale ?? 100) / 100;
+  const cs = ((s.charSpacing ?? 0) / 1000) * size;
+  const ws = ((s.wordSpacing ?? 0) / 1000) * size;
+  return (text) => {
+    if (!text) return 0;
+    const n = [...text].length;
+    const spaces = text.split(" ").length - 1;
+    const kern = s.kerning && font.kern ? font.kern(text).reduce((a, k) => a + k, 0) * size : 0;
+    return (font.width(text, size) + kern + cs * n + ws * spaces) * h;
+  };
+}
+
+/** What the content-stream pass must add to one written text object, or null. */
+function spacingOf(font: LoadedFont, s: CharStyle, text: string): Spacing | null {
+  const size = scriptSize(s);
+  const chars = [...text];
+  const adj = new Map<number, number>();
+  // TJ numbers are thousandths of an em, subtracted from the position.
+  if (s.kerning && font.kern)
+    font.kern(text).forEach((k, i) => {
+      if (k) adj.set(i, (adj.get(i) ?? 0) - k * 1000);
+    });
+  if (s.wordSpacing)
+    chars.forEach((c, i) => {
+      if (c === " " && i < chars.length - 1) adj.set(i, (adj.get(i) ?? 0) - (s.wordSpacing ?? 0));
+    });
+  const tc = ((s.charSpacing ?? 0) / 1000) * size;
+  const kept = [...adj].filter(([, v]) => Math.abs(v) >= 0.5);
+  if (!tc && !kept.length) return null;
+  return { tc, n: chars.length, adjust: kept.map(([i, v]) => [i, Math.round(v * 10) / 10]) };
 }
 
 interface LoadedFont {
@@ -306,29 +512,33 @@ interface LoadedFont {
    */
   noSpace: boolean;
   spaceWidth: number;
+  /** Pair kerning after each letter of `text`, fractions of the size (none: not kerned). */
+  kern?: (text: string) => number[];
 }
 
 /** Loads each chosen font once per edit, checking permission and letters first. */
 class FontLoader {
   private readonly loaded = new Map<string, LoadedFont & { report: WrittenFont }>();
+  private readonly texts = new Map<string, string>();
 
   constructor(
     private readonly m: PdfiumModule,
     private readonly doc: number,
     private readonly page: number,
     private readonly deps: RetypesetDeps,
-    private readonly paragraphs: EditParagraph[],
   ) {}
+
+  /** Text the font must show (its letters are checked, and a subset keeps them). */
+  need(choice: FontChoice, text: string): void {
+    const key = keyOf(choice);
+    this.texts.set(key, (this.texts.get(key) ?? "") + text);
+  }
 
   get(choice: FontChoice): LoadedFont {
     const key = keyOf(choice);
     let f = this.loaded.get(key);
     if (!f) {
-      const text = this.paragraphs
-        .filter((p) => keyOf(p.style.font) === key)
-        .map((p) => p.text)
-        .join("");
-      f = this.load(choice, text);
+      f = this.load(choice, this.texts.get(key) ?? "");
       this.loaded.set(key, f);
     }
     return f;
@@ -377,6 +587,9 @@ class FontLoader {
         width: (s, size) => metrics.width(s, size),
         noSpace: false,
         spaceWidth: metrics.width(" ", 1),
+        ...(this.deps.kerner
+          ? { kern: kernCache(this.deps.kerner(choice.bytes, face.index)) }
+          : {}),
         report: {
           name,
           kind: "file",
@@ -411,6 +624,8 @@ class FontLoader {
       underline: { position: -0.1, thickness: 0.05 },
       noSpace,
       spaceWidth,
+      // The standard 14 kern from their AFM data; the PDF's own fonts carry none.
+      ...(choice.kind === "standard" ? { kern: kernCache(standardKerner(choice.name)) } : {}),
       width: noSpace
         ? (s, size) => {
             const words = s.split(" ");
@@ -579,11 +794,12 @@ function placeText(
   text: string,
   x: number,
   y: number,
-  s: ParagraphStyle,
+  s: CharStyle,
+  size: number,
   fakeBold: boolean,
   fakeItalic: boolean,
 ): number {
-  const obj = m.FPDFPageObj_CreateTextObj(doc, font, s.size);
+  const obj = m.FPDFPageObj_CreateTextObj(doc, font, size);
   if (!obj || !setText(m, obj, text)) {
     if (obj) m.FPDFPageObj_Destroy(obj);
     throw new Error("PDFium could not write the text");
@@ -593,9 +809,11 @@ function placeText(
   if (fakeBold) {
     m.FPDFTextObj_SetTextRenderMode(obj, FPDF_TEXTRENDERMODE_FILL_STROKE);
     m.FPDFPageObj_SetStrokeColor(obj, r, g, b, a);
-    m.FPDFPageObj_SetStrokeWidth(obj, s.size * FAKE_BOLD);
+    m.FPDFPageObj_SetStrokeWidth(obj, size * FAKE_BOLD);
   }
-  m.FPDFPageObj_Transform(obj, 1, 0, fakeItalic ? OBLIQUE : 0, 1, x, y);
+  // Horizontal scaling lives in the text matrix (PDFium keeps it through later edits).
+  const h = (s.hScale ?? 100) / 100;
+  m.FPDFPageObj_Transform(obj, h, 0, fakeItalic ? OBLIQUE : 0, 1, x, y);
   m.FPDFPage_InsertObject(page, obj);
   return obj;
 }
@@ -732,10 +950,104 @@ export function detectStyle(m: PdfiumModule, box: TextBox, rules: Rules): Paragr
         ? { indent: { first: round(p.firstL - left), left: round(p.bodyL - left) } }
         : {}),
       ...(p.marker
-        ? { marker: { text: p.marker, at: round((p.lines[0]?.l ?? left) - left) } }
+        ? {
+            marker: { text: p.marker, at: round((p.lines[0]?.l ?? left) - left) },
+            list: listOf(p.marker),
+          }
         : {}),
       ...(i && p.spaceBefore ? { spaceBefore: p.spaceBefore } : {}),
     };
+  });
+}
+
+/** A run of characters that differs from its paragraph's main style (plain data). */
+export interface DetectedRun {
+  start: number;
+  end: number;
+  /** Base font name as written in the PDF. */
+  fontName: string;
+  size: number;
+  color: Rgba;
+  bold: boolean;
+  italic: boolean;
+  script?: "super" | "sub";
+}
+
+/**
+ * Each paragraph's character runs that differ from its main style (a bold run-in head,
+ * a red word, a superscript), as offsets into the paragraph's text.
+ */
+export function detectRuns(m: PdfiumModule, box: TextBox): DetectedRun[][] {
+  const colors = new Map<number, Rgba>();
+  const colorOf = (obj: number) => {
+    let c = colors.get(obj);
+    if (!c) {
+      c = fillColor(m, obj);
+      colors.set(obj, c);
+    }
+    return c;
+  };
+  return box.paragraphs.map((p) => {
+    const main = mainChar(p);
+    const mainColor = colorOf(main.obj);
+    // Each letter's offset in the paragraph text (lines joined by one space).
+    const at: { i: number; c: PageChar; line: number }[] = [];
+    let base = 0;
+    p.lines.forEach((line, li) => {
+      let k = 0;
+      for (let i = 0; i < line.text.length && k < line.chars.length; i++) {
+        const c = line.chars[k];
+        if (!c || line.text[i] === " ") continue;
+        at.push({ i: base + i, c, line: li });
+        i += c.ch.length - 1;
+        k++;
+      }
+      base += line.text.length + 1;
+    });
+    const runs: DetectedRun[] = [];
+    for (const { i, c, line } of at) {
+      const y = p.lines[line]?.y ?? c.y;
+      const lineSize = p.lines[line]?.size ?? main.size;
+      const script =
+        c.size < 0.8 * lineSize && Math.abs(c.y - y) > 0.1 * lineSize
+          ? c.y > y
+            ? ("super" as const)
+            : ("sub" as const)
+          : undefined;
+      const color = colorOf(c.obj);
+      const style = c.font.replace(/^[A-Z]{6}\+/, "").toLowerCase();
+      const run: DetectedRun = {
+        start: i,
+        end: i + c.ch.length,
+        fontName: c.font,
+        // A script's size is shown as its line's (the engine makes it smaller again).
+        size: Math.round((script ? lineSize : c.size) * 100) / 100,
+        color,
+        bold: /bold|black|heavy|semibold|demi/.test(style),
+        italic: /italic|oblique/.test(style),
+        ...(script ? { script } : {}),
+      };
+      const last = runs.at(-1);
+      const same =
+        last &&
+        last.fontName === run.fontName &&
+        Math.abs(last.size - run.size) < 0.05 &&
+        last.script === run.script &&
+        last.color.r === color.r &&
+        last.color.g === color.g &&
+        last.color.b === color.b;
+      // Spaces between letters of one run belong to it.
+      if (same) last.end = run.end;
+      else runs.push(run);
+    }
+    const plain = (r: DetectedRun) =>
+      r.fontName === main.font &&
+      Math.abs(r.size - Math.round(main.size * 100) / 100) < 0.05 &&
+      !r.script &&
+      r.color.r === mainColor.r &&
+      r.color.g === mainColor.g &&
+      r.color.b === mainColor.b;
+    return runs.some((r) => !plain(r)) ? runs.filter((r) => !plain(r)) : [];
   });
 }
 

@@ -12,6 +12,9 @@ import { EditRefused } from "./refusal";
 import {
   detectStyle,
   retypeset,
+  type CharRun,
+  type CharStyle,
+  type EditParagraph,
   type FontChoice,
   type ParagraphStyle,
   type RetypesetDeps,
@@ -21,6 +24,7 @@ import { nextBoxId, setBoxId } from "./marks";
 import { removeBoxText } from "./split";
 import { boxesBelow, groupNow, moveBoxText, pushDown } from "./move";
 import { findOverflow } from "./retypeset";
+import { HANG, numberLists } from "./lists";
 import type { TextBox } from "./group";
 import type { Rect } from "./chars";
 import {
@@ -42,12 +46,106 @@ export interface BoxRef {
 
 /** A font choice that can cross to the worker (no PDFium handles). */
 export type PlainFont =
-  /** Keep the paragraph's own font. */
-  | { kind: "original" }
+  /** The paragraph's own font, or (`name`) another font of the box by its PDF name. */
+  | { kind: "original"; name?: string }
   | { kind: "standard"; name: string }
   | { kind: "file"; face: IndexedFace; bytes: Uint8Array };
 
 export type PlainStyle = Omit<ParagraphStyle, "font"> & { font: PlainFont };
+
+/** Character formatting that can cross to the worker. */
+export type PlainCharStyle = Omit<CharStyle, "font"> & { font: PlainFont };
+
+/** A paragraph with character runs (offsets into `text`). */
+export interface RichText {
+  text: string;
+  runs: { start: number; end: number; style: Partial<PlainCharStyle> }[];
+}
+
+/** Collapses white space like a plain paragraph, keeping the runs on their letters. */
+export function normalizeRich(p: string | RichText): RichText {
+  const src = typeof p === "string" ? { text: p, runs: [] } : p;
+  let text = "";
+  const at: number[] = [];
+  for (let i = 0; i < src.text.length; i++) {
+    at.push(text.length);
+    const c = src.text[i] ?? "";
+    if (/\s/.test(c)) {
+      if (text && !text.endsWith(" ")) text += " ";
+    } else text += c;
+  }
+  at.push(text.length);
+  const trimmed = text.replace(/ $/, "");
+  const map = (i: number) => Math.min(at[i] ?? trimmed.length, trimmed.length);
+  return {
+    text: trimmed,
+    runs: src.runs
+      .map((r) => ({ ...r, start: map(r.start), end: map(r.end) }))
+      .filter((r) => r.end > r.start),
+  };
+}
+
+/**
+ * Lists: each list paragraph gets its generated marker (any old one is taken off its
+ * text first) on a hanging indent; a paragraph whose list was taken off loses its
+ * marker and starts where the marker was. Run offsets follow the text.
+ */
+export function applyLists(paras: EditParagraph[]): EditParagraph[] {
+  const markers = numberLists(paras.map((p) => p.style.list));
+  return paras.map((p, i) => {
+    const st = p.style;
+    const old = st.marker;
+    const want = markers[i] ?? null;
+    if (st.list === undefined || (!want && !old)) return p;
+    // The old marker off the text (with or without its space).
+    const cut = old && p.text.startsWith(old.text) ? old.text.length : 0;
+    const body = p.text.slice(cut).replace(/^ /, "");
+    const removed = p.text.length - body.length;
+    const left = st.indent?.left ?? 0;
+    const at = old?.at ?? left;
+    if (!want) {
+      const { marker: _m, list: _l, ...rest } = st;
+      void _m;
+      void _l;
+      return {
+        text: body,
+        style: { ...rest, indent: { ...st.indent, first: at, left: at } },
+        runs: shift(p.runs, -removed),
+      };
+    }
+    const hang = old ? Math.max(4, (st.indent?.first ?? at + HANG) - at) : HANG;
+    // A marker the paragraph already showed keeps its font; a new one in a PDF's own
+    // (subset) font is drawn in Helvetica, which every reader has.
+    const font: FontChoice | undefined =
+      old?.text === want || st.font.kind !== "original"
+        ? undefined
+        : { kind: "standard", name: st.bold ? "Helvetica-Bold" : "Helvetica" };
+    return {
+      text: `${want} ${body}`,
+      style: {
+        ...st,
+        marker: { text: want, at, ...(font ? { font } : {}) },
+        indent: { ...st.indent, first: at + hang, left: old ? left : at + hang },
+      },
+      runs: shift(p.runs, want.length + 1 - removed),
+    };
+  });
+}
+
+function shift(runs: CharRun[] | undefined, by: number): CharRun[] {
+  return (runs ?? [])
+    .map((r) => ({ ...r, start: Math.max(0, r.start + by), end: Math.max(0, r.end + by) }))
+    .filter((r) => r.end > r.start);
+}
+
+/** A run's plain style as an engine style: `original` fonts by name from the box. */
+function runStyle(over: Partial<PlainCharStyle>, box: TextBox | null): Partial<CharStyle> {
+  const { font, ...rest } = over;
+  if (!font) return rest;
+  if (font.kind !== "original") return { ...rest, font };
+  const c = font.name ? box?.lines.flatMap((l) => l.chars).find((x) => x.font === font.name) : null;
+  return c ? { ...rest, font: { kind: "original", obj: c.obj } } : rest;
+}
 
 export interface EditOutcome {
   bytes: Uint8Array;
@@ -60,7 +158,7 @@ export function editBoxText(
   m: PdfiumModule,
   bytes: Uint8Array,
   ref: BoxRef,
-  paragraphs: string[],
+  paragraphs: (string | RichText)[],
   deps: RetypesetDeps,
   styles: (Partial<PlainStyle> | undefined)[] = [],
   /** New box width in points (the right-edge handle): the text wraps at it. */
@@ -87,22 +185,30 @@ export function editBoxText(
         const box = boxes[ref.id];
         if (!box || (box.paragraphs[0]?.text ?? "").slice(0, 60) !== ref.preview)
           throw new EditRefused("The page changed since this text was selected. Select it again.");
-        const texts = paragraphs.map((t) => t.replace(/\s+/g, " ").trim());
+        const rich = paragraphs.map(normalizeRich);
         // Everything deleted: the box's text goes (other text drawn with it stays).
-        if (texts.every((t) => !t)) {
+        if (rich.every((t) => !t.text)) {
           removeBoxText(m, doc.ptr, page, box, chars).commit();
           return null;
         }
         const found = detectStyle(m, box, rules);
-        const paras = texts
-          .map((text, i) => {
+        const paras = rich
+          .map(({ text, runs }, i) => {
             const own = found[Math.min(i, found.length - 1)];
             if (!own) throw new Error("box without paragraphs");
-            return { text, style: merge(own, styles[i]) };
+            return {
+              text,
+              style: merge(own, styles[i]),
+              runs: runs.map((r) => ({
+                start: r.start,
+                end: r.end,
+                style: runStyle(r.style, box),
+              })),
+            };
           })
-          // Empty lines between paragraphs are not kept (one style per paragraph, no
-          // paragraph spacing in stage 1).
+          // Empty lines between paragraphs are not kept.
           .filter((p) => p.text);
+        const listed = applyLists(paras);
         const boxId = box.id ?? nextBoxId(m, page);
         const r = retypeset(
           m,
@@ -119,7 +225,7 @@ export function editBoxText(
             ...(opts.left === undefined ? {} : { left: opts.left }),
             ...(opts.dy === undefined ? {} : { dy: opts.dy }),
           },
-          paras,
+          listed,
           deps,
         );
         const grew = box.b - r.bounds.b;
@@ -335,11 +441,11 @@ export function addTextBox(
   bytes: Uint8Array,
   page: number,
   at: { x: number; y: number; width: number | null },
-  paragraphs: string[],
+  paragraphs: (string | RichText)[],
   style: PlainStyle,
   deps: RetypesetDeps,
 ): EditOutcome {
-  const texts = paragraphs.map((t) => t.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const texts = paragraphs.map(normalizeRich).filter((p) => p.text);
   if (!texts.length) return { bytes, result: null };
   if (style.font.kind === "original") throw new Error("new text needs a font");
   const font: FontChoice = style.font;
@@ -358,7 +464,17 @@ export function addTextBox(
           doc.ptr,
           p,
           { kind: "new", ...at, others, rules },
-          texts.map((text) => ({ text, style: { ...style, font } })),
+          applyLists(
+            texts.map(({ text, runs }) => ({
+              text,
+              style: { ...style, font },
+              runs: runs.map((r) => ({
+                start: r.start,
+                end: r.end,
+                style: runStyle(r.style, null),
+              })),
+            })),
+          ),
           deps,
         );
       },

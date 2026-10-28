@@ -32,12 +32,16 @@ import {
   splitBox,
   type BoxRef,
   type Caret,
+  type EditOutcome,
+  type RichText,
   type ImageEdit,
   type ImageRef,
   type PlainStyle,
 } from "../engine/edit/document";
 import type { Placement } from "../engine/edit/images";
 import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
+import { createKerner, type Kerner } from "../engine/edit/fonts/kern";
+import { applySpacing } from "../engine/edit/spacing";
 import {
   fillAndCalculate,
   rawNumberValues,
@@ -116,16 +120,20 @@ export const OPS = {
     c: Ctx,
     b: Uint8Array,
     ref: BoxRef,
-    paragraphs: string[],
+    paragraphs: (string | RichText)[],
     styles: (Partial<PlainStyle> | undefined)[] = [],
     width?: number,
     opts: { left?: number; dy?: number; push?: boolean } = {},
   ) =>
-    editBoxText(c.module, b, ref, paragraphs, { subset: await subsetter() }, styles, width, opts),
+    spaced(
+      c,
+      editBoxText(c.module, b, ref, paragraphs, await textDeps(), styles, width, opts),
+      ref.page,
+    ),
   moveText: async (c: Ctx, b: Uint8Array, ref: BoxRef, dx: number, dy: number) =>
     moveBox(c.module, b, ref, dx, dy),
   joinText: async (c: Ctx, b: Uint8Array, refs: BoxRef[]) =>
-    joinBoxes(c.module, b, refs, { subset: await subsetter() }),
+    spaced(c, joinBoxes(c.module, b, refs, await textDeps()), refs[0]?.page ?? 0),
   splitText: async (
     c: Ctx,
     b: Uint8Array,
@@ -133,7 +141,7 @@ export const OPS = {
     paragraphs: string[],
     caret: Caret,
     styles: (Partial<PlainStyle> | undefined)[] = [],
-  ) => splitBox(c.module, b, ref, paragraphs, caret, { subset: await subsetter() }, styles),
+  ) => spaced(c, splitBox(c.module, b, ref, paragraphs, caret, await textDeps(), styles), ref.page),
   editImage: async (c: Ctx, b: Uint8Array, ref: ImageRef, op: ImageEdit) =>
     editImage(c.module, b, ref, op),
   addImage: async (c: Ctx, b: Uint8Array, page: number, data: Uint8Array, at: Placement) =>
@@ -143,9 +151,9 @@ export const OPS = {
     b: Uint8Array,
     page: number,
     at: { x: number; y: number; width: number | null },
-    paragraphs: string[],
+    paragraphs: (string | RichText)[],
     style: PlainStyle,
-  ) => addTextBox(c.module, b, page, at, paragraphs, style, { subset: await subsetter() }),
+  ) => spaced(c, addTextBox(c.module, b, page, at, paragraphs, style, await textDeps()), page),
   // Fill Forms (Phase 6): Reset form / Clear fields.
   resetFields: (c: Ctx, b: Uint8Array, req: ResetRequest) => resetFields(c, b, req),
   // Form data import/export and fill-from-CSV.
@@ -230,7 +238,7 @@ export const OPS = {
 export type Ops = typeof OPS;
 
 export type WorkerRequest =
-  | { type: "init"; wasmUrl: string; subsetWasmUrl: string }
+  | { type: "init"; wasmUrl: string; subsetWasmUrl: string; shapeWasmUrl: string }
   | { type: "call"; id: number; op: keyof Ops; args: unknown[] }
   | { type: "qpdfResult"; id: number; result?: QpdfResult; error?: string };
 
@@ -244,6 +252,20 @@ const scope = self as unknown as {
 };
 
 let ctx: Promise<Ctx> | null = null;
+/** HarfBuzz's shaper (kerning for fonts from files), loaded on first use. */
+let shapeWasmUrl = "";
+let kern: Promise<Kerner> | null = null;
+const kerner = () =>
+  (kern ??= fetch(shapeWasmUrl)
+    .then((r) => r.arrayBuffer())
+    .then(createKerner));
+const textDeps = async () => ({ subset: await subsetter(), kerner: await kerner() });
+/** After a text edit: writes the spacing PDFium can't (`spacing.ts`), if any. */
+async function spaced(c: Ctx, out: EditOutcome, page: number): Promise<EditOutcome> {
+  return out.result?.spaced
+    ? { ...out, bytes: await applySpacing(c.qpdf, out.bytes, [page]) }
+    : out;
+}
 /** HarfBuzz's subsetter (Edit PDF), loaded from the local asset on first use. */
 let subsetWasmUrl = "";
 let subset: Promise<Subsetter> | null = null;
@@ -276,6 +298,7 @@ scope.onmessage = (e) => {
   const msg = e.data;
   if (msg.type === "init") {
     subsetWasmUrl = msg.subsetWasmUrl;
+    shapeWasmUrl = msg.shapeWasmUrl;
     ctx = fetch(msg.wasmUrl)
       .then((r) => r.arrayBuffer())
       .then(createPdfium)

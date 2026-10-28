@@ -8,9 +8,13 @@ export type { PageChar, Rect, Rules } from "./chars";
 export type { Line, Paragraph, TextBox } from "./group";
 export { groupChars } from "./group";
 export { removeBoxText } from "./split";
+export { applySpacing } from "./spacing";
+export { createKerner, type Kerner } from "./fonts/kern";
 export { EditRefused } from "./refusal";
 export { retypeset, detectStyle, findOverflow, underlinesOf } from "./retypeset";
 export type {
+  CharRun,
+  CharStyle,
   EditParagraph,
   EditTarget,
   FontChoice,
@@ -53,6 +57,7 @@ export function groupPage(
 
 export { editPageInfo, hitTest } from "./pageInfo";
 export type { EditImage, EditPageInfo, EditTextBox, PlainParagraphStyle } from "./pageInfo";
+export type { DetectedRun } from "./retypeset";
 export {
   addImageToPage,
   addTextBox,
@@ -69,5 +74,7 @@ export type {
   ImageEdit,
   ImageRef,
   PlainFont,
+  PlainCharStyle,
   PlainStyle,
+  RichText,
 } from "./document";

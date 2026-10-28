@@ -146,7 +146,30 @@ function rowsOf(chars: PageChar[], scripts: Scripts): Row[] {
     host.chars.sort((a, b) => a.x - b.x);
     rows.splice(rows.indexOf(small), 1);
   }
-  return rows.sort((a, b) => b.y - a.y);
+  // Small chars a little off the row's baseline that landed in the row itself.
+  for (const r of rows) {
+    const main = mainSize(r.chars, scripts);
+    const base = r.chars.find((c) => Math.abs(c.size - main) < 0.01)?.y ?? r.y;
+    r.y = base;
+    for (const c of r.chars)
+      if (c.size < 0.8 * main && Math.abs(c.y - base) > 0.1 * main) scripts.add(c);
+    r.size = main;
+  }
+  // Rows that now share a baseline are one row (a raised mark first seeded its own).
+  rows.sort((a, b) => b.y - a.y);
+  const merged: Row[] = [];
+  for (const r of rows) {
+    const prev = merged.at(-1);
+    if (
+      prev &&
+      Math.abs(prev.y - r.y) < 0.3 * Math.max(prev.size, r.size) &&
+      (prev.chars[0]?.box ?? null) === (r.chars[0]?.box ?? null)
+    ) {
+      prev.chars.push(...r.chars);
+      prev.chars.sort((a, b) => a.x - b.x);
+    } else merged.push(r);
+  }
+  return merged;
 }
 
 /** Dot leaders: 4+ periods in a row ("Taxable interest . . . . . . 2b"). */
@@ -188,8 +211,10 @@ function splitRow(row: Row, rules: Rules, spaces: number[], scripts: Scripts): L
     // Two boxes we wrote never share a line.
     const otherBox = (c.box ?? null) !== (prev.box ?? null);
     const ref: PageChar | null = body;
+    // Text we wrote as one box keeps mixed sizes on one line.
     const resized =
       !scripts.has(c) &&
+      (c.box ?? null) === null &&
       ref !== null &&
       (Math.max(c.size, ref.size) > 1.25 * Math.min(c.size, ref.size) ||
         (Math.abs(c.size - ref.size) > 0.5 && gap > 0.4 * em));

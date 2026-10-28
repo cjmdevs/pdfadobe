@@ -8,6 +8,19 @@ import type { PdfiumModule } from "../pdfium";
 
 export const BOX_MARK = "PWBox";
 
+/**
+ * Spacing PDFium can't write (it has no setters): carried on the object's mark until
+ * the content-stream pass (`spacing.ts`) writes it as Tc and a TJ array, then dropped.
+ */
+export interface Spacing {
+  /** Character spacing (Tc), text space units. */
+  tc: number;
+  /** Letters in the object (codes in its string). */
+  n: number;
+  /** TJ adjustments: after letter i, thousandths of an em (negative: wider). */
+  adjust: [number, number][];
+}
+
 /** The box id on a page object, or null. */
 export function boxIdOf(m: PdfiumModule, obj: number): number | null {
   const n = m.FPDFPageObj_CountMarks(obj);
@@ -29,12 +42,30 @@ export function boxIdOf(m: PdfiumModule, obj: number): number | null {
   }
 }
 
-/** Marks `obj` as part of box `id` (replacing an earlier box id). */
-export function setBoxId(m: PdfiumModule, doc: number, obj: number, id: number): void {
+/** Marks `obj` as part of box `id` (replacing an earlier box id), with its spacing. */
+export function setBoxId(
+  m: PdfiumModule,
+  doc: number,
+  obj: number,
+  id: number,
+  spacing?: Spacing,
+): void {
   clearBoxId(m, obj);
   const mark = m.FPDFPageObj_AddMark(obj, BOX_MARK);
   if (!mark || !m.FPDFPageObjMark_SetIntParam(doc, obj, mark, "id", id))
     throw new Error("PDFium could not mark the text box");
+  if (!spacing) return;
+  const ok =
+    m.FPDFPageObjMark_SetFloatParam(doc, obj, mark, "Tc", spacing.tc) &&
+    m.FPDFPageObjMark_SetIntParam(doc, obj, mark, "N", spacing.n) &&
+    m.FPDFPageObjMark_SetStringParam(
+      doc,
+      obj,
+      mark,
+      "K",
+      spacing.adjust.map(([i, v]) => `${i}:${v}`).join(","),
+    );
+  if (!ok) throw new Error("PDFium could not mark the text spacing");
 }
 
 function clearBoxId(m: PdfiumModule, obj: number): void {
