@@ -65,9 +65,14 @@ export {
   editImage,
   joinBoxes,
   moveBox,
+  alignObjects,
+  arrangeBox,
+  exportImage,
   splitBox,
 } from "./document";
 export type {
+  AlignHow,
+  AlignItem,
   BoxRef,
   Caret,
   EditOutcome,

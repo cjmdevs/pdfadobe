@@ -148,6 +148,11 @@ export interface WorkbenchApi {
    * page content (Edit PDF outlines), never for writing. Null like docBytes.
    */
   contentBytes(id: string): Promise<Uint8Array | null>;
+  /**
+   * The tab now showing store document `storeId` (a tab's id changes with every edit),
+   * or null when it was closed. Reads the live state: safe in long-running callbacks.
+   */
+  documentOf(storeId: string): string | null;
   editState(id: string): EditState;
   /**
    * Runs a page operation on a tab: `fn` gets the current bytes and returns new ones,
@@ -644,6 +649,12 @@ export function WorkbenchProvider({
     ];
     return () => offs.forEach((p) => void p.then((off) => off()));
   }, [adopt, docs]);
+
+  const documentOf = useCallback(
+    (storeId: string) =>
+      Object.entries(metaRef.current).find(([, m]) => m.storeId === storeId)?.[0] ?? null,
+    [],
+  );
 
   /** Store state of a tab's document (after its pending store calls). */
   const infoOf = useCallback(
@@ -1195,6 +1206,7 @@ export function WorkbenchProvider({
       setSinglePage,
       docBytes,
       contentBytes,
+      documentOf,
       editState,
       edit,
       undo,
@@ -1239,6 +1251,7 @@ export function WorkbenchProvider({
       setSinglePage,
       docBytes,
       contentBytes,
+      documentOf,
       editState,
       edit,
       undo,

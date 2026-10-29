@@ -1,6 +1,7 @@
 mod acrobat;
 mod app_windows;
 mod docstore;
+mod external_edit;
 mod fileio;
 mod fonts;
 mod launch;
@@ -82,6 +83,9 @@ pub fn run() {
             fonts::font_index_save,
             repair::repair_pdf,
             acrobat::open_in_acrobat,
+            external_edit::external_edit_start,
+            external_edit::external_edit_poll,
+            external_edit::external_edit_end,
             print::print_pdf,
             docstore::doc_create,
             docstore::doc_push,
@@ -102,8 +106,14 @@ pub fn run() {
             app_windows::focus_doc,
             app_windows::quit_app,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_, event| {
+            // Edit Using: no temp copy of an image outlives the app.
+            if let tauri::RunEvent::Exit = event {
+                external_edit::cleanup();
+            }
+        });
 }
 
 /// WebView2 handles Ctrl+P, Ctrl+F, F5, Ctrl+R etc. itself before the page sees them.

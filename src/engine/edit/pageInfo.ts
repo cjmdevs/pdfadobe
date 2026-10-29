@@ -62,7 +62,14 @@ export interface EditImage {
   /** Index among the page's images, in drawing order. */
   id: number;
   rect: Rect;
-  placement: { cx: number; cy: number; width: number; height: number; rotation: number };
+  placement: {
+    cx: number;
+    cy: number;
+    width: number;
+    height: number;
+    rotation: number;
+    flip?: boolean;
+  };
 }
 
 export interface EditPageInfo {

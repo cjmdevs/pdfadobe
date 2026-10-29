@@ -25,6 +25,7 @@ import { markFieldsDeleted } from "./formWrites";
 import { FIELD_MODE } from "../ui/forms/prepareStore";
 import { EDIT_MODE, addText, editSelection, editSession, pendingImage } from "../ui/edit/editStore";
 import { deleteSelection } from "../ui/edit/editActions";
+import { cropping } from "../ui/edit/editStore";
 import { stampPlacement } from "../ui/markup/stampPlacement";
 import { FLYER_MODE, flyerPlacement } from "../ui/flyer/flyerStore";
 import { Guard } from "../ui/Guard";
@@ -204,6 +205,11 @@ function DocCommands({
         // Edit PDF: the selection goes first, then the tool closes.
         if (imState.activeMode === EDIT_MODE) {
           if (editSession.commit(documentId)) return true;
+          // A crop in progress is cancelled first.
+          if (cropping.get(documentId)) {
+            cropping.set(documentId, null);
+            return true;
+          }
           if (pendingImage.get(documentId)) pendingImage.set(documentId, null);
           else if (addText.get(documentId)) addText.set(documentId, false);
           else if (editSelection.get(documentId)) editSelection.set(documentId, null);

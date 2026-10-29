@@ -59,7 +59,19 @@ Keep it under 2 pages; summarize older phases.
   horizontal scaling isn't previewed while typing (exact after the edit); a new list
   marker in a PDF's own subset font is drawn in Helvetica; simulated bold now reads back
   as bold. New dependency: @pdf-lib/standard-fonts 1.0.0 (MIT, already installed).
-  Steps 4-5 (objects panel, toolbar) not started.
+- **B3 stage 2 step 4 done: Objects panel.** Flip horizontal/vertical (a mirror in the
+  image matrix; vertical = mirror + 180°), crop (upright images: drag the crop handles,
+  Apply; the pixels outside are **removed** from the file, not clipped, so a cropped JPEG
+  is stored again as Flate), rotate left/right, replace, arrange (front / forward /
+  backward / back, for images and text boxes; `arrange.ts`), align left/centre/right/
+  top/middle/bottom for 2+ objects picked with Ctrl+click (text boxes and images mixed),
+  and **Edit Using** (Paint, Windows' "Open with" dialog, or the default program): the
+  picture (a JPEG as stored, else a PNG) goes to `%TEMP%\PDF Workbench\`, each save there
+  comes back as one undo step, and the temp file is deleted on Stop or when the app quits
+  (`src-tauri/src/external_edit.rs`; a save counts once the file stops changing).
+  Edit Using follows the document by store id (`wb.documentOf`). Inapplicable buttons are
+  greyed out, as in Acrobat. Esc cancels a crop. No new dependencies.
+  Step 5 (toolbar) not started.
 - Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.

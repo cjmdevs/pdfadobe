@@ -246,6 +246,18 @@ export const tauriPlatform: Platform = {
 
   repair: (source, target) => call<{ hadWarnings: boolean }>("repair_pdf", { source, target }),
 
+  externalEdit: {
+    start: (bytes, ext, app) =>
+      call<number>("external_edit_start", bytes, headers({ "x-ext": ext, "x-app": app })),
+    poll: async (id) => {
+      const b = new Uint8Array(await call<ArrayBuffer>("external_edit_poll", { id }));
+      return b.byteLength ? b : null;
+    },
+    end: async (id) => {
+      await call("external_edit_end", { id });
+    },
+  },
+
   async openInAcrobat(path) {
     await call("open_in_acrobat", { path });
   },

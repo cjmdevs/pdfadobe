@@ -332,6 +332,29 @@ export const browserPlatform: Platform = {
     return w.__PDFWB_NEXT_SAVE_PATHS__?.shift() ?? suggested;
   },
 
+  // Tests read what was opened from window.__PDFWB_EXTEDIT__ and hand back an edited
+  // image by setting its `reply` (given back once).
+  externalEdit: {
+    async start(bytes, ext, app) {
+      const w = window as unknown as { __PDFWB_EXTEDIT__?: ExtEditMock[] };
+      const list = (w.__PDFWB_EXTEDIT__ ??= []);
+      list.push({ bytes, ext, app, reply: null, ended: false });
+      return list.length;
+    },
+    async poll(id) {
+      const w = window as unknown as { __PDFWB_EXTEDIT__?: ExtEditMock[] };
+      const e = w.__PDFWB_EXTEDIT__?.[id - 1];
+      const r = e?.reply ?? null;
+      if (e) e.reply = null;
+      return r;
+    },
+    async end(id) {
+      const w = window as unknown as { __PDFWB_EXTEDIT__?: ExtEditMock[] };
+      const e = w.__PDFWB_EXTEDIT__?.[id - 1];
+      if (e) e.ended = true;
+    },
+  },
+
   async openInAcrobat(path) {
     // Tests read the request from window.__PDFWB_ACROBAT__ (no Acrobat in a browser).
     const w = window as unknown as { __PDFWB_ACROBAT__?: string[] };
@@ -366,4 +389,12 @@ let fake: AppWindows | null | undefined;
 function fakeWindowsOnce() {
   if (fake === undefined) fake = fakeWindows();
   return fake;
+}
+
+interface ExtEditMock {
+  bytes: Uint8Array;
+  ext: string;
+  app: string;
+  reply: Uint8Array | null;
+  ended: boolean;
 }

@@ -111,12 +111,26 @@ export interface Platform {
   /** Opens a file on disk in Adobe Acrobat or Reader (XFA-only forms, Phase 6). Throws
    * PlatformError("acrobatMissing") when neither is installed. */
   openInAcrobat(path: string): Promise<void>;
+  /** Edit Using (Edit PDF): an image opened in another program, read back when saved. */
+  externalEdit: ExternalEdit;
   /** qpdf-repair `source` into `target` (never the same file). */
   repair(source: string, target: string): Promise<{ hadWarnings: boolean }>;
   /** Native print. Throws PlatformError("unsupported") when only WebView print exists. */
   print(req: PrintRequest): Promise<PrintResult>;
   saveAttachment(name: string, bytes: ArrayBuffer): Promise<string | null>;
   setTitle(title: string): void;
+}
+
+/** Programs Edit Using can open an image in. */
+export type ExternalApp = "paint" | "choose" | "default";
+
+export interface ExternalEdit {
+  /** Writes the image to a temp file and opens it in `app`; returns the edit's id. */
+  start(bytes: Uint8Array, ext: "png" | "jpg", app: ExternalApp): Promise<number>;
+  /** The image after the other program saved it, or null while unchanged. */
+  poll(id: number): Promise<Uint8Array | null>;
+  /** Stops watching and deletes the temp file. */
+  end(id: number): Promise<void>;
 }
 
 export interface CustomStamp {

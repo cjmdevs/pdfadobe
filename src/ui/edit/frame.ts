@@ -90,3 +90,34 @@ export function edgeAt(frame: Rect, p: { x: number; y: number }, grab: number): 
 /** Points to inches for the X/Y/W/H fields (2 decimals), and back. */
 export const toInches = (pt: number) => Math.round((pt / 72) * 100) / 100;
 export const fromInches = (inch: number) => inch * 72;
+
+/** An image's crop rectangle on the page (it must be upright: rotation 0). */
+export function cropRect(
+  img: { rect: Rect; placement: { flip?: boolean } },
+  part: { x0: number; y0: number; x1: number; y1: number },
+): Rect {
+  const w = img.rect.r - img.rect.l;
+  const h = img.rect.t - img.rect.b;
+  // A mirrored picture runs right to left.
+  const [x0, x1] = img.placement.flip ? [1 - part.x1, 1 - part.x0] : [part.x0, part.x1];
+  return {
+    l: img.rect.l + x0 * w,
+    r: img.rect.l + x1 * w,
+    b: img.rect.b + part.y0 * h,
+    t: img.rect.b + part.y1 * h,
+  };
+}
+
+/** The part of the picture a crop rectangle keeps (fractions, clamped to the image). */
+export function partOf(
+  img: { rect: Rect; placement: { flip?: boolean } },
+  r: Rect,
+): { x0: number; y0: number; x1: number; y1: number } {
+  const w = img.rect.r - img.rect.l;
+  const h = img.rect.t - img.rect.b;
+  const c = (v: number) => Math.min(1, Math.max(0, v));
+  const a = c((r.l - img.rect.l) / w);
+  const b = c((r.r - img.rect.l) / w);
+  const [x0, x1] = img.placement.flip ? [1 - b, 1 - a] : [a, b];
+  return { x0, x1, y0: c((r.b - img.rect.b) / h), y1: c((r.t - img.rect.b) / h) };
+}

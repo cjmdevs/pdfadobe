@@ -6,9 +6,14 @@ import { imageFileSize } from "../../engine/edit/images";
 import { pageOp } from "../../app/pages";
 import type { WorkbenchApi } from "../../app/workbench";
 import { platform } from "../../platform";
+import type { AlignHow, AlignItem, ImageEdit } from "../../engine/edit";
+import type { Arrange } from "../../engine/edit/arrange";
+import type { ExternalApp } from "../../platform/types";
 import {
   editOptions,
+  externalEdits,
   frameSettings,
+  type ExternalEditing,
   pageInfos,
   pendingImage,
   reselect,
@@ -141,6 +146,167 @@ export async function applyFrame(
   );
   if (ok) reportTextEdit(wb, result, hit);
   return ok;
+}
+
+/** An image edit from the Objects panel (one undo step); the image is selected again. */
+export function imageEdit(
+  wb: WorkbenchApi,
+  documentId: string,
+  page: number,
+  img: EditImage,
+  op: ImageEdit,
+  label: string,
+) {
+  return wb.edit(
+    documentId,
+    label,
+    async (bytes) => {
+      const out = await pageOp("editImage", bytes, imageRef(page, img), op);
+      selectAfter(wb, documentId, page, img.placement.cx, img.placement.cy);
+      return out;
+    },
+    { page },
+  );
+}
+
+/** A text box forward / backward / to the front / to the back. */
+export function arrangeTextBox(
+  wb: WorkbenchApi,
+  documentId: string,
+  page: number,
+  box: EditTextBox,
+  how: Arrange,
+) {
+  const t = textRectOf(box);
+  return wb.edit(
+    documentId,
+    "Arrange",
+    async (bytes) => {
+      const out = await pageOp("arrangeText", bytes, boxRef(page, box), how);
+      selectAfter(wb, documentId, page, (t.l + t.r) / 2, t.t - Math.min(4, (t.t - t.b) / 2));
+      return out;
+    },
+    { page },
+  );
+}
+
+/** Aligns the selected boxes and images with each other (one undo step). */
+export function alignSelection(
+  wb: WorkbenchApi,
+  documentId: string,
+  sel: EditSelection,
+  how: AlignHow,
+) {
+  const info = pageInfos.get(documentId, sel.page);
+  if (!info) return Promise.resolve(false);
+  const texts = sel.kind === "text" ? [sel.id, ...(sel.more ?? [])] : (sel.more ?? []);
+  const imgs = sel.kind === "image" ? [sel.id, ...(sel.images ?? [])] : (sel.images ?? []);
+  const items: AlignItem[] = [
+    ...texts.flatMap((id) => {
+      const b = info.boxes[id];
+      return b ? [{ kind: "text" as const, ref: boxRef(sel.page, b) }] : [];
+    }),
+    ...imgs.flatMap((id) => {
+      const i = info.images[id];
+      return i ? [{ kind: "image" as const, ref: imageRef(sel.page, i) }] : [];
+    }),
+  ];
+  if (items.length < 2) return Promise.resolve(false);
+  return wb.edit(
+    documentId,
+    "Align objects",
+    (bytes) => pageOp("alignObjects", bytes, sel.page, items, how),
+    { page: sel.page },
+  );
+}
+
+/** How often Edit Using looks for the other program's save (ms). */
+const WATCH_EVERY = 1000;
+
+/**
+ * Edit Using: opens the image in another program and puts each version it saves into
+ * the PDF (one undo step each), until stopped or the document closes. It follows the
+ * document by its store id: the tab's id changes with every edit.
+ */
+export async function editUsing(
+  wb: WorkbenchApi,
+  documentId: string,
+  page: number,
+  img: EditImage,
+  app: ExternalApp,
+) {
+  const storeId = wb.meta[documentId]?.storeId;
+  const bytes = await wb.contentBytes(documentId);
+  if (!storeId || !bytes) return;
+  let file: { data: Uint8Array; ext: "jpg" | "png" };
+  let id: number;
+  try {
+    file = await pageOp("exportImage", bytes, imageRef(page, img));
+    id = await platform.externalEdit.start(file.data, file.ext, app);
+  } catch (e) {
+    wb.toast(e instanceof Error ? e.message : String(e), "error");
+    return;
+  }
+  const entry = { id, app, page, cx: img.placement.cx, cy: img.placement.cy };
+  externalEdits.set(storeId, [...externalEdits.get(storeId), entry]);
+  const watch = async () => {
+    const still = externalEdits.get(storeId).find((e) => e.id === id);
+    const doc = wb.documentOf(storeId);
+    // Stopped, or the document closed: stop watching.
+    if (!still || !doc) {
+      await stopEditUsing(storeId, id);
+      return;
+    }
+    try {
+      const data = await platform.externalEdit.poll(id);
+      if (data) await putBack(wb, doc, storeId, still, data);
+    } catch {
+      await stopEditUsing(storeId, id);
+      return;
+    }
+    window.setTimeout(() => void watch(), WATCH_EVERY);
+  };
+  window.setTimeout(() => void watch(), WATCH_EVERY);
+}
+
+/** Puts the other program's saved picture in place of the image at the entry's centre. */
+async function putBack(
+  wb: WorkbenchApi,
+  documentId: string,
+  storeId: string,
+  e: ExternalEditing,
+  data: Uint8Array,
+) {
+  const info = pageInfos.get(documentId, e.page);
+  const img = info?.images.find(
+    (i) => Math.hypot(i.placement.cx - e.cx, i.placement.cy - e.cy) < 1,
+  );
+  if (!img) {
+    wb.toast("The image edited in the other program is no longer on the page.", "error");
+    await stopEditUsing(storeId, e.id);
+    return;
+  }
+  await wb.edit(
+    documentId,
+    "Edit image",
+    async (bytes) => {
+      const out = await pageOp("editImage", bytes, imageRef(e.page, img), {
+        kind: "replace",
+        data,
+      });
+      selectAfter(wb, documentId, e.page, e.cx, e.cy);
+      return out;
+    },
+    { page: e.page },
+  );
+}
+
+export async function stopEditUsing(storeId: string, id: number) {
+  externalEdits.set(
+    storeId,
+    externalEdits.get(storeId).filter((e) => e.id !== id),
+  );
+  await platform.externalEdit.end(id).catch(() => undefined);
 }
 
 /** Joins the selected text boxes (Ctrl+click) into one paragraph: one undo step. */

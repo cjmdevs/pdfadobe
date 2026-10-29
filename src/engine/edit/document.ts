@@ -27,8 +27,15 @@ import { findOverflow } from "./retypeset";
 import { HANG, numberLists } from "./lists";
 import type { TextBox } from "./group";
 import type { Rect } from "./chars";
+import { arrange, type Arrange } from "./arrange";
+import { isolateBox } from "./split";
+import { underlinesOf } from "./retypeset";
 import {
   addImage,
+  cropImage,
+  flipped,
+  imageFile,
+  setPlacement,
   deleteImage,
   pageImages,
   placeImage,
@@ -532,7 +539,12 @@ export type ImageEdit =
   | { kind: "place"; placement: Placement }
   | { kind: "delete" }
   /** New picture (JPEG or PNG bytes) in the old place. */
-  | { kind: "replace"; data: Uint8Array };
+  | { kind: "replace"; data: Uint8Array }
+  /** Mirror left-right ("h") or top-bottom ("v"). */
+  | { kind: "flip"; axis: "h" | "v" }
+  /** Keep `part` of the picture (fractions from its bottom-left); the rest is removed. */
+  | { kind: "crop"; part: { x0: number; y0: number; x1: number; y1: number } }
+  | { kind: "arrange"; how: Arrange };
 
 /** Moves / resizes / rotates, deletes or replaces one image. */
 export function editImage(
@@ -556,8 +568,143 @@ export function editImage(
         throw new EditRefused("The page changed since this image was selected. Select it again.");
       if (op.kind === "place") placeImage(m, page, img.obj, op.placement);
       else if (op.kind === "delete") deleteImage(m, page, img.obj);
-      else replaceImage(m, page, img.obj, op.data);
+      else if (op.kind === "flip") placeImage(m, page, img.obj, flipped(img.placement, op.axis));
+      else if (op.kind === "crop") cropImage(m, page, img.obj, op.part);
+      else if (op.kind === "arrange") {
+        arrange(m, page, [img.obj], op.how);
+        if (!m.FPDFPage_GenerateContent(page))
+          throw new Error("PDFium could not regenerate the page");
+      } else replaceImage(m, page, img.obj, op.data);
     });
+    return doc.save();
+  } finally {
+    doc.close();
+  }
+}
+
+/** An image's picture as a file (a JPEG as stored, else a PNG), for another program. */
+export function exportImage(m: PdfiumModule, bytes: Uint8Array, ref: ImageRef) {
+  const doc = RawDoc.open(m, bytes);
+  try {
+    return doc.withPage(ref.page, (page) => {
+      const img = findImage(m, page, ref);
+      return imageFile(m, img.obj);
+    });
+  } finally {
+    doc.close();
+  }
+}
+
+function findImage(m: PdfiumModule, page: number, ref: ImageRef) {
+  const img = pageImages(m, page)[ref.id];
+  const same = (a: number, b: number) => Math.abs(a - b) < 0.5;
+  if (
+    !img ||
+    !same(img.bounds.l, ref.rect.l) ||
+    !same(img.bounds.r, ref.rect.r) ||
+    !same(img.bounds.b, ref.rect.b) ||
+    !same(img.bounds.t, ref.rect.t)
+  )
+    throw new EditRefused("The page changed since this image was selected. Select it again.");
+  return img;
+}
+
+/** Moves a text box in the drawing order (its shared text objects are split first). */
+export function arrangeBox(m: PdfiumModule, bytes: Uint8Array, ref: BoxRef, how: Arrange) {
+  const doc = RawDoc.open(m, bytes);
+  try {
+    doc.withPage(
+      ref.page,
+      (page) => {
+        const g = groupNow(m, page);
+        const box = g.boxes[ref.id];
+        if (!box || previewOf(box) !== ref.preview) throw new EditRefused(STALE);
+        const { objects, removal } = isolateBox(m, doc.ptr, page, box, g.chars);
+        removal.commit();
+        const lines = underlinesOf(box, g.rules).flatMap((h) =>
+          h.obj === undefined ? [] : [h.obj],
+        );
+        arrange(m, page, [...objects, ...lines], how);
+      },
+      true,
+    );
+    return doc.save();
+  } finally {
+    doc.close();
+  }
+}
+
+/** Something on the page that can be aligned. */
+export type AlignItem = { kind: "text"; ref: BoxRef } | { kind: "image"; ref: ImageRef };
+export type AlignHow = "left" | "center" | "right" | "top" | "middle" | "bottom";
+
+/**
+ * Aligns objects with each other (Acrobat's Align Objects): to the leftmost left edge,
+ * the rightmost right edge, the topmost top, the lowest bottom, or the middle of them
+ * all. Text moves as it is (no re-typesetting). One undo step.
+ */
+export function alignObjects(
+  m: PdfiumModule,
+  bytes: Uint8Array,
+  page: number,
+  items: AlignItem[],
+  how: AlignHow,
+): Uint8Array {
+  const doc = RawDoc.open(m, bytes);
+  try {
+    doc.withPage(
+      page,
+      (p) => {
+        const g = groupNow(m, p);
+        const found = items.map((it) => {
+          if (it.kind === "image") {
+            const img = findImage(m, p, it.ref);
+            return { kind: "image" as const, rect: img.bounds, img };
+          }
+          const box = g.boxes[it.ref.id];
+          if (!box || previewOf(box) !== it.ref.preview) throw new EditRefused(STALE);
+          return { kind: "text" as const, rect: { l: box.l, r: box.r, b: box.b, t: box.t }, box };
+        });
+        const l = Math.min(...found.map((f) => f.rect.l));
+        const r = Math.max(...found.map((f) => f.rect.r));
+        const b = Math.min(...found.map((f) => f.rect.b));
+        const t = Math.max(...found.map((f) => f.rect.t));
+        const shift = (x: Rect) =>
+          how === "left"
+            ? { dx: l - x.l, dy: 0 }
+            : how === "right"
+              ? { dx: r - x.r, dy: 0 }
+              : how === "center"
+                ? { dx: (l + r) / 2 - (x.l + x.r) / 2, dy: 0 }
+                : how === "top"
+                  ? { dx: 0, dy: t - x.t }
+                  : how === "bottom"
+                    ? { dx: 0, dy: b - x.b }
+                    : { dx: 0, dy: (b + t) / 2 - (x.b + x.t) / 2 };
+        // Images first (their handles stay valid); then each text box, found again
+        // (moving one can rewrite text objects it shared with another).
+        for (const f of found)
+          if (f.kind === "image") {
+            const { dx, dy } = shift(f.rect);
+            const pl = f.img.placement;
+            setPlacement(m, f.img.obj, { ...pl, cx: pl.cx + dx, cy: pl.cy + dy });
+          }
+        for (const f of found) {
+          if (f.kind !== "text") continue;
+          const { dx, dy } = shift(f.rect);
+          if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) continue;
+          const now = groupNow(m, p);
+          const at = now.boxes.find(
+            (x) =>
+              previewOf(x) === previewOf(f.box) &&
+              Math.abs(x.l - f.box.l) < 0.5 &&
+              Math.abs(x.t - f.box.t) < 0.5,
+          );
+          if (at) moveBoxText(m, doc.ptr, p, at, now.chars, now.rules, dx, dy);
+        }
+      },
+      true,
+    );
     return doc.save();
   } finally {
     doc.close();

@@ -34,9 +34,11 @@ import {
   frameSettings,
   useFramesVersion,
   useNudge,
+  cropping,
+  useCropping,
   type EditSelection,
 } from "./editStore";
-import { dragEdge, edgeAt, frameOf, overfull, type Edge } from "./frame";
+import { cropRect, dragEdge, edgeAt, frameOf, overfull, partOf, type Edge } from "./frame";
 import { TextEditor } from "./TextEditor";
 import { dragPlacement, hitHandle, naturalSize, type Handle, type Pt } from "./imageDrag";
 import { addImageEdit, applyFrame, moveTextBox, placeImageEdit } from "./editActions";
@@ -119,6 +121,9 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
   useFramesVersion();
   const storeId = wb.meta[documentId]?.storeId;
   const frameFor = (b: EditTextBox) => frameSettings.get(storeId, pageIndex, b);
+  /** A crop handle being dragged. */
+  const [cropDrag, setCropDrag] = useState<{ img: EditImage; edge: Edge } | null>(null);
+  const crop = useCropping(documentId);
   const latest = useRef({
     info,
     busy: wb.busy,
@@ -126,12 +131,24 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     imgDrag,
     press,
     frameDrag,
+    cropDrag,
     selection,
     scale,
     wb,
   });
   useEffect(() => {
-    latest.current = { info, busy: wb.busy, drag, imgDrag, press, frameDrag, selection, scale, wb };
+    latest.current = {
+      info,
+      busy: wb.busy,
+      drag,
+      imgDrag,
+      press,
+      frameDrag,
+      cropDrag,
+      selection,
+      scale,
+      wb,
+    };
   });
 
   useEffect(() => {
@@ -185,6 +202,15 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     const sid = () => latest.current.wb.meta[documentId]?.storeId;
     return register({
       onPointerMove: (pos, evt) => {
+        const cd = latest.current.cropDrag;
+        if (cd) {
+          const c = cropping.get(documentId);
+          if (c) {
+            const r = dragEdge(cropRect(cd.img, c.part), cd.edge, pdf(pos));
+            cropping.set(documentId, { ...c, part: partOf(cd.img, r) });
+          }
+          return;
+        }
         const d = latest.current.drag;
         const g = latest.current.imgDrag;
         const f = latest.current.frameDrag;
@@ -216,6 +242,18 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         // its blur does not fire). Nothing starts while an edit is running: the page is
         // about to reload.
         if (editSession.commit(documentId) || latest.current.busy) return;
+        // Cropping: only the crop handles work (Apply or Cancel in the panel ends it).
+        const crop = cropping.get(documentId);
+        if (crop) {
+          const img = crop.page === pageIndex ? latest.current.info?.images[crop.id] : undefined;
+          if (!img) return;
+          const edge = edgeAt(cropRect(img, crop.part), pdf(pos), px(HANDLE));
+          if (edge) {
+            evt.setPointerCapture?.();
+            setCropDrag({ img, edge });
+          }
+          return;
+        }
         if (pendingImage.get(documentId) || addText.get(documentId)) {
           const kind = pendingImage.get(documentId) ? "image" : "text";
           setDrag({ kind, x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
@@ -245,17 +283,10 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           : null;
         const hit = handle && selected ? selected : at(pos);
         if (!hit) return editSelection.set(documentId, null);
-        // Ctrl / Shift + click picks several text boxes (for Join) without editing.
-        if (hit.kind === "text" && (evt.ctrlKey || evt.metaKey || evt.shiftKey)) {
-          const had =
-            sel?.kind === "text" && sel.page === pageIndex ? [sel.id, ...(sel.more ?? [])] : [];
-          const ids = had.includes(hit.id) ? had.filter((x) => x !== hit.id) : [...had, hit.id];
-          const [first, ...more] = ids;
-          const box = first === undefined ? undefined : i?.boxes[first];
-          editSelection.set(
-            documentId,
-            box ? { ...selectionOf(pageIndex, box), ...(more.length ? { more } : {}) } : null,
-          );
+        // Ctrl / Shift + click picks several boxes and images (Join, Align) without editing.
+        // (Not on a handle: Shift there means a free resize or 15-degree steps.)
+        if (!handle && (evt.ctrlKey || evt.metaKey || evt.shiftKey)) {
+          editSelection.set(documentId, i ? toggled(sel, hit, pageIndex, i) : null);
           return;
         }
         editSelection.set(documentId, selectionOf(pageIndex, hit));
@@ -266,6 +297,11 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         else setImgDrag({ img: hit, handle: handle ?? "move", from: pdf(pos), now: hit.placement });
       },
       onPointerUp: (pos, evt) => {
+        if (latest.current.cropDrag) {
+          evt.releasePointerCapture?.();
+          setCropDrag(null);
+          return;
+        }
         const f = latest.current.frameDrag;
         if (f) {
           evt.releasePointerCapture?.();
@@ -356,13 +392,19 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     d ? { l: r.l + d.dx, r: r.r + d.dx, b: r.b + d.dy, t: r.t + d.dy } : r;
   const picked = (it: Item) =>
     selection?.page === pageIndex &&
-    selection.kind === it.kind &&
-    (selection.id === it.id || (it.kind === "text" && !!selection.more?.includes(it.id)));
+    ((selection.kind === it.kind && selection.id === it.id) ||
+      (it.kind === "text"
+        ? !!selection.more?.includes(it.id)
+        : !!selection.images?.includes(it.id)));
+  const several = !!selection?.more?.length || !!selection?.images?.length;
   const state = (it: Item) =>
     picked(it) ? " selected" : hover?.kind === it.kind && hover.id === it.id ? " hover" : "";
   const editingHere = session?.page === pageIndex ? session : null;
   const selectedImage =
-    selection?.kind === "image" && selection.page === pageIndex ? info.images[selection.id] : null;
+    selection?.kind === "image" && selection.page === pageIndex && !several
+      ? info.images[selection.id]
+      : null;
+  const cropped = crop?.page === pageIndex ? info.images[crop.id] : undefined;
   const nudged =
     selectedImage && shift
       ? {
@@ -371,10 +413,10 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           cy: selectedImage.placement.cy + shift.dy,
         }
       : null;
-  const framed = imgDrag?.now ?? nudged ?? selectedImage?.placement ?? null;
+  const framed = cropped ? null : (imgDrag?.now ?? nudged ?? selectedImage?.placement ?? null);
   // The frame handles are for one box at a time.
   const selectedBox =
-    selection?.kind === "text" && selection.page === pageIndex && !selection.more?.length
+    selection?.kind === "text" && selection.page === pageIndex && !several
       ? info.boxes[selection.id]
       : null;
   const selFrame = selectedBox
@@ -469,6 +511,18 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           <span className="edit-handle rotate" data-handle="rotate" style={{ top: -ROTATE_GAP }} />
         </div>
       )}
+      {cropped && crop && (
+        <div
+          className="edit-crop"
+          data-testid="edit-crop"
+          aria-hidden="true"
+          style={css(cropRect(cropped, crop.part))}
+        >
+          {EDGES.map((edge) => (
+            <span key={edge} className={`edit-handle crop ${edge}`} data-edge={edge} />
+          ))}
+        </div>
+      )}
       {ghostSize && ghost && !drag && (
         <div
           className="edit-item edit-new"
@@ -505,4 +559,39 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
       )}
     </div>
   );
+}
+
+/**
+ * Ctrl+click: `hit` joins the selection (boxes and images on one page), or leaves it.
+ * The first one left is the main selection; the rest are its companions.
+ */
+function toggled(
+  sel: EditSelection | null,
+  hit: Item,
+  page: number,
+  info: EditPageInfo,
+): EditSelection | null {
+  const had =
+    sel && sel.page === page
+      ? [
+          { kind: sel.kind, id: sel.id },
+          ...(sel.more ?? []).map((id) => ({ kind: "text" as const, id })),
+          ...(sel.images ?? []).map((id) => ({ kind: "image" as const, id })),
+        ]
+      : [];
+  const same = (x: { kind: string; id: number }) => x.kind === hit.kind && x.id === hit.id;
+  const now = had.some(same)
+    ? had.filter((x) => !same(x))
+    : [...had, { kind: hit.kind, id: hit.id }];
+  const [first, ...rest] = now;
+  if (!first) return null;
+  const main = first.kind === "text" ? info.boxes[first.id] : info.images[first.id];
+  if (!main) return null;
+  const more = rest.filter((x) => x.kind === "text").map((x) => x.id);
+  const images = rest.filter((x) => x.kind === "image").map((x) => x.id);
+  return {
+    ...selectionOf(page, main),
+    ...(more.length ? { more } : {}),
+    ...(images.length ? { images } : {}),
+  };
 }

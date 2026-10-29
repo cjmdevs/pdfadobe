@@ -29,6 +29,11 @@ import {
   editImage,
   joinBoxes,
   moveBox,
+  alignObjects,
+  arrangeBox,
+  exportImage,
+  type AlignHow,
+  type AlignItem,
   splitBox,
   type BoxRef,
   type Caret,
@@ -42,6 +47,7 @@ import type { Placement } from "../engine/edit/images";
 import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
 import { createKerner, type Kerner } from "../engine/edit/fonts/kern";
 import { applySpacing } from "../engine/edit/spacing";
+import type { Arrange } from "../engine/edit/arrange";
 import {
   fillAndCalculate,
   rawNumberValues,
@@ -132,6 +138,11 @@ export const OPS = {
     ),
   moveText: async (c: Ctx, b: Uint8Array, ref: BoxRef, dx: number, dy: number) =>
     moveBox(c.module, b, ref, dx, dy),
+  arrangeText: async (c: Ctx, b: Uint8Array, ref: BoxRef, how: Arrange) =>
+    arrangeBox(c.module, b, ref, how),
+  alignObjects: async (c: Ctx, b: Uint8Array, page: number, items: AlignItem[], how: AlignHow) =>
+    alignObjects(c.module, b, page, items, how),
+  exportImage: async (c: Ctx, b: Uint8Array, ref: ImageRef) => exportImage(c.module, b, ref),
   joinText: async (c: Ctx, b: Uint8Array, refs: BoxRef[]) =>
     spaced(c, joinBoxes(c.module, b, refs, await textDeps()), refs[0]?.page ?? 0),
   splitText: async (

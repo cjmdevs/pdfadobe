@@ -2107,3 +2107,47 @@ button.primary.danger-fill {
   cursor: pointer;
   font-size: 12px;
 }
+
+/* Edit PDF: an image being cropped. */
+.edit-crop {
+  position: absolute;
+  box-sizing: border-box;
+  border: 2px dashed var(--accent);
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.edit-handle.crop {
+  width: 9px;
+  height: 9px;
+  margin: -5px 0 0 -5px;
+}
+.edit-handle.crop.n,
+.edit-handle.crop.s {
+  left: 50%;
+}
+.edit-handle.crop.e,
+.edit-handle.crop.w {
+  top: 50%;
+}
+.edit-handle.crop.n,
+.edit-handle.crop.ne {
+  top: 0;
+}
+.edit-handle.crop.s,
+.edit-handle.crop.se,
+.edit-handle.crop.sw {
+  top: 100%;
+}
+.edit-handle.crop.e,
+.edit-handle.crop.ne,
+.edit-handle.crop.se {
+  left: 100%;
+}
+.edit-handle.crop.w,
+.edit-handle.crop.nw,
+.edit-handle.crop.sw {
+  left: 0;
+}
+.edit-handle.crop.nw {
+  top: 0;
+}

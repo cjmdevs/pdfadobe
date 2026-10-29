@@ -4,6 +4,7 @@
 import { useSyncExternalStore } from "react";
 import type { EditPageInfo, EditTextBox, PlainStyle } from "../../engine/edit";
 import type { CharFmt, ParaFmt } from "./richModel";
+import type { ExternalApp } from "../../platform/types";
 
 /** A change from the Format panel to the open editor. */
 export interface FormatChange {
@@ -29,8 +30,10 @@ export interface EditSelection {
   id: number;
   /** Accessible description ("Text: Two invoices dated…", "Image"). */
   label: string;
-  /** Other text boxes on the same page picked with Ctrl+click (for Join). */
+  /** Other text boxes on the same page picked with Ctrl+click (for Join, Align). */
   more?: number[];
+  /** Other images on the same page picked with Ctrl+click (for Align). */
+  images?: number[];
 }
 
 /** The in-place editor: an existing box, or new text placed with Add Text. */
@@ -289,6 +292,48 @@ export const editOptions = {
 };
 export function useEditOptions() {
   return useSyncExternalStore(subscribe, () => options);
+}
+
+/** An image being cropped: the part kept so far (fractions of the picture). */
+export interface Cropping {
+  page: number;
+  id: number;
+  part: { x0: number; y0: number; x1: number; y1: number };
+}
+const crops = new Map<string, Cropping>();
+export const cropping = {
+  get: (documentId: string) => crops.get(documentId) ?? null,
+  set(documentId: string, c: Cropping | null) {
+    if (c) crops.set(documentId, c);
+    else crops.delete(documentId);
+    for (const l of listeners) l();
+  },
+};
+export function useCropping(documentId: string) {
+  return useSyncExternalStore(subscribe, () => crops.get(documentId) ?? null);
+}
+
+/** Images open in another program (Edit Using), per store document (tab ids change). */
+export interface ExternalEditing {
+  id: number;
+  app: ExternalApp;
+  page: number;
+  /** Where the image is (its centre): it is found there again after each reload. */
+  cx: number;
+  cy: number;
+}
+const externals = new Map<string, ExternalEditing[]>();
+export const externalEdits = {
+  get: (storeId: string) => externals.get(storeId) ?? [],
+  set(storeId: string, list: ExternalEditing[]) {
+    if (list.length) externals.set(storeId, list);
+    else externals.delete(storeId);
+    for (const l of listeners) l();
+  },
+};
+const NONE: ExternalEditing[] = [];
+export function useExternalEdits(storeId: string | undefined) {
+  return useSyncExternalStore(subscribe, () => (storeId && externals.get(storeId)) || NONE);
 }
 
 /** Leaving Edit mode: nothing stays selected, open or armed. */

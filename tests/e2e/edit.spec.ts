@@ -667,6 +667,96 @@ test.describe("Edit PDF", () => {
       await page.mouse.click(pb.x + pb.width * 0.5, pb.y + pb.height * 0.5);
       await expect(page.getByTestId("edit-image")).toHaveCount(0);
     });
+    // B3 stage 2 step 4: the Objects panel.
+    const undoLabel = (page: Page) =>
+      page.getByRole("button", { name: /^Undo / }).getAttribute("aria-label");
+    const objects = (page: Page) => page.getByTestId("edit-objects");
+
+    test("flip, arrange: each one undo step", async ({ page }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      await objects(page).getByRole("button", { name: "Flip horizontal" }).click();
+      await settled(page);
+      await expect.poll(() => undoLabel(page)).toContain("Flip image");
+      await objects(page).getByLabel("Arrange").selectOption("back");
+      await settled(page);
+      await expect.poll(() => undoLabel(page)).toContain("Arrange");
+      // Text boxes have no flip; their arrange works.
+      await expect(objects(page).getByRole("button", { name: "Flip horizontal" })).toBeEnabled();
+    });
+
+    test("crop: drag a handle, apply; the image is smaller and stays put", async ({ page }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      const before = (await frame(page).boundingBox())!;
+      await objects(page).getByTestId("edit-crop-start").click();
+      await expect(page.getByTestId("edit-crop")).toBeVisible();
+      const h = (await page.locator(".edit-handle.crop.w").boundingBox())!;
+      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(h.x + h.width / 2 + 40, h.y + h.height / 2, { steps: 5 });
+      await page.mouse.up();
+      await page.getByTestId("crop-apply").click();
+      await settled(page);
+      const after = (await frame(page).boundingBox())!;
+      expect(after.width).toBeCloseTo(before.width - 40, -1);
+      expect(after.x).toBeCloseTo(before.x + 40, -1);
+      expect(after.y).toBeCloseTo(before.y, 0);
+    });
+
+    test("Escape cancels a crop", async ({ page }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      await objects(page).getByTestId("edit-crop-start").click();
+      await expect(page.getByTestId("edit-crop")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("edit-crop")).toHaveCount(0);
+      await expect(frame(page)).toBeVisible();
+    });
+
+    test("Edit Using hands the picture over and takes each save back", async ({ page }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      await objects(page).getByLabel("Edit Using").selectOption("paint");
+      await expect(page.getByTestId("edit-using-status")).toContainText("Open in Paint");
+      const sent = await page.evaluate(() => {
+        const w = window as unknown as { __PDFWB_EXTEDIT__?: { ext: string; app: string }[] };
+        return w.__PDFWB_EXTEDIT__?.map((e) => [e.ext, e.app]);
+      });
+      expect(sent).toEqual([["jpg", "paint"]]);
+      // "Paint" saves a PNG.
+      const saved = [...png()];
+      await page.evaluate((b) => {
+        const w = window as unknown as { __PDFWB_EXTEDIT__: { reply: Uint8Array | null }[] };
+        w.__PDFWB_EXTEDIT__[0]!.reply = new Uint8Array(b);
+      }, saved);
+      await expect.poll(() => undoLabel(page), { timeout: 10000 }).toContain("Edit image");
+      await page.getByTestId("edit-using-status").getByRole("button", { name: "Stop" }).click();
+      await expect(page.getByTestId("edit-using-status")).toHaveCount(0);
+      const ended = await page.evaluate(() => {
+        const w = window as unknown as { __PDFWB_EXTEDIT__: { ended: boolean }[] };
+        return w.__PDFWB_EXTEDIT__[0]!.ended;
+      });
+      expect(ended).toBe(true);
+    });
+
+    test("Ctrl+click a text box and the image, then align their left edges", async ({ page }) => {
+      await openEdit(page);
+      await addJpeg(page);
+      const [x, y] = await center(page, "Two invoices dated");
+      await page.keyboard.down("Control");
+      await page.mouse.click(x, y);
+      await page.keyboard.up("Control");
+      await expect(page.getByTestId("edit-selection")).toContainText("2 objects selected");
+      const textLeft = (await box(page, "Two invoices dated").boundingBox())!.x;
+      await objects(page).getByLabel("Align objects").selectOption("left");
+      await settled(page);
+      // The box's outline has a point of air around its text; the image's has none.
+      const scale = (await pageBox(page)).width / 612;
+      const img = (await page.getByTestId("edit-image").boundingBox())!;
+      expect(Math.abs(img.x - (textLeft + scale))).toBeLessThan(1.5);
+    });
+
     test("W and H fields resize, keeping proportions while locked", async ({ page }) => {
       await openEdit(page);
       await addJpeg(page);

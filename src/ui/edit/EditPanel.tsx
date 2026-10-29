@@ -43,6 +43,7 @@ import { fontNameOf, NEW_TEXT_STYLE } from "./TextEditor";
 import { BULLET_STYLES, NUMBER_STYLES, type NumberStyle } from "../../engine/edit/lists";
 import { INDENT_STEP, type CharFmt, type ParaFmt } from "./richModel";
 import { ImageFields, PushOption, TextBoxFields } from "./BoxFields";
+import { ObjectsPanel } from "./ObjectsPanel";
 import { NumberField } from "./NumberField";
 import {
   afterTextEdit,
@@ -50,8 +51,6 @@ import {
   reportTextEdit,
   textEditOpts,
   joinSelection,
-  placeImageEdit,
-  replaceImageEdit,
 } from "./editActions";
 
 const SECTION_LABEL: Record<Section, string> = {
@@ -159,25 +158,30 @@ export default function EditPanel({ documentId }: { documentId: string }) {
     [info, fonts],
   );
 
-  // Several text boxes picked with Ctrl+click: they can be joined.
-  if (!session && sel?.kind === "text" && sel.more?.length) {
+  // Several boxes and images picked with Ctrl+click: align them; text alone can join.
+  if (!session && sel && (sel.more?.length || sel.images?.length)) {
+    const n = 1 + (sel.more?.length ?? 0) + (sel.images?.length ?? 0);
+    const textOnly = sel.kind === "text" && !sel.images?.length;
     return (
       <section className="tool-panel" aria-label="Edit PDF" data-testid="edit-panel">
         <h3 className="tool-panel-title">Edit PDF</h3>
         <p data-testid="edit-selection">
-          {sel.more.length + 1} text boxes selected on page {sel.page + 1}. Ctrl+click a box to add
-          or remove it.
+          {textOnly ? `${n} text boxes` : `${n} objects`} selected on page {sel.page + 1}.
+          Ctrl+click an object to add or remove it.
         </p>
-        <div className="format-row">
-          <button
-            type="button"
-            data-testid="edit-join"
-            disabled={wb.busy !== null}
-            onClick={() => void joinSelection(wb, documentId, sel)}
-          >
-            Join into one paragraph
-          </button>
-        </div>
+        {textOnly && (
+          <div className="format-row">
+            <button
+              type="button"
+              data-testid="edit-join"
+              disabled={wb.busy !== null}
+              onClick={() => void joinSelection(wb, documentId, sel)}
+            >
+              Join into one paragraph
+            </button>
+          </div>
+        )}
+        <ObjectsPanel documentId={documentId} sel={sel} />
         <BoxesToggle />
       </section>
     );
@@ -207,14 +211,8 @@ export default function EditPanel({ documentId }: { documentId: string }) {
                 disabled={wb.busy !== null}
               />
             )}
+            <ObjectsPanel documentId={documentId} sel={sel} image={image} />
             <div className="format-row">
-              <button
-                type="button"
-                disabled={wb.busy !== null}
-                onClick={() => void replaceImageEdit(wb, documentId, sel.page, image)}
-              >
-                Replace image…
-              </button>
               <button
                 type="button"
                 disabled={wb.busy !== null}
@@ -222,32 +220,6 @@ export default function EditPanel({ documentId }: { documentId: string }) {
               >
                 Delete image
               </button>
-            </div>
-            <div className="format-row" role="group" aria-label="Rotate image">
-              {(
-                [
-                  [90, "Rotate left"],
-                  [-90, "Rotate right"],
-                ] as const
-              ).map(([turn, label]) => (
-                <button
-                  key={label}
-                  type="button"
-                  disabled={wb.busy !== null}
-                  onClick={() =>
-                    void placeImageEdit(
-                      wb,
-                      documentId,
-                      sel.page,
-                      image,
-                      { ...image.placement, rotation: image.placement.rotation + turn },
-                      "Rotate image",
-                    )
-                  }
-                >
-                  {label}
-                </button>
-              ))}
             </div>
           </>
         ) : (
@@ -765,6 +737,9 @@ export default function EditPanel({ documentId }: { documentId: string }) {
           (the text wraps to fit), turn on pushing the text below down, shorten the text, or undo
           (Ctrl+Z).
         </p>
+      )}
+      {target.kind === "box" && sel && (
+        <ObjectsPanel documentId={documentId} sel={sel} box={target.box} />
       )}
       {target.kind === "box" && info && (
         <TextBoxFields

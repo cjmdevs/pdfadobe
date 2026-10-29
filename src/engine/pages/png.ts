@@ -1,7 +1,8 @@
 // Minimal PNG decoder (all color types, bit depths 1-16, Adam7 interlace) to RGBA8.
 // Used for PNG inputs so they can be stored compactly (PDFium re-encodes PNGs as RGB).
+// And a minimal RGBA8 encoder (Edit PDF hands an image to another program as a PNG).
 
-import { unzlibSync } from "fflate";
+import { unzlibSync, zlibSync } from "fflate";
 
 export interface Rgba {
   width: number;
@@ -161,4 +162,51 @@ function writePixel(
   out[o + 1] = s(1);
   out[o + 2] = s(2);
   out[o + 3] = type === 6 ? s(3) : 255;
+}
+
+const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(b: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const x of b) c = (CRC_TABLE[(c ^ x) & 0xff] ?? 0) ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
+/** RGBA8 pixels as a PNG file (no filtering: zlib does the work). */
+export function encodePng(img: Rgba): Uint8Array {
+  const { width, height, data } = img;
+  const raw = new Uint8Array((width * 4 + 1) * height);
+  for (let y = 0; y < height; y++)
+    raw.set(data.subarray(y * width * 4, (y + 1) * width * 4), y * (width * 4 + 1) + 1);
+  const chunk = (type: string, body: Uint8Array) => {
+    const out = new Uint8Array(12 + body.length);
+    const v = new DataView(out.buffer);
+    v.setUint32(0, body.length);
+    for (let i = 0; i < 4; i++) out[4 + i] = type.charCodeAt(i);
+    out.set(body, 8);
+    v.setUint32(8 + body.length, crc32(out.subarray(4, 8 + body.length)));
+    return out;
+  };
+  const ihdr = new Uint8Array(13);
+  const hv = new DataView(ihdr.buffer);
+  hv.setUint32(0, width);
+  hv.setUint32(4, height);
+  ihdr.set([8, 6, 0, 0, 0], 8);
+  const parts = [
+    new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", ihdr),
+    chunk("IDAT", zlibSync(raw)),
+    chunk("IEND", new Uint8Array(0)),
+  ];
+  const out = new Uint8Array(parts.reduce((a, p) => a + p.length, 0));
+  let o = 0;
+  for (const p of parts) {
+    out.set(p, o);
+    o += p.length;
+  }
+  return out;
 }
