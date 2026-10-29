@@ -29,6 +29,9 @@ import blank from "@fluentui/svg-icons/icons/document_one_page_add_20_regular.sv
 import insert from "@fluentui/svg-icons/icons/document_add_20_regular.svg?raw";
 import replace from "@fluentui/svg-icons/icons/arrow_swap_20_regular.svg?raw";
 import crop from "@fluentui/svg-icons/icons/crop_20_regular.svg?raw";
+import link from "@fluentui/svg-icons/icons/link_20_regular.svg?raw";
+import headerFooter from "@fluentui/svg-icons/icons/document_header_footer_20_regular.svg?raw";
+import watermark from "@fluentui/svg-icons/icons/drop_20_regular.svg?raw";
 import pageSize from "@fluentui/svg-icons/icons/resize_large_20_regular.svg?raw";
 import split from "@fluentui/svg-icons/icons/split_vertical_20_regular.svg?raw";
 import organize from "@fluentui/svg-icons/icons/document_one_page_multiple_20_regular.svg?raw";
@@ -133,6 +136,9 @@ const SVG = {
   insert,
   replace,
   crop,
+  link,
+  headerFooter,
+  watermark,
   pageSize,
   split,
   organize,

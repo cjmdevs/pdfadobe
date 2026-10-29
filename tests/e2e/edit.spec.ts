@@ -1016,6 +1016,91 @@ test.describe("Edit PDF", () => {
   });
 
   // B3 stage 2: Join / Split (kept in the file as marked content) and the outlines toggle.
+  // B3 stage 2 step 5: the Edit toolbar's Link, Crop Pages and Phase 7 slots.
+  test.describe("toolbar: links, crop pages", () => {
+    /** The saved file's links on page 1, as pdf.js reads them. */
+    async function savedLinks(page: Page, mockfs: MockFs) {
+      const writes = mockfs.writes.length;
+      await page.keyboard.press("Control+s");
+      await expect.poll(() => mockfs.writes.length).toBe(writes + 1);
+      const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+      const task = getDocument({ data: new Uint8Array(bytesAt(mockfs, MEMO)), verbosity: 0 });
+      const doc = await task.promise;
+      const annots = (await (await doc.getPage(1)).getAnnotations()) as {
+        subtype: string;
+        url?: string;
+        dest?: unknown;
+      }[];
+      await task.destroy();
+      return annots.filter((a) => a.subtype === "Link").map((a) => a.url ?? "page");
+    }
+
+    test("Link: drag to add a web link, click it to change it, remove it", async ({
+      page,
+      mockfs,
+    }) => {
+      await openEdit(page);
+      await toolbarButton(page, "Link").first().click();
+      await expect(page.getByTestId("edit-panel")).toContainText("Drag a rectangle");
+      // Over the memo's body text (the Link tool doesn't edit text): surely in view.
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + 120, y + 30, { steps: 5 });
+      await page.mouse.up();
+      await expect(page.getByTestId("edit-link-new")).toBeVisible();
+      await page.getByLabel("Web address").fill("example.com/firm");
+      await page.getByTestId("link-save").click();
+      await settled(page);
+      await expect(page.getByTestId("edit-link")).toHaveCount(1);
+      expect(await savedLinks(page, mockfs)).toEqual(["https://example.com/firm"]);
+
+      // Click it: change it to go to page 1, with a visible rectangle.
+      const l = (await page.getByTestId("edit-link").boundingBox())!;
+      await page.mouse.click(l.x + l.width / 2, l.y + l.height / 2);
+      await expect(page.getByLabel("Web address")).toHaveValue("https://example.com/firm");
+      await page.getByText("Go to a page in this document").click();
+      await page.getByTestId("link-visible").check();
+      await page.getByTestId("link-save").click();
+      await settled(page);
+      expect(await savedLinks(page, mockfs)).toEqual(["page"]);
+
+      const l2 = (await page.getByTestId("edit-link").boundingBox())!;
+      await page.mouse.click(l2.x + l2.width / 2, l2.y + l2.height / 2);
+      await page.getByTestId("link-remove").click();
+      await settled(page);
+      await expect(page.getByTestId("edit-link")).toHaveCount(0);
+      expect(await savedLinks(page, mockfs)).toEqual([]);
+    });
+
+    test("unsafe link addresses are refused; Esc leaves the Link tool", async ({ page }) => {
+      await openEdit(page);
+      await toolbarButton(page, "Link").first().click();
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + 100, y + 30, { steps: 4 });
+      await page.mouse.up();
+      await page.getByLabel("Web address").fill("javascript:alert(1)");
+      await page.getByTestId("link-save").click();
+      await expect(page.locator(".toast")).toContainText("web addresses");
+      await expect(page.getByTestId("edit-link")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("link-form")).toHaveCount(0);
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("edit-panel")).toContainText("Click text to edit it");
+    });
+
+    test("Crop Pages opens the crop dialog; Phase 7 buttons stay hidden", async ({ page }) => {
+      await openEdit(page);
+      await toolbarButton(page, "Crop pages").click();
+      await expect(page.getByRole("dialog")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(toolbarButton(page, "Header & Footer")).toHaveCount(0);
+      await expect(toolbarButton(page, "Watermark")).toHaveCount(0);
+    });
+  });
+
   test.describe("join, split, bounding boxes", () => {
     test("Ctrl+click picks boxes; Join makes one paragraph (one undo step)", async ({
       page,

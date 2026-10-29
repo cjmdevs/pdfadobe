@@ -36,6 +36,10 @@ import {
   useNudge,
   cropping,
   useCropping,
+  linkMode,
+  pageLinks,
+  useLinkMode,
+  usePageLinks,
   type EditSelection,
 } from "./editStore";
 import { cropRect, dragEdge, edgeAt, frameOf, overfull, partOf, type Edge } from "./frame";
@@ -84,8 +88,8 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
   const [info, setInfo] = useState<EditPageInfo | null>(null);
   const [hover, setHover] = useState<Item | null>(null);
   const [drag, setDrag] = useState<{
-    /** "text": Add Text; "image": placing a picked image. */
-    kind: "text" | "image";
+    /** "text": Add Text; "image": placing a picked image; "link": a new link's rectangle. */
+    kind: "text" | "image" | "link";
     x0: number;
     y0: number;
     x1: number;
@@ -124,6 +128,21 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
   /** A crop handle being dragged. */
   const [cropDrag, setCropDrag] = useState<{ img: EditImage; edge: Edge } | null>(null);
   const crop = useCropping(documentId);
+  const linking = useLinkMode(documentId);
+  const links = usePageLinks(documentId, pageIndex);
+  const linkOn = linking !== null;
+  // The Link tool reads this page's links from the same bytes as the outlines.
+  useEffect(() => {
+    if (!active || !doc || !linkOn) return;
+    let live = true;
+    void contentOf(wb, documentId, doc)
+      .then((bytes) => (bytes ? pageOp("listLinks", bytes, pageIndex) : null))
+      .then((l) => live && l && pageLinks.set(documentId, pageIndex, l))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [active, doc, documentId, pageIndex, wb, linkOn]);
   const latest = useRef({
     info,
     busy: wb.busy,
@@ -242,6 +261,17 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         // its blur does not fire). Nothing starts while an edit is running: the page is
         // about to reload.
         if (editSession.commit(documentId) || latest.current.busy) return;
+        // The Link tool: a click on a link edits it; a drag elsewhere draws a new one.
+        if (linkMode.on(documentId)) {
+          const p = pdf(pos);
+          const hit = (pageLinks.get(documentId, pageIndex) ?? []).find(
+            (l) => p.x >= l.rect.l && p.x <= l.rect.r && p.y >= l.rect.b && p.y <= l.rect.t,
+          );
+          if (hit)
+            linkMode.setCurrent(documentId, { page: pageIndex, ref: hit.ref, rect: hit.rect });
+          else setDrag({ kind: "link", x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
+          return;
+        }
         // Cropping: only the crop handles work (Apply or Cancel in the panel ends it).
         const crop = cropping.get(documentId);
         if (crop) {
@@ -349,6 +379,22 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         const d = latest.current.drag;
         if (!d || !i) return;
         setDrag(null);
+        if (d.kind === "link") {
+          const w = Math.abs(pos.x - d.x0);
+          const h = Math.abs(pos.y - d.y0);
+          if (w < 4 || h < 4) return;
+          linkMode.setCurrent(documentId, {
+            page: pageIndex,
+            ref: null,
+            rect: {
+              l: Math.min(d.x0, pos.x),
+              r: Math.max(d.x0, pos.x),
+              b: i.height - Math.max(d.y0, pos.y),
+              t: i.height - Math.min(d.y0, pos.y),
+            },
+          });
+          return;
+        }
         const dragged = Math.abs(pos.x - d.x0) >= DRAG ? Math.abs(pos.x - d.x0) : null;
         const picked = pendingImage.get(documentId);
         if (d.kind === "image" && picked) {
@@ -522,6 +568,24 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
             <span key={edge} className={`edit-handle crop ${edge}`} data-edge={edge} />
           ))}
         </div>
+      )}
+      {linking &&
+        (links ?? []).map((l) => (
+          <div
+            key={l.ref}
+            className={`edit-item edit-link${linking.current?.ref === l.ref ? " selected" : ""}`}
+            data-testid="edit-link"
+            aria-hidden="true"
+            style={css(l.rect)}
+          />
+        ))}
+      {linking?.current && linking.current.page === pageIndex && linking.current.ref === null && (
+        <div
+          className="edit-item edit-link selected new"
+          data-testid="edit-link-new"
+          aria-hidden="true"
+          style={css(linking.current.rect)}
+        />
       )}
       {ghostSize && ghost && !drag && (
         <div

@@ -49,6 +49,13 @@ import { createKerner, type Kerner } from "../engine/edit/fonts/kern";
 import { applySpacing } from "../engine/edit/spacing";
 import type { Arrange } from "../engine/edit/arrange";
 import {
+  listLinks,
+  removeLinks,
+  removeWebLinks,
+  setLink,
+  type LinkSpec,
+} from "../engine/edit/links";
+import {
   fillAndCalculate,
   rawNumberValues,
   readCalcSetup,
@@ -143,6 +150,13 @@ export const OPS = {
   alignObjects: async (c: Ctx, b: Uint8Array, page: number, items: AlignItem[], how: AlignHow) =>
     alignObjects(c.module, b, page, items, how),
   exportImage: async (c: Ctx, b: Uint8Array, ref: ImageRef) => exportImage(c.module, b, ref),
+  // Links (the Edit toolbar's Link button).
+  listLinks: (c: Ctx, b: Uint8Array, page: number) => listLinks(c.qpdf, b, page),
+  setLink: (c: Ctx, b: Uint8Array, page: number, spec: LinkSpec, ref: string | null) =>
+    setLink(c.qpdf, b, page, spec, ref),
+  removeLinks: (c: Ctx, b: Uint8Array, page: number, refs: string[]) =>
+    removeLinks(c.qpdf, b, page, refs),
+  removeWebLinks: (c: Ctx, b: Uint8Array) => removeWebLinks(c.qpdf, b),
   joinText: async (c: Ctx, b: Uint8Array, refs: BoxRef[]) =>
     spaced(c, joinBoxes(c.module, b, refs, await textDeps()), refs[0]?.page ?? 0),
   splitText: async (

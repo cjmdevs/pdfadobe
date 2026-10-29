@@ -110,6 +110,11 @@ export interface EditCommands {
   addImage(): void;
   /** A picked image is waiting to be placed. */
   placingImage: boolean;
+  /** The Link tool is on: links shown; click one to edit it, drag to add one. */
+  linking: boolean;
+  setLinking(on: boolean): void;
+  /** Removes every web link in the document (one undo step). */
+  removeWebLinks(): void;
 }
 
 /** A tool's panel in the Tools pane, loaded on first use (keeps this list Node-safe). */
@@ -162,6 +167,11 @@ export interface ToolAction {
   grid?: boolean;
   /** Text drawn in place of the icon (a tickmark section's symbol), in red. */
   glyph?: string;
+  /**
+   * Shown only while this is true (an action that belongs to a later phase's tool
+   * appears once that tool is built). Default: always.
+   */
+  shown?(): boolean;
   /** Short caption under the icon in the tool toolbar (defaults to label). */
   caption?: string;
 }
@@ -419,6 +429,48 @@ export const TOOLS: ToolDef[] = [
         pressed: (c) => c.edit?.placingImage ?? false,
         enabled: (c) => hasDoc(c) && c.edit !== null,
       },
+      {
+        id: "link",
+        label: "Link: add, edit or remove links (drag to add, click a link to edit it)",
+        caption: "Link",
+        icon: "link",
+        run: (c) => {
+          if (!c.documentId || !c.edit) return;
+          if (c.wb.meta[c.documentId]?.activeTool !== "edit")
+            c.wb.setActiveTool(c.documentId, "edit");
+          c.edit.setLinking(!c.edit.linking);
+        },
+        pressed: (c) => c.edit?.linking ?? false,
+        enabled: (c) => hasDoc(c) && c.edit !== null,
+        items: [
+          {
+            id: "linkTool",
+            label: "Add or edit links",
+            run: (c) => {
+              if (!c.documentId || !c.edit) return;
+              if (c.wb.meta[c.documentId]?.activeTool !== "edit")
+                c.wb.setActiveTool(c.documentId, "edit");
+              c.edit.setLinking(true);
+            },
+          },
+          {
+            id: "removeWebLinks",
+            label: "Remove all web links",
+            separator: true,
+            run: (c) => c.edit?.removeWebLinks(),
+          },
+        ],
+      },
+      {
+        id: "cropPages",
+        label: "Crop pages…",
+        caption: "Crop Pages",
+        icon: "crop",
+        run: dialog("crop"),
+      },
+      // Phase 7's tools, shown here (like Acrobat's Edit toolbar) once they are built.
+      phase7Action("headerFooter", "Header & Footer", "headerFooter"),
+      phase7Action("watermark", "Watermark", "watermark"),
     ],
   },
   {
@@ -919,6 +971,33 @@ function planned(
 }
 
 export const isBuilt = (t: ToolDef) => t.comingIn === null;
+
+/**
+ * An Edit toolbar button for a later phase's tool (`toolId`): hidden until that tool
+ * is built; then it opens the tool, and its arrow lists the tool's own actions.
+ */
+function phase7Action(toolId: string, caption: string, icon: IconName): ToolAction {
+  const target = () => TOOLS.find((t) => t.id === toolId && isBuilt(t));
+  return {
+    id: toolId,
+    label: caption,
+    caption,
+    icon,
+    shown: () => target() !== undefined,
+    run: (c) => {
+      if (c.documentId && target()) c.wb.setActiveTool(c.documentId, toolId);
+    },
+    items: () =>
+      (target()?.toolbar ?? []).map((a) => ({
+        id: a.id,
+        label: a.label,
+        run: (ctx) => {
+          if (ctx.documentId) ctx.wb.setActiveTool(ctx.documentId, toolId);
+          a.run(ctx);
+        },
+      })),
+  };
+}
 
 export function comingLabel(t: ToolDef): string {
   return typeof t.comingIn === "number"

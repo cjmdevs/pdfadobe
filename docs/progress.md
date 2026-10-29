@@ -71,7 +71,16 @@ Keep it under 2 pages; summarize older phases.
   (`src-tauri/src/external_edit.rs`; a save counts once the file stops changing).
   Edit Using follows the document by store id (`wb.documentOf`). Inapplicable buttons are
   greyed out, as in Acrobat. Esc cancels a crop. No new dependencies.
-  Step 5 (toolbar) not started.
+- **B3 stage 2 step 5 done: Edit toolbar** = Edit, Add Text, Add Image, **Link**, **Crop
+  Pages**, and Header & Footer / Watermark slots. Link (`links.ts`, qpdf object edits):
+  drag to add, click a link to change it (web/email address or a page here; invisible
+  or a visible rectangle in a colour), Remove link, and "Remove all web links" (our
+  tickmark links stay). Only http(s) and mailto addresses are allowed (no javascript:,
+  file:). The Link tool stays on through its own edits (the tab id changes). Crop Pages
+  opens Organize's crop dialog. Header & Footer and Watermark use a new `shown()` on
+  toolbar actions: hidden until Phase 7 registers tools with ids `headerFooter` and
+  `watermark`; then they open those tools and list their actions. No new dependencies.
+  **Stage 2 complete; owner check pending** (`docs/testing/b3-stage2-test-guide.md`).
 - Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.

@@ -2151,3 +2151,12 @@ button.primary.danger-fill {
 .edit-handle.crop.nw {
   top: 0;
 }
+
+/* Edit PDF: the Link tool's link rectangles. */
+.edit-item.edit-link {
+  border: 1px solid rgba(26, 95, 180, 0.8);
+  background: rgba(26, 95, 180, 0.08);
+}
+.edit-item.edit-link.new {
+  border-style: dashed;
+}

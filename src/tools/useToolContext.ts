@@ -7,13 +7,15 @@ import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { ERASER_MODE, STAMP_MODE } from "../markup/config";
 import {
+  linkMode,
+  useLinkMode,
   EDIT_MODE,
   addText,
   pendingImage,
   useAddingText,
   usePendingImage,
 } from "../ui/edit/editStore";
-import { pickImageToAdd } from "../ui/edit/editActions";
+import { pickImageToAdd, removeAllWebLinks } from "../ui/edit/editActions";
 import { TEXT_STAMPS } from "../engine/stamps";
 import { stampPlacement, textStamp } from "../ui/markup/stampPlacement";
 import { importXfdf } from "../ui/markup/importXfdf";
@@ -41,6 +43,7 @@ export function useDocToolContext(documentId: string): ToolContext {
   const docState = useDocumentState(documentId);
   const adding = useAddingText(documentId);
   const placingImage = usePendingImage(documentId) !== null;
+  const linking = useLinkMode(documentId) !== null;
   const encrypted = docState?.document?.isEncrypted ?? false;
   const m = wb.meta[documentId];
   const organizing = m?.activeTool === "organize";
@@ -111,8 +114,15 @@ export function useDocToolContext(documentId: string): ToolContext {
             addImage: () => {
               im?.activate(EDIT_MODE);
               addText.set(documentId, false);
+              linkMode.set(documentId, false);
               void pickImageToAdd(wb, documentId);
             },
+            linking,
+            setLinking: (on) => {
+              if (on) im?.activate(EDIT_MODE);
+              linkMode.set(documentId, on);
+            },
+            removeWebLinks: () => void removeAllWebLinks(wb, documentId),
           },
       flyer,
       redact,
@@ -139,6 +149,7 @@ export function useDocToolContext(documentId: string): ToolContext {
       imState.activeMode,
       adding,
       placingImage,
+      linking,
     ],
   );
 }

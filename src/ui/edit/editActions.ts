@@ -8,12 +8,15 @@ import type { WorkbenchApi } from "../../app/workbench";
 import { platform } from "../../platform";
 import type { AlignHow, AlignItem, ImageEdit } from "../../engine/edit";
 import type { Arrange } from "../../engine/edit/arrange";
+import type { LinkSpec } from "../../engine/edit/links";
 import type { ExternalApp } from "../../platform/types";
 import {
   editOptions,
   externalEdits,
   frameSettings,
   type ExternalEditing,
+  type LinkEditing,
+  linkMode,
   pageInfos,
   pendingImage,
   reselect,
@@ -446,4 +449,69 @@ export function deleteSelection(wb: WorkbenchApi, documentId: string, sel: EditS
       ).bytes,
     { page: sel.page },
   );
+}
+
+/**
+ * A link edit (one undo step). The tab's id changes with the edit: the Link tool stays
+ * on for the tab it reopens as.
+ */
+async function linkEdit(
+  wb: WorkbenchApi,
+  documentId: string,
+  label: string,
+  fn: (bytes: Uint8Array) => Promise<Uint8Array>,
+  page?: number,
+) {
+  const storeId = wb.meta[documentId]?.storeId;
+  const wasOn = linkMode.on(documentId);
+  const ok = await wb.edit(documentId, label, fn, page === undefined ? undefined : { page });
+  const now = storeId ? wb.documentOf(storeId) : null;
+  if (ok && wasOn && now && now !== documentId) {
+    linkMode.set(documentId, false);
+    linkMode.set(now, true);
+  }
+  return ok;
+}
+
+/** Saves the link in the panel (new or changed): one undo step. */
+export function saveLink(
+  wb: WorkbenchApi,
+  documentId: string,
+  link: LinkEditing,
+  spec: Omit<LinkSpec, "rect">,
+) {
+  return linkEdit(
+    wb,
+    documentId,
+    link.ref ? "Edit link" : "Add link",
+    (bytes) => pageOp("setLink", bytes, link.page, { ...spec, rect: link.rect }, link.ref),
+    link.page,
+  );
+}
+
+export function removeLink(wb: WorkbenchApi, documentId: string, page: number, ref: string) {
+  return linkEdit(
+    wb,
+    documentId,
+    "Remove link",
+    (bytes) => pageOp("removeLinks", bytes, page, [ref]),
+    page,
+  );
+}
+
+/** Removes every web link in the document (one undo step), and says how many. */
+export async function removeAllWebLinks(wb: WorkbenchApi, documentId: string) {
+  let removed = 0;
+  const ok = await linkEdit(wb, documentId, "Remove web links", async (bytes) => {
+    const r = await pageOp("removeWebLinks", bytes);
+    removed = r.removed;
+    return r.bytes;
+  });
+  if (ok)
+    wb.toast(
+      removed
+        ? `Removed ${removed} web link${removed === 1 ? "" : "s"}.`
+        : "This document has no web links.",
+    );
+  return ok;
 }

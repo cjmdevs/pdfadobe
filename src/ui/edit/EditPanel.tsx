@@ -37,6 +37,7 @@ import {
   useOverflowNote,
   usePendingImage,
   useCaretFormat,
+  useLinkMode,
   useShowBoxes,
 } from "./editStore";
 import { fontNameOf, NEW_TEXT_STYLE } from "./TextEditor";
@@ -44,6 +45,8 @@ import { BULLET_STYLES, NUMBER_STYLES, type NumberStyle } from "../../engine/edi
 import { INDENT_STEP, type CharFmt, type ParaFmt } from "./richModel";
 import { ImageFields, PushOption, TextBoxFields } from "./BoxFields";
 import { ObjectsPanel } from "./ObjectsPanel";
+import { LinkPanel } from "./LinkPanel";
+import { useDocumentState } from "@embedpdf/core/react";
 import { NumberField } from "./NumberField";
 import {
   afterTextEdit,
@@ -112,6 +115,8 @@ export default function EditPanel({ documentId }: { documentId: string }) {
   const placing = usePendingImage(documentId);
   const overflow = useOverflowNote(documentId);
   const caret = useCaretFormat(documentId);
+  const linking = useLinkMode(documentId);
+  const docState = useDocumentState(documentId);
   const newText = useNewTextStyle();
   const info = usePageInfo(documentId, session?.page ?? sel?.page ?? null);
   const [fonts, setFonts] = useState<FontIndex | null>(null);
@@ -157,6 +162,16 @@ export default function EditPanel({ documentId }: { documentId: string }) {
       ),
     [info, fonts],
   );
+
+  // The Link tool has its own panel.
+  if (linking)
+    return (
+      <LinkPanel
+        documentId={documentId}
+        current={linking.current}
+        pageCount={docState?.document?.pageCount ?? 1}
+      />
+    );
 
   // Several boxes and images picked with Ctrl+click: align them; text alone can join.
   if (!session && sel && (sel.more?.length || sel.images?.length)) {

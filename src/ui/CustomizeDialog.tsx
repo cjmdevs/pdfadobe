@@ -148,6 +148,7 @@ export function CustomizeDialog({ onClose }: { onClose: () => void }) {
                     {!isBuilt(t) && <span className="tool-coming"> · {comingLabel(t)}</span>}
                   </div>
                   {t.toolbar.map((a) => {
+                    if (a.shown && !a.shown()) return null;
                     const ref = `${t.id}.${a.id}`;
                     const pinned = refs.includes(ref);
                     return (

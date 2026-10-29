@@ -2,7 +2,8 @@
 // toolbar and the Escape command: the selection, the open text editor, Add Text mode,
 // and where to select again once an edited tab has reloaded.
 import { useSyncExternalStore } from "react";
-import type { EditPageInfo, EditTextBox, PlainStyle } from "../../engine/edit";
+import type { EditPageInfo, EditTextBox, PlainStyle, Rect } from "../../engine/edit";
+import type { PageLink } from "../../engine/edit/links";
 import type { CharFmt, ParaFmt } from "./richModel";
 import type { ExternalApp } from "../../platform/types";
 
@@ -148,8 +149,11 @@ export const editSession = {
 
 export const addText = {
   get: (documentId: string) => get(documentId).adding,
-  set: (documentId: string, adding: boolean) =>
-    patch(documentId, adding ? { adding, selection: null } : { adding }),
+  set(documentId: string, adding: boolean) {
+    // Add Text and the Link tool take turns.
+    if (adding) linkMode.set(documentId, false);
+    patch(documentId, adding ? { adding, selection: null } : { adding });
+  },
 };
 
 /**
@@ -336,6 +340,54 @@ export function useExternalEdits(storeId: string | undefined) {
   return useSyncExternalStore(subscribe, () => (storeId && externals.get(storeId)) || NONE);
 }
 
+/**
+ * The Link tool: on, the page shows its links; a click on one edits it, a drag on
+ * the page draws a new one. `current` is the link in the panel (ref null: new).
+ */
+export interface LinkEditing {
+  page: number;
+  ref: string | null;
+  rect: Rect;
+}
+const linkModes = new Map<string, { current: LinkEditing | null }>();
+export const linkMode = {
+  on: (documentId: string) => linkModes.has(documentId),
+  set(documentId: string, on: boolean) {
+    if (on) {
+      linkModes.set(documentId, { current: null });
+      pendingImages.delete(documentId);
+      patch(documentId, { adding: false, selection: null });
+    } else linkModes.delete(documentId);
+    for (const l of listeners) l();
+  },
+  current: (documentId: string) => linkModes.get(documentId)?.current ?? null,
+  setCurrent(documentId: string, current: LinkEditing | null) {
+    if (!linkModes.has(documentId)) return;
+    linkModes.set(documentId, { current });
+    for (const l of listeners) l();
+  },
+};
+export function useLinkMode(documentId: string) {
+  return useSyncExternalStore(subscribe, () => linkModes.get(documentId) ?? null);
+}
+
+/** Links on each page, as the layers last read them. */
+const pageLinksByDoc = new Map<string, ReadonlyMap<number, PageLink[]>>();
+export const pageLinks = {
+  get: (documentId: string, page: number) => pageLinksByDoc.get(documentId)?.get(page) ?? null,
+  set(documentId: string, page: number, links: PageLink[]) {
+    const next = new Map(pageLinksByDoc.get(documentId));
+    next.set(page, links);
+    pageLinksByDoc.set(documentId, next);
+    for (const l of listeners) l();
+  },
+};
+export function usePageLinks(documentId: string, page: number | null) {
+  return useSyncExternalStore(subscribe, () =>
+    page === null ? null : (pageLinksByDoc.get(documentId)?.get(page) ?? null),
+  );
+}
+
 /** Leaving Edit mode: nothing stays selected, open or armed. */
 export function resetEdit(documentId: string) {
   patch(documentId, {
@@ -346,6 +398,7 @@ export function resetEdit(documentId: string) {
     overflow: null,
     nudge: null,
   });
+  linkMode.set(documentId, false);
 }
 
 export function useEditSelection(documentId: string): EditSelection | null {

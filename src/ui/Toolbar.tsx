@@ -270,7 +270,7 @@ function QuickTools({ ctx }: { ctx: ToolContext }) {
     <span className="quick-tools" role="group" aria-label="Quick tools">
       {quickToolbarRefs(settings).map((ref) => {
         const hit = resolveAction(ref);
-        if (!hit) return null;
+        if (!hit || (hit.action.shown && !hit.action.shown())) return null;
         return <QuickAction key={ref} tool={hit.tool} action={hit.action} ctx={ctx} />;
       })}
     </span>
@@ -449,6 +449,7 @@ export function ToolToolbar({ documentId }: { documentId: string }) {
       </span>
       <span className="sep" />
       {t.toolbar.map((a) => {
+        if (a.shown && !a.shown()) return null;
         const button = (
           <button
             key={a.id}
