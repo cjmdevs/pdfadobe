@@ -17,6 +17,8 @@ import { moveTextBox, placeImageEdit } from "./editActions";
 
 /** Arrow keys move the selection 1 point (Shift: 10); written this long after the last key. */
 const NUDGE_WAIT = 450;
+/** Nudges pressed while a move was saving, per store document (tab ids change). */
+const held = new Map<string, { dx: number; dy: number }>();
 
 export function EditBridge({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
@@ -79,6 +81,23 @@ export function EditBridge({ documentId }: { documentId: string }) {
           );
       }
     };
+    const storeId = () => wbRef.current.meta[documentId]?.storeId;
+    // Keys pressed while the last move was being saved (the tab reloads under a new id):
+    // held for this document, then applied here once the box is selected again.
+    let tries = 0;
+    const takeHeld = () => {
+      const sid = storeId();
+      const h = sid ? held.get(sid) : undefined;
+      if (!sid || !h) return;
+      if (wbRef.current.busy || !editSelection.get(documentId)) {
+        if (++tries < 40) timer = window.setTimeout(takeHeld, 100);
+        return;
+      }
+      held.delete(sid);
+      nudge.set(documentId, h);
+      timer = window.setTimeout(flush, NUDGE_WAIT);
+    };
+    takeHeld();
     const onKey = (e: KeyboardEvent) => {
       const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, 1], ArrowDown: [0, -1] }[
         e.key
@@ -91,10 +110,20 @@ export function EditBridge({ documentId }: { documentId: string }) {
       )
         return;
       const sel = editSelection.get(documentId);
-      if (!sel || sel.more?.length || editSession.get(documentId) || wbRef.current.busy) return;
+      const n = e.shiftKey ? 10 : 1;
+      if (wbRef.current.busy) {
+        // Saving the last move: keep the keys (they must not turn the page meanwhile).
+        const sid = storeId();
+        if (!sid || (!sel && !held.has(sid))) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const h = held.get(sid) ?? { dx: 0, dy: 0 };
+        held.set(sid, { dx: h.dx + (step[0] ?? 0) * n, dy: h.dy + (step[1] ?? 0) * n });
+        return;
+      }
+      if (!sel || sel.more?.length || editSession.get(documentId)) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      const n = e.shiftKey ? 10 : 1;
       const d = nudge.get(documentId) ?? { dx: 0, dy: 0 };
       nudge.set(documentId, { dx: d.dx + (step[0] ?? 0) * n, dy: d.dy + (step[1] ?? 0) * n });
       window.clearTimeout(timer);
@@ -104,10 +133,16 @@ export function EditBridge({ documentId }: { documentId: string }) {
     window.addEventListener("keydown", onKey, true);
     return () => {
       window.removeEventListener("keydown", onKey, true);
-      if (timer) {
-        window.clearTimeout(timer);
-        flush();
-      }
+      if (!timer) return;
+      window.clearTimeout(timer);
+      // Reloading after an edit: the nudge waits for the reopened tab.
+      const sid = storeId();
+      const d = nudge.get(documentId);
+      if (wbRef.current.busy && sid && d) {
+        const h = held.get(sid) ?? { dx: 0, dy: 0 };
+        held.set(sid, { dx: h.dx + d.dx, dy: h.dy + d.dy });
+        nudge.set(documentId, null);
+      } else flush();
     };
   }, [documentId, editing]);
 

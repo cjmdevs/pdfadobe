@@ -36,6 +36,32 @@ pub async fn open_in_acrobat(path: String) -> Result<(), FileError> {
         .map_err(|e| FileError::other(format!("could not start Acrobat: {e}")))
 }
 
+/// Opens a link's web (http/https) or email (mailto) address in the user's default
+/// browser or mail program, through Windows' URL handler. Nothing else is opened.
+#[tauri::command]
+pub async fn open_url(url: String) -> Result<(), FileError> {
+    if !openable(&url) {
+        return Err(FileError::other(
+            "only web and email addresses can be opened",
+        ));
+    }
+    Command::new("rundll32.exe")
+        .arg("url.dll,FileProtocolHandler")
+        .arg(&url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| FileError::other(format!("could not open the link: {e}")))
+}
+
+/// http(s) or mailto, with no spaces or control characters (one argument, no tricks).
+pub fn openable(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    (lower.starts_with("http://") || lower.starts_with("https://") || lower.starts_with("mailto:"))
+        && !url
+            .chars()
+            .any(|c| c.is_whitespace() || c.is_control() || c == '"')
+}
+
 /// Every place Acrobat may be, in the order to try.
 fn candidates() -> Vec<PathBuf> {
     let mut out: Vec<PathBuf> = APP_NAMES.iter().filter_map(|n| app_path(n)).collect();
@@ -95,6 +121,17 @@ fn app_path(_name: &str) -> Option<PathBuf> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_web_and_email_links_open() {
+        assert!(openable("https://example.com/a?b=1"));
+        assert!(openable("HTTP://example.com"));
+        assert!(openable("mailto:a@b.example"));
+        assert!(!openable("javascript:alert(1)"));
+        assert!(!openable("file:///C:/Windows/System32/calc.exe"));
+        assert!(!openable("https://example.com/ & calc"));
+        assert!(!openable("https://a.example\"x"));
+    }
 
     #[test]
     fn picks_the_first_that_exists() {

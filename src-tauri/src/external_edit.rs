@@ -43,7 +43,10 @@ fn stamp(path: &PathBuf) -> (u64, Option<SystemTime>) {
 /// "jpg") and `x-app` ("paint", "choose" for the Open with dialog, or "default").
 /// Returns the edit's id.
 #[tauri::command]
-pub fn external_edit_start(request: Request<'_>) -> Result<u32, FileError> {
+pub fn external_edit_start(
+    window: tauri::WebviewWindow,
+    request: Request<'_>,
+) -> Result<u32, FileError> {
     let InvokeBody::Raw(bytes) = request.body() else {
         return Err(FileError::other("expected raw bytes"));
     };
@@ -65,7 +68,16 @@ pub fn external_edit_start(request: Request<'_>) -> Result<u32, FileError> {
     let path = dir.join(format!("image-{}-{id}.{ext}", std::process::id()));
     fs::write(&path, bytes).map_err(|e| FileError::other(format!("could not write: {e}")))?;
     let seen = stamp(&path);
-    launch(&app, &path)?;
+    // The Open with dialog belongs to our window (else Windows shows a flyout that
+    // closes as soon as it loses focus).
+    #[cfg(windows)]
+    let owner = window.hwnd().map(|h| h.0 as isize).unwrap_or(0);
+    #[cfg(not(windows))]
+    let owner = {
+        let _ = &window;
+        0isize
+    };
+    launch(&app, &path, owner)?;
     EDITS
         .lock()
         .map_err(|_| FileError::other("busy"))?
@@ -81,17 +93,14 @@ pub fn external_edit_start(request: Request<'_>) -> Result<u32, FileError> {
     Ok(id)
 }
 
-fn launch(app: &str, path: &PathBuf) -> Result<(), FileError> {
+fn launch(app: &str, path: &PathBuf, owner: isize) -> Result<(), FileError> {
+    if app == "choose" {
+        return open_with(path, owner);
+    }
     let mut cmd = match app {
         "paint" => {
             let mut c = Command::new("mspaint.exe");
             c.arg(path);
-            c
-        }
-        // Windows' own "Open with" dialog for the file.
-        "choose" => {
-            let mut c = Command::new("rundll32.exe");
-            c.arg("shell32.dll,OpenAs_RunDLL").arg(path);
             c
         }
         "default" => {
@@ -104,6 +113,41 @@ fn launch(app: &str, path: &PathBuf) -> Result<(), FileError> {
     cmd.spawn()
         .map(|_| ())
         .map_err(|e| FileError::other(format!("could not start the program: {e}")))
+}
+
+/// Windows' "Open with" dialog for the file, owned by our window; the program picked
+/// opens it. "Always use this app" is hidden: the user's file associations stay as they
+/// are. The dialog is modal, so it runs on its own thread.
+#[cfg(windows)]
+fn open_with(path: &PathBuf, owner: isize) -> Result<(), FileError> {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::System::Com::{COINIT_APARTMENTTHREADED, CoInitializeEx, CoUninitialize};
+    use windows::Win32::UI::Shell::{
+        OAIF_EXEC, OAIF_HIDE_REGISTRATION, OPENASINFO, SHOpenWithDialog,
+    };
+    use windows::core::{HSTRING, PCWSTR};
+    let file = HSTRING::from(path.as_os_str());
+    std::thread::spawn(move || {
+        // SAFETY: COM is set up for this thread and torn down after; `file` outlives the
+        // call; the owner is our window's handle (or none).
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+            let info = OPENASINFO {
+                pcszFile: PCWSTR(file.as_ptr()),
+                pcszClass: PCWSTR::null(),
+                oaifInFlags: OAIF_EXEC | OAIF_HIDE_REGISTRATION,
+            };
+            let parent = (owner != 0).then_some(HWND(owner as *mut _));
+            let _ = SHOpenWithDialog(parent, &info);
+            CoUninitialize();
+        }
+    });
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn open_with(_path: &PathBuf, _owner: isize) -> Result<(), FileError> {
+    Err(FileError::other("Open with is a Windows dialog"))
 }
 
 /// The image once the other program saved it (and the file settled), else empty.

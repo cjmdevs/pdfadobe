@@ -157,8 +157,7 @@ export const OPS = {
   removeLinks: (c: Ctx, b: Uint8Array, page: number, refs: string[]) =>
     removeLinks(c.qpdf, b, page, refs),
   removeWebLinks: (c: Ctx, b: Uint8Array) => removeWebLinks(c.qpdf, b),
-  joinText: async (c: Ctx, b: Uint8Array, refs: BoxRef[]) =>
-    spaced(c, joinBoxes(c.module, b, refs, await textDeps()), refs[0]?.page ?? 0),
+  joinText: async (c: Ctx, b: Uint8Array, refs: BoxRef[]) => joinBoxes(c.module, b, refs),
   splitText: async (
     c: Ctx,
     b: Uint8Array,

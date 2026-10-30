@@ -315,3 +315,17 @@ describe("runs found on the page", () => {
     expect(again.paragraphs[0]).toMatch(/Added\.$/);
   });
 });
+
+describe("the panel reads back what an edit set", () => {
+  it("line spacing and paragraph spacing of a one-line paragraph", async () => {
+    const o = await edit(["Short."], {
+      ...TIMES,
+      size: 11,
+      leading: 22,
+      spaceAfter: 9,
+      charSpacing: 50,
+    });
+    const b = boxOf(o.final, "Short.");
+    expect(b.styles[0]).toMatchObject({ leading: 22, spaceAfter: 9, charSpacing: 50 });
+  });
+});

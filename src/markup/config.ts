@@ -86,10 +86,12 @@ export function markupConfig(settings: Settings): Partial<AnnotationPluginConfig
   // The Cloud tool is added at runtime (MarkupBridge), so it takes no override here.
   const tools: AnnotationToolOverride[] = Object.keys(FIRM_DEFAULTS)
     .filter((id) => id !== CLOUD_TOOL)
-    .map((id) => ({
+    .map((id): AnnotationToolOverride => ({
       id,
       defaults: toolDefaults(settings, id),
-    }));
+    }))
+    // Links get a category of their own, so they can be locked apart from markup.
+    .concat([{ id: "link", categories: ["link"] }]);
   return {
     autoCommit: true,
     annotationAuthor: settings.authorName ?? FALLBACK_AUTHOR,

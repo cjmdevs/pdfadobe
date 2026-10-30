@@ -83,6 +83,7 @@ pub fn run() {
             fonts::font_index_save,
             repair::repair_pdf,
             acrobat::open_in_acrobat,
+            acrobat::open_url,
             external_edit::external_edit_start,
             external_edit::external_edit_poll,
             external_edit::external_edit_end,

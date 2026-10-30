@@ -16,11 +16,12 @@ export function FormMode({ documentId }: { documentId: string }) {
   const { pending } = usePrepare(documentId);
 
   useEffect(() => {
-    scope?.setLocked(
-      designing
-        ? { type: LockModeType.None }
-        : { type: LockModeType.Include, categories: ["form"] },
-    );
+    // Links stay locked either way: a click follows them (LinkNavigator), and the Edit
+    // tool's Link button is where they are changed.
+    scope?.setLocked({
+      type: LockModeType.Include,
+      categories: designing ? ["link"] : ["form", "link"],
+    });
     if (!designing) prepare.arm(documentId, null);
   }, [designing, scope, documentId]);
 

@@ -484,6 +484,8 @@ function finishBox({ lines, leading, align, bodyL }: OpenBox): TextBox {
     const brk =
       !prev ||
       align !== "left" ||
+      // Space between paragraphs (boxes joined into one keep theirs).
+      (leading !== null && prev.y - line.y > 1.4 * leading) ||
       r - prev.r > firstWordWidth(line) + 0.3 * line.size ||
       prev.r - prev.l < 0.6 * width ||
       prev.text.endsWith(":") ||

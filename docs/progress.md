@@ -81,6 +81,22 @@ Keep it under 2 pages; summarize older phases.
   toolbar actions: hidden until Phase 7 registers tools with ids `headerFooter` and
   `watermark`; then they open those tools and list their actions. No new dependencies.
   **Stage 2 complete; owner check pending** (`docs/testing/b3-stage2-test-guide.md`).
+- **Stage 2 owner check 2026-10-30:** steps 1, 2, 7, 8, 11 passed (9 partly). Fixed:
+  clicks inside the editor finished the edit (EmbedPDF's pointer overlay, z-index 10,
+  sat over it: the edit layer now rises above it while editing); one click puts the
+  caret where you clicked; the editor draws text in the real font file (installed /
+  firm face of the same name, metric twin for the standard 14; `editorFonts.ts`);
+  panel showed default line/paragraph spacing for one-line paragraphs (now on the
+  marks: /ld /sa); list buttons are one button with a style menu; links were movable
+  boxes and never opened (now locked in their own "link" category, FormMode keeps the
+  lock; a click on a web link asks, then opens it via `open_url`, http(s)/mailto only;
+  page links scroll); "Choose a program" used a flyout that closed on focus loss (now
+  `SHOpenWithDialog` owned by our window, `Win32_UI_Shell` feature, no new crate);
+  arrow keys pressed while a move was saving turned the page (now held and applied);
+  Join re-typeset everything into one paragraph (now it only marks the boxes as one:
+  paragraphs, positions, indents and fonts stay); a growing one-line paragraph ran off
+  the right edge (now wraps at the page margin) and text past the page edge is flagged.
+  Re-check: `docs/testing/b3-stage2-fixes-test-guide.md`.
 - Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.

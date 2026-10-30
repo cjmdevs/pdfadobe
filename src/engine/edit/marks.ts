@@ -31,9 +31,19 @@ export interface Look {
   wordSpacing?: number;
   hScale?: number;
   kerning?: boolean;
+  /** The paragraph's line spacing and space after (points): a one-line paragraph has
+   * no second baseline to measure, and the space after the last one shows nowhere. */
+  leading?: number;
+  spaceAfter?: number;
 }
 
-const LOOK_KEYS = { charSpacing: "cs", wordSpacing: "ws", hScale: "hs" } as const;
+const LOOK_KEYS = {
+  charSpacing: "cs",
+  wordSpacing: "ws",
+  hScale: "hs",
+  leading: "ld",
+  spaceAfter: "sa",
+} as const;
 
 /** The box id on a page object, or null. */
 export function boxIdOf(m: PdfiumModule, obj: number): number | null {

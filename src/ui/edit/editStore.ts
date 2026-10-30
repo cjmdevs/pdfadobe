@@ -39,7 +39,13 @@ export interface EditSelection {
 
 /** The in-place editor: an existing box, or new text placed with Add Text. */
 export type EditSession =
-  | { kind: "box"; page: number; box: EditTextBox }
+  | {
+      kind: "box";
+      page: number;
+      box: EditTextBox;
+      /** Where the click that opened it was (screen pixels): the caret goes there. */
+      at?: { x: number; y: number };
+    }
   | {
       kind: "new";
       page: number;

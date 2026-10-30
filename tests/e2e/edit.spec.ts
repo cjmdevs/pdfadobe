@@ -870,6 +870,25 @@ test.describe("Edit PDF", () => {
       expect(await left(page, "We selected sales")).toBeCloseTo(before + 21 * scale, 0);
     });
 
+    test("Shift+arrow pressed while the last move is saving still counts", async ({ page }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await page.keyboard.press("Escape");
+      const before = await left(page, "We selected sales");
+      const scale = (await pageBox(page)).width / 612;
+      await page.keyboard.press("Shift+ArrowRight");
+      // Just after the first move starts saving.
+      await page.waitForTimeout(470);
+      await page.keyboard.press("Shift+ArrowRight");
+      await settled(page);
+      await expect
+        .poll(() => left(page, "We selected sales"), { timeout: 8000 })
+        .toBeGreaterThan(before + 19 * scale);
+      // Still page 1: the key never turned the page.
+      await expect(box(page, "MEMORANDUM")).toBeVisible();
+    });
+
     test("the left handle re-wraps from the left; the X field moves the box", async ({ page }) => {
       await openEdit(page);
       const [x, y] = await center(page, "We selected sales");
@@ -967,16 +986,80 @@ test.describe("Edit PDF", () => {
       await panel(page).getByRole("button", { name: "Bold", exact: true }).click();
       await panel(page).getByLabel("Font size").fill("14");
       await panel(page).getByLabel("Font size").press("Enter");
-      await expect(spanOf(page, "invoices")).toHaveCSS("font-weight", "700");
-      await expect(spanOf(page, "selected")).not.toHaveCSS("font-weight", "700");
+      await expect(spanOf(page, "invoices")).toHaveAttribute("data-f", /"bold":true/);
+      await expect(spanOf(page, "selected")).not.toHaveAttribute("data-f", /"bold":true/);
       await editor(page).focus();
       await page.keyboard.press("Escape");
       await settled(page);
       // Open again: the word is still its own bold run.
       const [x2, y2] = await center(page, "We selected sales");
       await page.mouse.click(x2, y2);
-      await expect(spanOf(page, "invoices")).toHaveCSS("font-weight", "700");
-      await expect(spanOf(page, "We selected")).not.toHaveCSS("font-weight", "700");
+      await expect(spanOf(page, "invoices")).toHaveAttribute("data-f", /"bold":true/);
+      await expect(spanOf(page, "We selected")).not.toHaveAttribute("data-f", /"bold":true/);
+    });
+
+    test("with the mouse: one click puts the caret there; a double-click selects a word", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      // Click just before "sales" on the first line: typing goes in there.
+      const b = (await box(page, "We selected sales").boundingBox())!;
+      const word = async (w: string) =>
+        editor(page).evaluate((el, w) => {
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            const at = n.textContent?.indexOf(w) ?? -1;
+            if (at < 0) continue;
+            const r = document.createRange();
+            r.setStart(n, at);
+            r.setEnd(n, at + w.length);
+            const q = r.getBoundingClientRect();
+            return { x: q.x, y: q.y, w: q.width, h: q.height };
+          }
+          return null;
+        }, w);
+      await page.mouse.click(b.x + 40, b.y + 8);
+      await expect(editor(page)).toBeFocused();
+      const sales = (await word("sales"))!;
+      // Now a real click right before "sales" in the open editor: it stays open.
+      await page.mouse.click(sales.x + 1, sales.y + sales.h / 2);
+      await expect(editor(page)).toBeFocused();
+      await page.keyboard.type("XYZ");
+      await expect(editor(page)).toContainText("We selected XYZsales");
+      // Double-click a word: selected; Bold makes only it bold.
+      const inv = (await word("invoices"))!;
+      await page.mouse.dblclick(inv.x + inv.w / 2, inv.y + inv.h / 2);
+      await expect(editor(page)).toBeFocused();
+      await page
+        .getByTestId("edit-panel")
+        .getByRole("button", { name: "Bold", exact: true })
+        .click();
+      await expect(editor(page).locator("span", { hasText: /^invoices\s*$/ })).toHaveAttribute(
+        "data-f",
+        /"bold":true/,
+      );
+    });
+
+    test("the editor draws the text in the real font, at the page's size", async ({ page }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await expect(editor(page)).toBeFocused();
+      // The memo's Liberation Sans subset: the installed (here: firm) Liberation Sans.
+      await expect
+        .poll(() =>
+          editor(page)
+            .locator("span")
+            .first()
+            .evaluate((el) => getComputedStyle(el).fontFamily),
+        )
+        .toContain("pwb-font-");
+      const scale = (await pageBox(page)).width / 612;
+      const px = await editor(page)
+        .locator("span")
+        .first()
+        .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+      expect(px / scale).toBeCloseTo(11, 0);
     });
 
     test("a numbered list from the panel, numbered on the page", async ({ page }) => {
@@ -984,7 +1067,12 @@ test.describe("Edit PDF", () => {
       const [x, y] = await center(page, "We selected sales");
       await page.mouse.click(x, y);
       await expect(editor(page)).toBeFocused();
+      // One click opens the styles; one more picks letters.
       await panel(page).getByRole("button", { name: "Numbered list" }).click();
+      await panel(page).getByRole("menuitemradio", { name: "a. b. c.", exact: true }).click();
+      await expect(editor(page).locator(".rp").first()).toHaveAttribute("data-marker", "a.");
+      await panel(page).getByRole("button", { name: "Numbered list" }).click();
+      await panel(page).getByRole("menuitemradio", { name: "1. 2. 3.", exact: true }).click();
       await expect(editor(page).locator(".rp").first()).toHaveAttribute("data-marker", "1.");
       await editor(page).focus();
       await page.keyboard.press("Escape");
@@ -1071,6 +1159,43 @@ test.describe("Edit PDF", () => {
       await settled(page);
       await expect(page.getByTestId("edit-link")).toHaveCount(0);
       expect(await savedLinks(page, mockfs)).toEqual([]);
+    });
+
+    test("in the viewer a click on a web link asks, then opens it in the browser", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      await toolbarButton(page, "Link").first().click();
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      await page.mouse.move(x + 120, y + 30, { steps: 5 });
+      await page.mouse.up();
+      await page.getByLabel("Web address").fill("example.com/firm");
+      await page.getByTestId("link-save").click();
+      await settled(page);
+      // Out of Edit PDF: the link is a link, not a movable box.
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId("tool-toolbar")).toHaveCount(0);
+      // The page moved up when the toolbar closed: click the link where it is now.
+      const link = await page.evaluate(() => {
+        const el = [...document.querySelectorAll("div")].find((e) => e.style.cursor === "pointer");
+        const r = el?.getBoundingClientRect();
+        return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+      });
+      expect(link).not.toBeNull();
+      await page.mouse.click(link!.x, link!.y);
+      await expect(page.getByRole("dialog")).toContainText("Open https://example.com/firm");
+      await page.getByRole("dialog").getByRole("button", { name: "Open" }).click();
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => (window as unknown as { __PDFWB_OPENED__?: string[] }).__PDFWB_OPENED__,
+          ),
+        )
+        .toEqual(["https://example.com/firm"]);
     });
 
     test("unsafe link addresses are refused; Esc leaves the Link tool", async ({ page }) => {

@@ -70,6 +70,10 @@ const EDGES: Edge[] = ["nw", "n", "ne", "e", "se", "s", "sw", "w"];
 const HANDLE = 7;
 const ROTATE_GAP = 22;
 
+/** The event happened inside the open in-place editor. */
+const inEditor = (target: unknown) =>
+  target instanceof Element && target.closest(".edit-editor") !== null;
+
 const selectionOf = (page: number, it: Item): EditSelection => ({
   page,
   kind: it.kind,
@@ -110,6 +114,8 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     dx: number;
     dy: number;
     moving: boolean;
+    /** Screen point of the press: a click opens the editor with the caret there. */
+    client: { x: number; y: number };
   } | null>(null);
   /** One of the selected text box's frame handles being dragged: the frame now. */
   const [frameDrag, setFrameDrag] = useState<{ box: EditTextBox; edge: Edge; now: Rect } | null>(
@@ -221,6 +227,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     const sid = () => latest.current.wb.meta[documentId]?.storeId;
     return register({
       onPointerMove: (pos, evt) => {
+        if (inEditor(evt.target) && !latest.current.press) return;
         const cd = latest.current.cropDrag;
         if (cd) {
           const c = cropping.get(documentId);
@@ -257,6 +264,9 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         setGhost(null);
       },
       onPointerDown: (pos, evt) => {
+        // Inside the open editor the mouse places the caret and selects text: the
+        // editor keeps it.
+        if (inEditor(evt.target)) return;
         // A click on the page ends an open editor (the page keeps focus from moving, so
         // its blur does not fire). Nothing starts while an edit is running: the page is
         // about to reload.
@@ -323,10 +333,18 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         evt.setPointerCapture?.();
         // Text: a drag moves the box, a click (on release) opens the editor.
         if (hit.kind === "text")
-          setPress({ box: hit, from: pdf(pos), dx: 0, dy: 0, moving: false });
+          setPress({
+            box: hit,
+            from: pdf(pos),
+            dx: 0,
+            dy: 0,
+            moving: false,
+            client: { x: evt.clientX, y: evt.clientY },
+          });
         else setImgDrag({ img: hit, handle: handle ?? "move", from: pdf(pos), now: hit.placement });
       },
       onPointerUp: (pos, evt) => {
+        if (inEditor(evt.target) && !latest.current.press && !latest.current.drag) return;
         if (latest.current.cropDrag) {
           evt.releasePointerCapture?.();
           setCropDrag(null);
@@ -345,7 +363,13 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           setPress(null);
           if (pr.moving)
             void moveTextBox(latest.current.wb, documentId, pageIndex, pr.box, pr.dx, pr.dy);
-          else editSession.open(documentId, { kind: "box", page: pageIndex, box: pr.box });
+          else
+            editSession.open(documentId, {
+              kind: "box",
+              page: pageIndex,
+              box: pr.box,
+              at: pr.client,
+            });
           return;
         }
         const g = latest.current.imgDrag;
@@ -471,7 +495,9 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
   const ghostSize = pending ? naturalSize(pending.px, info.width) : null;
   return (
     <div
-      className={`edit-layer${adding ? " adding" : ""}${showBoxes ? "" : " hide-boxes"}`}
+      className={`edit-layer${adding ? " adding" : ""}${showBoxes ? "" : " hide-boxes"}${
+        editingHere ? " editing" : ""
+      }`}
       data-testid="edit-layer"
     >
       {info.images.map((img) => (

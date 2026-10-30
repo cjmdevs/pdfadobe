@@ -41,7 +41,8 @@ import {
   useShowBoxes,
 } from "./editStore";
 import { fontNameOf, NEW_TEXT_STYLE } from "./TextEditor";
-import { BULLET_STYLES, NUMBER_STYLES, type NumberStyle } from "../../engine/edit/lists";
+import { BULLET_STYLES, NUMBER_STYLES } from "../../engine/edit/lists";
+import { ListMenu } from "./ListMenu";
 import { INDENT_STEP, type CharFmt, type ParaFmt } from "./richModel";
 import { ImageFields, PushOption, TextBoxFields } from "./BoxFields";
 import { ObjectsPanel } from "./ObjectsPanel";
@@ -504,66 +505,22 @@ export default function EditPanel({ documentId }: { documentId: string }) {
       </div>
 
       <div className="format-row" role="group" aria-label="Lists and indents">
-        <button
-          type="button"
-          className={pressed(list?.kind === "bullet")}
-          aria-label="Bulleted list"
-          aria-pressed={list?.kind === "bullet"}
-          title="Bulleted list"
+        <ListMenu
+          label="Bulleted list"
+          glyph="•≡"
+          styles={BULLET_STYLES.map((glyph) => ({ kind: "bullet" as const, glyph }))}
+          current={list?.kind === "bullet" ? list : null}
           disabled={disabled}
-          onClick={() =>
-            void apply({ list: list?.kind === "bullet" ? null : { kind: "bullet", glyph: "•" } })
-          }
-        >
-          •≡
-        </button>
-        <select
-          aria-label="Bullet style"
-          title="Bullet style"
-          value={list?.kind === "bullet" ? list.glyph : ""}
+          onPick={(l) => void apply({ list: l })}
+        />
+        <ListMenu
+          label="Numbered list"
+          glyph="1≡"
+          styles={NUMBER_STYLES.map((format) => ({ kind: "number" as const, format }))}
+          current={list?.kind === "number" ? list : null}
           disabled={disabled}
-          onChange={(e) => void apply({ list: { kind: "bullet", glyph: e.target.value } })}
-        >
-          <option value="" disabled>
-            ▾
-          </option>
-          {BULLET_STYLES.map((g) => (
-            <option key={g} value={g}>
-              {g}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          className={pressed(list?.kind === "number")}
-          aria-label="Numbered list"
-          aria-pressed={list?.kind === "number"}
-          title="Numbered list"
-          disabled={disabled}
-          onClick={() =>
-            void apply({ list: list?.kind === "number" ? null : { kind: "number", format: "1." } })
-          }
-        >
-          1≡
-        </button>
-        <select
-          aria-label="Number style"
-          title="Number style"
-          value={list?.kind === "number" ? list.format : ""}
-          disabled={disabled}
-          onChange={(e) =>
-            void apply({ list: { kind: "number", format: e.target.value as NumberStyle } })
-          }
-        >
-          <option value="" disabled>
-            ▾
-          </option>
-          {NUMBER_STYLES.map((f) => (
-            <option key={f} value={f}>
-              {f}
-            </option>
-          ))}
-        </select>
+          onPick={(l) => void apply({ list: l })}
+        />
         <button
           type="button"
           className="format-toggle"

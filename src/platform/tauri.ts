@@ -258,6 +258,10 @@ export const tauriPlatform: Platform = {
     },
   },
 
+  async openUrl(url) {
+    await call("open_url", { url });
+  },
+
   async openInAcrobat(path) {
     await call("open_in_acrobat", { path });
   },

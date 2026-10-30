@@ -167,6 +167,8 @@ export interface RetypesetResult {
   fakeItalic: boolean;
   /** Text or rules the new text runs into (not pushed down: the user resizes). */
   overflow: Overflow[];
+  /** The new text runs past the edge of the page (the edit is kept; the UI warns). */
+  offPage?: boolean;
   /** Boxes pushed down below the edited one (`push`), and how many went off the page. */
   pushed?: number;
   pushedOff?: number;
@@ -249,6 +251,7 @@ export function retypeset(
   // A box of one-line paragraphs (labels, cells, amounts, address blocks) grows
   // instead of wrapping; new text wraps only when given a width.
   // A width the user set always wraps.
+  const pageWidth = m.FPDF_GetPageWidthF(page);
   const wrap = box
     ? newWidth !== undefined || box.paragraphs.some((p) => p.lines.length > 1)
     : target.kind === "new" && target.width !== null;
@@ -263,20 +266,32 @@ export function retypeset(
     if (i) baseline -= (st.spaceBefore ?? 0) + (paragraphs[i - 1]?.style.spaceAfter ?? 0);
     const marker = markers[i] ?? null;
     const firstX = left + (st.marker && !marker ? st.marker.at : (st.indent?.first ?? 0));
-    const lines = layoutRuns(
-      fragsOf[i] ?? [],
-      {
-        l: left + (st.indent?.left ?? 0),
-        // A right indent only narrows wrapped text (a growing line has no right edge).
-        r: wrap ? right - (st.indent?.right ?? 0) : right,
-        first: firstX,
-        wrap,
-      },
-      st.align,
-      baseline,
-      st.leading,
-      measure,
-    );
+    const layout = (wrapIt: boolean, r: number) =>
+      layoutRuns(
+        fragsOf[i] ?? [],
+        {
+          l: left + (st.indent?.left ?? 0),
+          // A right indent only narrows wrapped text (a growing line has no right edge).
+          r: wrapIt ? r - (st.indent?.right ?? 0) : r,
+          first: firstX,
+          wrap: wrapIt,
+        },
+        st.align,
+        baseline,
+        st.leading,
+        measure,
+      );
+    let lines = layout(wrap, right);
+    // A growing line never runs off the page sideways: past the page's right margin
+    // (as wide as the box's left one, 18 to 72 points) it wraps there instead.
+    const limit = pageWidth - Math.max(18, Math.min(left, 72));
+    if (
+      !wrap &&
+      st.align === "left" &&
+      lines.some((l) => l.x + l.width > limit) &&
+      limit > left + 36
+    )
+      lines = layout(true, limit);
     const top = lines[0];
     if (marker && top)
       top.runs.unshift({ text: marker.text, x: left + marker.at, y: top.y, piece: marker.piece });
@@ -295,7 +310,7 @@ export function retypeset(
     let fakeBold = false;
     let fakeItalic = false;
     const perParagraph: number[][] = [];
-    for (const { lines } of placed) {
+    for (const { lines, para } of placed) {
       const from = created.length;
       for (const line of lines) {
         for (const run of line.runs) {
@@ -334,6 +349,8 @@ export function retypeset(
                 ...(s.wordSpacing ? { wordSpacing: s.wordSpacing } : {}),
                 ...(s.hScale !== undefined && s.hScale !== 100 ? { hScale: s.hScale } : {}),
                 ...(s.kerning ? { kerning: true } : {}),
+                leading: para.style.leading,
+                ...(para.style.spaceAfter ? { spaceAfter: para.style.spaceAfter } : {}),
               });
             }
             x += measure(run.piece, part) + measure(run.piece, " ");
@@ -389,9 +406,12 @@ export function retypeset(
         ),
     );
     const others = target.others.filter((o) => o !== box);
+    const bounds = union(lineRects);
     return {
       lines: lineRects,
-      bounds: union(lineRects),
+      bounds,
+      // The crop box is taken to start at 0,0 (see progress.md).
+      ...(bounds.b < 0 || bounds.r > pageWidth || bounds.l < 0 ? { offPage: true } : {}),
       fonts: fonts.written(),
       fakeBold,
       fakeItalic,
@@ -957,7 +977,9 @@ export function detectStyle(m: PdfiumModule, box: TextBox, rules: Rules): Paragr
             : box.justified
               ? "justify"
               : "left",
-      leading: box.leading ?? Math.round(main.size * 1.2 * 100) / 100,
+      // A one-line paragraph has no second baseline: the spacing it was written with.
+      leading:
+        box.leading ?? lookOf(m, main.obj).leading ?? Math.round(main.size * 1.2 * 100) / 100,
       // Centred / right-aligned lines have no indent: each line sits on the shared edge.
       ...(box.align === "left"
         ? { indent: { first: round(p.firstL - left), left: round(p.bodyL - left) } }

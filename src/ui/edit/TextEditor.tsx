@@ -14,7 +14,9 @@ import type { EditOutcome, PlainStyle, RichText } from "../../engine/edit";
 import { numberLists } from "../../engine/edit/lists";
 import { pageOp } from "../../app/pages";
 import { useWorkbench } from "../../app/workbench";
-import { cssFont } from "./cssFont";
+import { fontCss, loadFonts } from "./editorFonts";
+import { fontIndex } from "../../app/fontIndex";
+import { platform } from "../../platform";
 import { afterTextEdit, overflowText, reportTextEdit, textEditOpts } from "./editActions";
 import {
   editSession,
@@ -199,12 +201,13 @@ function draw(
 }
 
 function spanCss(f: CharFmt, scale: number): string {
-  const font = cssFont(f.fontName ?? "Helvetica");
+  // The real font where it could be loaded (`editorFonts.ts`), else a look-alike.
+  const font = fontCss(f.fontName ?? "Helvetica", f.font, !!f.bold, !!f.italic);
   const size = (f.size ?? 11) * (f.script ? SCRIPT : 1);
   return css({
     fontFamily: font.family,
-    fontWeight: f.bold ? 700 : font.weight,
-    fontStyle: f.italic ? "italic" : font.style,
+    fontWeight: font.weight,
+    fontStyle: font.style,
     fontSize: `${size * scale}px`,
     color: f.color ? `rgba(${f.color.r},${f.color.g},${f.color.b},${f.color.a / 255})` : undefined,
     textDecoration: f.underline ? "underline" : undefined,
@@ -351,6 +354,22 @@ export function TextEditor({
     editSession.setCaret(documentId, { char: fmtAt(doc, at), para: p?.para ?? {} });
   };
 
+  /** Loads the real fonts the text uses; draws again once any arrive. */
+  const ensureFonts = () => {
+    const wanted = model.current.flatMap((p) =>
+      [p.base, ...p.runs.map((r) => ({ ...p.base, ...r.fmt }))].map((f) => ({
+        fontName: f.fontName ?? "Helvetica",
+        font: f.font,
+      })),
+    );
+    void fontIndex(platform, wb.settings.firmFontsPath)
+      .catch(() => null)
+      .then((index) => loadFonts(wanted, index))
+      .then((loaded) => {
+        if (loaded && !committed.current) redraw(now(), selection());
+      });
+  };
+
   /** A change from the Format panel. */
   const format = (change: FormatChange) => {
     // The panel has focus: the browser's selection is not the user's any more.
@@ -374,6 +393,7 @@ export function TextEditor({
     redraw(doc, sel);
     if (sel) lastSel.current = sel;
     report();
+    if (change.char?.font) ensureFonts();
   };
 
   const commit = () => {
@@ -469,13 +489,14 @@ export function TextEditor({
   };
 
   // The latest commit for Escape, the tool closing and clicks on the page.
-  const latest = useRef({ commit, split, format, report });
+  const latest = useRef({ commit, split, format, report, ensureFonts });
   useEffect(() => {
-    latest.current = { commit, split, format, report };
+    latest.current = { commit, split, format, report, ensureFonts };
   });
   useEffect(() => {
     const el = ref.current;
     if (el) draw(el, model.current, scale, fonts.current);
+    latest.current.ensureFonts();
     editSession.registerCommit(documentId, () => latest.current.commit());
     editSession.registerSplit(documentId, () => latest.current.split());
     editSession.registerFormatter(documentId, (c) => latest.current.format(c));
@@ -487,12 +508,18 @@ export function TextEditor({
       const e = ref.current;
       if (!e) return;
       e.focus();
-      const last = model.current.length - 1;
-      const end = { p: last, o: model.current[last]?.text.length ?? 0 };
-      latest.current.report();
       const s = window.getSelection();
-      const [n, o] = domAt(e, end);
-      s?.collapse(n, o);
+      // The caret where the click was (one click edits right there), else at the end.
+      const at = session.kind === "box" ? session.at : undefined;
+      const hit = at ? caretAt(at.x, at.y) : null;
+      if (hit && e.contains(hit.node)) s?.collapse(hit.node, hit.offset);
+      else {
+        const last = model.current.length - 1;
+        const end = { p: last, o: model.current[last]?.text.length ?? 0 };
+        const [n, o] = domAt(e, end);
+        s?.collapse(n, o);
+      }
+      latest.current.report();
     }, 0);
     return () => {
       window.clearTimeout(t);
@@ -601,6 +628,15 @@ export function TextEditor({
       onPointerDown={(e) => e.stopPropagation()}
     />
   );
+}
+
+/** The text position under a screen point (Chromium / WebView2's caretRangeFromPoint). */
+function caretAt(x: number, y: number): { node: Node; offset: number } | null {
+  const d = document as Document & {
+    caretRangeFromPoint?(x: number, y: number): Range | null;
+  };
+  const r = d.caretRangeFromPoint?.(x, y);
+  return r ? { node: r.startContainer, offset: r.startOffset } : null;
 }
 
 /** Deletes the text between `a` and `b` (a <= b), joining the paragraphs it spans. */

@@ -355,6 +355,12 @@ export const browserPlatform: Platform = {
     },
   },
 
+  async openUrl(url) {
+    // Tests read what was opened from window.__PDFWB_OPENED__ (no browser launch here).
+    const w = window as unknown as { __PDFWB_OPENED__?: string[] };
+    (w.__PDFWB_OPENED__ ??= []).push(url);
+  },
+
   async openInAcrobat(path) {
     // Tests read the request from window.__PDFWB_ACROBAT__ (no Acrobat in a browser).
     const w = window as unknown as { __PDFWB_ACROBAT__?: string[] };

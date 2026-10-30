@@ -111,6 +111,8 @@ export interface Platform {
   /** Opens a file on disk in Adobe Acrobat or Reader (XFA-only forms, Phase 6). Throws
    * PlatformError("acrobatMissing") when neither is installed. */
   openInAcrobat(path: string): Promise<void>;
+  /** Opens a web (http/https) or email (mailto) address in the default program. */
+  openUrl(url: string): Promise<void>;
   /** Edit Using (Edit PDF): an image opened in another program, read back when saved. */
   externalEdit: ExternalEdit;
   /** qpdf-repair `source` into `target` (never the same file). */

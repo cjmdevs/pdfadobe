@@ -43,6 +43,7 @@ import { ToolsPane } from "./ui/ToolsPane";
 import { PropertiesBar } from "./ui/markup/PropertiesBar";
 import { MarkupBridge } from "./ui/markup/MarkupBridge";
 import { EditBridge } from "./ui/edit/EditBridge";
+import { LinkNavigator } from "./ui/LinkNavigator";
 import { CommentsPanel } from "./ui/markup/CommentsPanel";
 import { FormRenderers } from "./ui/forms/FormRenderers";
 
@@ -86,7 +87,9 @@ function plugins(settings: Settings) {
     createPluginRegistration(AnnotationPluginPackage, {
       ...markupConfig(settings),
       // Form widgets locked = fill mode (Phase 6). Unlocked would be form design.
-      locked: { type: LockModeType.Include, categories: ["form"] },
+      // Links locked too: a click follows them (LinkNavigator) instead of moving them;
+      // the Edit tool's Link button edits them.
+      locked: { type: LockModeType.Include, categories: ["form", "link"] },
     }),
     // Form filling in the viewer (Phase 6), with our own text field (ui/forms/TextFill).
     createPluginRegistration(FormPluginPackage),
@@ -232,6 +235,7 @@ function Shell({ ready }: { ready: boolean }) {
           <ToolToolbar key={loadedId} documentId={loadedId} />
           <PropertiesBar key={`props-${loadedId}`} documentId={loadedId} />
           <EditBridge key={`edit-${loadedId}`} documentId={loadedId} />
+          <LinkNavigator />
         </Guard>
       )}
       <main className="workspace">

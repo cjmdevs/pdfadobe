@@ -29,6 +29,7 @@ const imageRef = (page: number, img: EditImage) => ({ page, id: img.id, rect: im
 
 /** What the edit ran into, in words, or null. */
 export function overflowText(r: RetypesetResult | null): string | null {
+  if (r?.offPage) return "the edge of the page";
   if (!r?.overflow.length) return null;
   const hit = r.overflow.find((o) => o.kind === "text");
   return hit ? `the text "${hit.text}"` : "a line on the page";
@@ -64,7 +65,12 @@ export function afterTextEdit(
 
 /** Toasts after an edit: what it runs into, or what was pushed down. */
 export function reportTextEdit(wb: WorkbenchApi, r: RetypesetResult | null, hit: string | null) {
-  if (r?.pushedOff)
+  if (r?.offPage)
+    wb.toast(
+      "The text now runs past the edge of the page. Shorten it, resize the box, or undo.",
+      "error",
+    );
+  else if (r?.pushedOff)
     wb.toast(
       `${r.pushedOff} pushed text box${r.pushedOff > 1 ? "es now run" : " now runs"} past the bottom of the page.`,
       "error",

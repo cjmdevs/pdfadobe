@@ -271,15 +271,11 @@ const STALE = "The page changed since this text was selected. Select it again.";
 const previewOf = (b: TextBox) => (b.paragraphs[0]?.text ?? "").slice(0, 60);
 
 /**
- * Joins boxes on one page into one paragraph, in the top box's place and style, as
- * wide as all of them together. One undo step.
+ * Joins boxes on one page into one text box. Nothing is re-typeset: every paragraph
+ * keeps its place, indent, font and spacing; the boxes' text objects are just marked
+ * as one box (`marks.ts`), so the page groups them together from now on. One undo step.
  */
-export function joinBoxes(
-  m: PdfiumModule,
-  bytes: Uint8Array,
-  refs: BoxRef[],
-  deps: RetypesetDeps,
-): EditOutcome {
+export function joinBoxes(m: PdfiumModule, bytes: Uint8Array, refs: BoxRef[]): EditOutcome {
   const page = refs[0]?.page ?? 0;
   if (refs.length < 2 || refs.some((r) => r.page !== page))
     throw new EditRefused("Select two or more text boxes on the same page to join them.");
@@ -295,39 +291,39 @@ export function joinBoxes(
           return b;
         });
         picked.sort((a, b) => b.t - a.t || a.l - b.l);
-        const [top, ...rest] = picked as [TextBox, ...TextBox[]];
-        const text = picked
-          .flatMap((b) => b.paragraphs.map((x) => x.text))
-          .join(" ")
-          .replace(/\s+/g, " ")
-          .trim();
-        const style = detectStyle(m, top, g.rules)[0];
-        if (!style) throw new Error("box without paragraphs");
-        const width = Math.max(...picked.map((b) => b.r)) - top.l;
-        // Lines after the first start at the leftmost box's edge (a split first-line
-        // indent comes back whole).
-        const indent = {
-          first: style.indent?.first ?? 0,
-          left: Math.min(...picked.map((b) => b.l)) - top.l,
+        const id = picked.find((b) => b.id !== null)?.id ?? nextBoxId(m, p);
+        const keys = picked.map((b) => ({ preview: previewOf(b), l: b.l, t: b.t }));
+        const rects: Rect[] = [];
+        for (const k of keys) {
+          // Found again each time: giving one box its own objects can rewrite a text
+          // object it shared with the next.
+          const now = groupNow(m, p);
+          const b = now.boxes.find(
+            (x) =>
+              previewOf(x) === k.preview && Math.abs(x.l - k.l) < 0.5 && Math.abs(x.t - k.t) < 0.5,
+          );
+          if (!b) throw new EditRefused(STALE);
+          const { objects, removal } = isolateBox(m, doc.ptr, p, b, now.chars);
+          removal.commit();
+          for (const o of objects) setBoxId(m, doc.ptr, o, id, spacingOf(m, o));
+          rects.push(...b.lines.map((l) => ({ l: l.l, b: l.b, r: l.r, t: l.t })));
+        }
+        const bounds = {
+          l: Math.min(...rects.map((r) => r.l)),
+          b: Math.min(...rects.map((r) => r.b)),
+          r: Math.max(...rects.map((r) => r.r)),
+          t: Math.max(...rects.map((r) => r.t)),
         };
-        const at = { l: top.l, t: top.t, preview: previewOf(top) };
-        // The other boxes' text goes first; the top box is found again (a shared text
-        // object may have been rewritten).
-        for (const b of rest) removeBoxText(m, doc.ptr, p, b, g.chars).commit();
-        const h = groupNow(m, p);
-        const again = h.boxes.find(
-          (b) =>
-            previewOf(b) === at.preview && Math.abs(b.l - at.l) < 1 && Math.abs(b.t - at.t) < 1,
-        );
-        if (!again) throw new EditRefused(STALE);
-        return retypeset(
-          m,
-          doc.ptr,
-          p,
-          { kind: "box", box: again, chars: h.chars, rules: h.rules, others: h.boxes, width },
-          [{ text, style: { ...style, indent, spaceBefore: 0 } }],
-          deps,
-        );
+        const joined: RetypesetResult = {
+          lines: rects,
+          bounds,
+          fonts: [],
+          fakeBold: false,
+          fakeItalic: false,
+          objects: [],
+          overflow: [],
+        };
+        return joined;
       },
       true,
     );
