@@ -27,8 +27,10 @@ describe("tool registry", () => {
   });
 
   it("unbuilt tools say when they come and cannot run", () => {
+    // Since Phase 8 every tool is built; a stand-in checks the label.
     const planned = TOOLS.filter((t) => !isBuilt(t));
-    expect(planned.length).toBeGreaterThan(0);
+    const sample = TOOLS[0];
+    if (sample) planned.push({ ...sample, comingIn: "later" });
     for (const t of planned) {
       expect(comingLabel(t)).toMatch(/^Coming in/);
       expect(comingLabel({ ...t, comingIn: 7 })).toBe("Coming in Phase 7");

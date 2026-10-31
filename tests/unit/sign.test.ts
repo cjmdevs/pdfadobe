@@ -13,7 +13,18 @@ import { testIdentity, type TestIdentity } from "../helpers/test-signer";
 import { createPdfium, type PdfiumModule } from "../../src/engine/pdfium";
 import { RawDoc } from "../../src/engine/pages/raw";
 import { PdfObjects } from "../../src/engine/redact/objects";
-import { emptySignatureFields, listSignatures, signPdf, SignError } from "../../src/engine/sign";
+import {
+  drawFillMark,
+  drawSignatureMark,
+  drawTextMark,
+  emptySignatureFields,
+  frameOf,
+  listSignatures,
+  signPdf,
+  SignError,
+} from "../../src/engine/sign";
+import { pageFrames } from "../../src/engine/pages/graft";
+import { PDFDocument, degrees } from "pdf-lib";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -103,7 +114,7 @@ function pdfiumSignatureCount(bytes: Uint8Array): number {
 
 describe("certificate signing", () => {
   it("signs invisibly; the signature verifies and covers the whole file", async () => {
-    const out = await signPdf(m, qpdf, corpus("text-1p.pdf"), {
+    const out = await signPdf(qpdf, corpus("text-1p.pdf"), {
       signer: id.signer,
       reason: "I approve this document",
       location: "Office",
@@ -127,7 +138,7 @@ describe("certificate signing", () => {
   it("signs visibly with an image, on a rotated page too", async () => {
     const img = { width: 2, height: 1, data: new Uint8Array([0, 0, 0, 255, 0, 0, 0, 0]) };
     for (const file of ["text-1p.pdf", "scanned-sideways.pdf"]) {
-      const out = await signPdf(m, qpdf, corpus(file), {
+      const out = await signPdf(qpdf, corpus(file), {
         signer: id.signer,
         box: { page: 0, rect: { x: 72, y: 72, width: 240, height: 60 } },
         reason: "Reviewed",
@@ -146,18 +157,18 @@ describe("certificate signing", () => {
   it("fills an existing empty signature field", async () => {
     const src = corpus("sign-field.pdf");
     expect(emptySignatureFields(await PdfObjects.read(qpdf, src))).toEqual(["Client Signature"]);
-    const out = await signPdf(m, qpdf, src, { signer: id.signer, field: "Client Signature" });
+    const out = await signPdf(qpdf, src, { signer: id.signer, field: "Client Signature" });
     expect(emptySignatureFields(await PdfObjects.read(qpdf, out))).toEqual([]);
     expect((await listSignatures(out))[0]?.intact).toBe(true);
     await expect(
-      signPdf(m, qpdf, out, { signer: id.signer, field: "Client Signature" }),
+      signPdf(qpdf, out, { signer: id.signer, field: "Client Signature" }),
     ).rejects.toThrow(/already signed/);
   });
 
   it("a second signature appends: the first stays valid and reports the later change", async () => {
-    const once = await signPdf(m, qpdf, corpus("text-1p.pdf"), { signer: id.signer });
+    const once = await signPdf(qpdf, corpus("text-1p.pdf"), { signer: id.signer });
     const other = await testIdentity("Second Signer", "ec");
-    const twice = await signPdf(m, qpdf, once, {
+    const twice = await signPdf(qpdf, once, {
       signer: other.signer,
       box: { page: 0, rect: { x: 300, y: 72, width: 200, height: 50 } },
     });
@@ -172,7 +183,7 @@ describe("certificate signing", () => {
   });
 
   it("a changed byte inside the signed range breaks the signature", async () => {
-    const out = await signPdf(m, qpdf, corpus("text-1p.pdf"), { signer: id.signer });
+    const out = await signPdf(qpdf, corpus("text-1p.pdf"), { signer: id.signer });
     const bad = out.slice();
     bad[200] = (bad[200]! + 1) & 255;
     const [sig] = await listSignatures(bad);
@@ -181,14 +192,38 @@ describe("certificate signing", () => {
   });
 
   it("refuses a password-protected file", async () => {
-    await expect(signPdf(m, qpdf, corpus("encrypted.pdf"), { signer: id.signer })).rejects.toThrow(
+    await expect(signPdf(qpdf, corpus("encrypted.pdf"), { signer: id.signer })).rejects.toThrow(
       SignError,
     );
   });
 
+  it("page frames from qpdf's objects match PDFium's (rotation, crop box)", async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([612, 792]).setRotation(degrees(90));
+    const p2 = doc.addPage([500, 400]);
+    p2.setCropBox(20, 30, 300, 200);
+    p2.setRotation(degrees(270));
+    doc.addPage([300, 300]).setRotation(degrees(180));
+    const bytes = await doc.save();
+    const objs = await PdfObjects.read(qpdf, bytes);
+    expect(objs.pages().map((p) => frameOf(objs, p))).toEqual(pageFrames(m, bytes));
+  });
+
+  it("draws Fill & Sign marks as one-page PDFs", async () => {
+    for (const k of ["check", "cross", "dot"] as const) {
+      const d = await drawFillMark(k);
+      expect(d.width).toBe(14);
+      expect((await PDFDocument.load(d.pdf)).getPageCount()).toBe(1);
+    }
+    expect((await drawTextMark("10/31/2026")).width).toBeGreaterThan(40);
+    const png = new Uint8Array(readFileSync(join(OUT_DIR, "stamp-reviewed.png")));
+    const sig = await drawSignatureMark(png, 120, 40, "10/31/2026");
+    expect(sig.height).toBeGreaterThan(40);
+  });
+
   it("writes the Acrobat check files", async () => {
     mkdirSync(SPIKE_DIR, { recursive: true });
-    const visible = await signPdf(m, qpdf, corpus("text-1p.pdf"), {
+    const visible = await signPdf(qpdf, corpus("text-1p.pdf"), {
       signer: id.signer,
       box: { page: 0, rect: { x: 72, y: 450, width: 260, height: 70 } },
       reason: "I approve this document",
@@ -197,7 +232,7 @@ describe("certificate signing", () => {
     writeFileSync(join(SPIKE_DIR, "signed-visible.pdf"), visible);
     writeFileSync(
       join(SPIKE_DIR, "signed-field.pdf"),
-      await signPdf(m, qpdf, corpus("sign-field.pdf"), {
+      await signPdf(qpdf, corpus("sign-field.pdf"), {
         signer: id.signer,
         field: "Client Signature",
       }),

@@ -9,6 +9,7 @@ import {
   PDF_FORM_FIELD_FLAG,
   PDF_FORM_FIELD_TYPE,
   PdfAnnotationSubtype,
+  type PdfAnnotationObject,
   type PdfWidgetAnnoObject,
 } from "@embedpdf/models";
 import {
@@ -24,16 +25,31 @@ import { TextFill } from "./TextFill";
 
 const TEXT_ID = "formTextField";
 
-/** Signature fields: not covered by the form plugin's renderers. */
+const isSignature = (a: PdfAnnotationObject) =>
+  a.type === PdfAnnotationSubtype.WIDGET &&
+  (a as PdfWidgetAnnoObject).field?.type === PDF_FORM_FIELD_TYPE.SIGNATURE;
+const hasLook = (a: PdfAnnotationObject) => (a.appearanceModes ?? 0) > 0;
+
+/** Signature fields: not covered by the form plugin's renderers. Without a look of
+ * their own they are drawn as a labelled box. */
 const signatureRenderer = createRenderer<PdfWidgetAnnoObject>({
   id: "formSignature",
-  matches: (a): a is PdfWidgetAnnoObject =>
-    a.type === PdfAnnotationSubtype.WIDGET &&
-    (a as PdfWidgetAnnoObject).field?.type === PDF_FORM_FIELD_TYPE.SIGNATURE,
+  matches: (a): a is PdfWidgetAnnoObject => isSignature(a) && !hasLook(a),
   render: (p) => <SignatureBox props={p} />,
   renderLocked: (p) => <SignatureBox props={p} />,
   interactionDefaults: { isDraggable: true, isResizable: true, isRotatable: false },
   useAppearanceStream: false,
+});
+
+/** Signature fields with an appearance (signed ones, Phase 8): their own look, with a
+ * see-through box on top for clicks. */
+const signatureLookRenderer = createRenderer<PdfWidgetAnnoObject>({
+  id: "formSignatureLook",
+  matches: (a): a is PdfWidgetAnnoObject => isSignature(a) && hasLook(a),
+  render: (p) => <SignatureBox props={p} overlay />,
+  renderLocked: (p) => <SignatureBox props={p} overlay />,
+  interactionDefaults: { isDraggable: true, isResizable: true, isRotatable: false },
+  useAppearanceStream: true,
 });
 
 function Widget({ props, children }: { props: AnnotationRendererProps; children: ReactElement }) {
@@ -61,7 +77,7 @@ export function FormRenderers() {
             renderLocked: (p: AnnotationRendererProps) => <Widget props={p}>{inner(p)}</Widget>,
           };
         })
-        .concat(signatureRenderer),
+        .concat(signatureRenderer, signatureLookRenderer),
     [],
   );
   const inUse = current.find((r) => r.id === TEXT_ID)?.renderLocked;

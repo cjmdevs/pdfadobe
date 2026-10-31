@@ -14,7 +14,11 @@ import {
   PlatformError,
   baseName,
   type AppWindows,
+  type CertInfo,
+  type CertProvider,
   type CustomStamp,
+  type SavedSignature,
+  type SignatureLibrary,
   type FontFolders,
   type StampLibrary,
   type FileErrorKind,
@@ -152,6 +156,43 @@ const stamps: StampLibrary = {
   },
 };
 
+const signatures: SignatureLibrary = {
+  list: () => call<SavedSignature[]>("signatures_list"),
+  read: async (id) => new Uint8Array(await call<ArrayBuffer>("signature_read", { id })),
+  add: (kind, png) =>
+    call<SavedSignature>("signature_add", png, {
+      headers: { "x-signature": encodeURIComponent(JSON.stringify({ kind })) },
+    }),
+  remove: async (id) => {
+    await call("signature_remove", { id });
+  },
+};
+
+type RawCert = Omit<CertInfo, "chain"> & { chain: number[][] };
+const toCert = (c: RawCert): CertInfo => ({ ...c, chain: c.chain.map((d) => Uint8Array.from(d)) });
+const pfxHeader = (password: string) => ({
+  headers: { "x-pfx": encodeURIComponent(JSON.stringify({ password })) },
+});
+
+const certs: CertProvider = {
+  list: async () => (await call<RawCert[]>("certs_list")).map(toCert),
+  sign: async (thumbprint, data) =>
+    new Uint8Array(
+      await call<ArrayBuffer>("cert_sign", data, {
+        headers: { "x-cert": encodeURIComponent(JSON.stringify({ thumbprint })) },
+      }),
+    ),
+  pfxOpen: async (pfx, password) =>
+    toCert(await call<RawCert>("pfx_open", pfx, pfxHeader(password))),
+  pfxSign: async (pfx, password, data) => {
+    const body = new Uint8Array(4 + pfx.length + data.length);
+    new DataView(body.buffer).setUint32(0, pfx.length, true);
+    body.set(pfx, 4);
+    body.set(data, 4 + pfx.length);
+    return new Uint8Array(await call<ArrayBuffer>("pfx_sign", body, pfxHeader(password)));
+  },
+};
+
 const fonts: FontFolders = {
   list: (firm) => call("fonts_list", { firm }),
   read: async (path) => new Uint8Array(await call<ArrayBuffer>("font_read", { path })),
@@ -167,25 +208,32 @@ export const tauriPlatform: Platform = {
 
   async pickFiles(opts) {
     const picked = await open({
-      multiple: !opts?.pictures && !opts?.json && !opts?.formData && !opts?.csv,
+      multiple: !opts?.pictures && !opts?.json && !opts?.formData && !opts?.csv && !opts?.pfx,
       directory: false,
-      filters: opts?.formData
-        ? [{ name: "Form data (FDF, XFDF, JSON, CSV)", extensions: ["fdf", "xfdf", "json", "csv"] }]
-        : opts?.csv
-          ? [{ name: "CSV (Excel)", extensions: ["csv"] }]
-          : opts?.json
-            ? [{ name: "Workpaper settings (JSON)", extensions: ["json"] }]
-            : opts?.xfdf
-              ? [{ name: "Comments (XFDF)", extensions: ["xfdf"] }]
-              : opts?.pictures
-                ? [{ name: "Images (JPEG, PNG)", extensions: ["jpg", "jpeg", "png"] }]
-                : opts?.images
-                  ? [
-                      { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
-                      { name: "PDF files", extensions: ["pdf"] },
-                      { name: "Images", extensions: IMAGE_EXTENSIONS },
-                    ]
-                  : [{ name: "PDF files", extensions: ["pdf"] }],
+      filters: opts?.pfx
+        ? [{ name: "Certificate (.pfx, .p12)", extensions: ["pfx", "p12"] }]
+        : opts?.formData
+          ? [
+              {
+                name: "Form data (FDF, XFDF, JSON, CSV)",
+                extensions: ["fdf", "xfdf", "json", "csv"],
+              },
+            ]
+          : opts?.csv
+            ? [{ name: "CSV (Excel)", extensions: ["csv"] }]
+            : opts?.json
+              ? [{ name: "Workpaper settings (JSON)", extensions: ["json"] }]
+              : opts?.xfdf
+                ? [{ name: "Comments (XFDF)", extensions: ["xfdf"] }]
+                : opts?.pictures
+                  ? [{ name: "Images (JPEG, PNG)", extensions: ["jpg", "jpeg", "png"] }]
+                  : opts?.images
+                    ? [
+                        { name: "PDF and image files", extensions: ["pdf", ...IMAGE_EXTENSIONS] },
+                        { name: "PDF files", extensions: ["pdf"] },
+                        { name: "Images", extensions: IMAGE_EXTENSIONS },
+                      ]
+                    : [{ name: "PDF files", extensions: ["pdf"] }],
     });
     if (!picked) return [];
     const paths = Array.isArray(picked) ? picked : [picked];
@@ -228,6 +276,8 @@ export const tauriPlatform: Platform = {
   docs,
   windows,
   stamps,
+  signatures,
+  certs,
   fonts,
 
   takeLaunchPaths: () => call<string[]>("take_launch_paths"),

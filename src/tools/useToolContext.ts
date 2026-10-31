@@ -1,11 +1,11 @@
 // Builds the ToolContext for the active document (or for no document).
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
-import { ERASER_MODE, STAMP_MODE } from "../markup/config";
+import { ERASER_MODE, SIGN_BOX_MODE, STAMP_MODE } from "../markup/config";
 import {
   linkMode,
   useLinkMode,
@@ -25,6 +25,8 @@ import {
   type PendingStamp,
 } from "../ui/markup/stampPlacement";
 import { allStamps, stampMenu, useStampLibraryVersion } from "../ui/markup/stampLibrary";
+import { placeRequest, usePlaceRequest } from "../ui/sign/placeRequest";
+import { signatureStamp, useSavedSignatures } from "../ui/sign/fillSign";
 import { importXfdf } from "../ui/markup/importXfdf";
 import { useFlyerCommands } from "../ui/flyer/useFlyer";
 import { useRedactCommands } from "../ui/redact/useRedact";
@@ -61,6 +63,25 @@ export function useDocToolContext(documentId: string): ToolContext {
   const redact = useRedactCommands(documentId, !encrypted);
   // Custom stamps load here; the Stamp menu reads them when it opens.
   useStampLibraryVersion();
+  // A signature just saved in Add Signature is placed on this document.
+  const place = usePlaceRequest();
+  const saved = useSavedSignatures();
+  useEffect(() => {
+    if (!place || place.documentId !== documentId || !annots || encrypted) return;
+    // Several components build this context; the first to see the request takes it.
+    if (placeRequest.get() !== place) return;
+    placeRequest.set(null);
+    void signatureStamp(place.signature, wb.settings.signWithDate).then(
+      (s) => {
+        annots.setActiveTool(null);
+        stampPlacement.set(s);
+        im?.activate(STAMP_MODE);
+        wb.toast(`Click on the page to place your ${s.subject.toLowerCase()} (Esc cancels).`);
+      },
+      (e: unknown) =>
+        wb.toast(`Could not place it: ${e instanceof Error ? e.message : String(e)}`, "error"),
+    );
+  }, [place, documentId, annots, encrypted, im, wb]);
   return useMemo(
     () => ({
       wb,
@@ -131,6 +152,15 @@ export function useDocToolContext(documentId: string): ToolContext {
                 );
               },
               stampMenu: () => stampMenu(wb, allStamps(wb)),
+              savedSignatures: saved,
+              armStamp: (s) => {
+                annots.setActiveTool(null);
+                stampPlacement.set(s);
+                im?.activate(STAMP_MODE);
+                wb.toast(
+                  `Click on the page to place the ${s.subject.toLowerCase()} (Esc cancels).`,
+                );
+              },
             }
           : null,
       // Edit PDF reads and writes the store's bytes, which encrypted documents lack.
@@ -163,8 +193,21 @@ export function useDocToolContext(documentId: string): ToolContext {
           },
       flyer,
       redact,
+      sign: {
+        drawing: imState.activeMode === SIGN_BOX_MODE,
+        setDrawing: (on) => {
+          if (!on) return im?.activateDefaultMode();
+          annots?.setActiveTool(null);
+          im?.activate(SIGN_BOX_MODE);
+          wb.toast(
+            "Drag a box where the signature goes (or click for the usual size). Esc cancels.",
+          );
+        },
+        encrypted,
+      },
     }),
     [
+      saved,
       flyer,
       redact,
       wb,
@@ -205,6 +248,7 @@ export function useNoDocToolContext(): ToolContext {
       edit: null,
       flyer: null,
       redact: null,
+      sign: null,
     }),
     [wb],
   );

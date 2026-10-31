@@ -52,6 +52,44 @@ export function checkJob(job: QpdfJob): void {
       throw new QpdfError(`invalid qpdf argument: ${a}`);
     }
   }
+  checkJobFiles(job);
+}
+
+/** Keys a `--job-json-file` may use (Phase 8); it names files by plain job names only. */
+const JOB_FILE_KEYS = new Set([
+  "inputFile",
+  "outputFile",
+  "password",
+  "decrypt",
+  "encrypt",
+  "showEncryption",
+]);
+
+/** Same as the Tauri runner's check_job_files: a job file may not reach outside the folder. */
+export function checkJobFiles(job: QpdfJob): void {
+  for (const a of job.args) {
+    if (!a.startsWith("--job-json-file=")) continue;
+    const bytes = job.inputs[a.slice("--job-json-file=".length)];
+    if (!bytes) throw new QpdfError("the qpdf job file is missing");
+    let v: unknown;
+    try {
+      v = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      throw new QpdfError("the qpdf job file is not valid");
+    }
+    if (typeof v !== "object" || v === null || Array.isArray(v)) {
+      throw new QpdfError("the qpdf job file is not valid");
+    }
+    for (const [k, val] of Object.entries(v)) {
+      if (!JOB_FILE_KEYS.has(k)) throw new QpdfError(`qpdf job file key not allowed: ${k}`);
+      if (
+        (k === "inputFile" || k === "outputFile") &&
+        !(typeof val === "string" && FILE_NAME.test(val))
+      ) {
+        throw new QpdfError("invalid job file name in the qpdf job file");
+      }
+    }
+  }
 }
 
 /** Runs a job and returns its single output, or throws if qpdf did not produce it. */

@@ -7,8 +7,7 @@
 // ever appended to, so its earlier signatures stay valid.
 
 import { zlibSync } from "fflate";
-import type { PdfiumModule } from "../pdfium";
-import { pageFrames, type Matrix } from "../pages/graft";
+import type { Matrix, PageFrame } from "../pages/graft";
 import { runToFile, type Qpdf } from "../pages/qpdf";
 import { isRef, numbers, PdfObjects, withKey, type JDict, type JVal } from "../redact/objects";
 import type { Rgba } from "../pages/png";
@@ -111,7 +110,6 @@ function apply(m: Matrix, x: number, y: number): [number, number] {
 
 /** Signs `bytes` and returns the signed file. The input is never changed. */
 export async function signPdf(
-  m: PdfiumModule,
   qpdf: Qpdf,
   bytes: Uint8Array,
   req: SignRequest,
@@ -130,8 +128,8 @@ export async function signPdf(
     });
     objs = await PdfObjects.read(qpdf, base);
   }
-  const frames = pageFrames(m, base);
   const pages = objs.pages();
+  const frames = pages.map((p) => frameOf(objs, p));
   const date = req.date ?? new Date();
   const cert = parseCertificate(req.signer.certificates[0] ?? new Uint8Array());
   const signerName = certName(cert);
@@ -290,6 +288,37 @@ export async function signPdf(
     });
   const out = appendUpdate(base, update, objs.trailer, objs.maxObjectId + 1);
   return fill(out, base.length, req.signer);
+}
+
+/** A page's displayed frame (crop box, /Rotate; inherited values included). */
+export function frameOf(objs: PdfObjects, pageRef: string): PageFrame {
+  const inherited = (key: string): JVal | undefined => {
+    let d = objs.dict(pageRef);
+    for (let i = 0; d && i < 32; i++) {
+      if (d[key] !== undefined) return objs.get(d[key]);
+      d = objs.dict(d["/Parent"]);
+    }
+    return undefined;
+  };
+  const box = numbers(inherited("/CropBox")) ?? numbers(inherited("/MediaBox")) ?? [0, 0, 612, 792];
+  const [l = 0, b = 0, r = 612, t = 792] = box;
+  const x0 = Math.min(l, r);
+  const x1 = Math.max(l, r);
+  const y0 = Math.min(b, t);
+  const y1 = Math.max(b, t);
+  const rotate = inherited("/Rotate");
+  const rot = ((Math.round((typeof rotate === "number" ? rotate : 0) / 90) % 4) + 4) % 4;
+  // Display (u, v) -> user (x, y), for each /Rotate (same as graft.ts pageFrames).
+  const toUser: Matrix =
+    rot === 1
+      ? [0, 1, -1, 0, x1, y0]
+      : rot === 2
+        ? [-1, 0, 0, -1, x1, y1]
+        : rot === 3
+          ? [0, -1, 1, 0, x0, y1]
+          : [1, 0, 0, 1, x0, y0];
+  const turned = rot % 2 === 1;
+  return { width: turned ? y1 - y0 : x1 - x0, height: turned ? x1 - x0 : y1 - y0, toUser };
 }
 
 /** An RGB image XObject (Flate) with its alpha as a soft mask; returns its reference. */

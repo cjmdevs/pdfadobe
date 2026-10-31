@@ -463,7 +463,7 @@ test.describe("Prepare Form", () => {
     expect([...(await fieldsIn(bytes)).keys()]).toEqual(["Signature1"]);
     await page.getByRole("button", { name: "Close Prepare Form" }).click();
     await expect(page.locator(".form-widget")).toHaveCount(0);
-    await expect(sig).toContainText("Sign in Acrobat");
+    await expect(sig).toContainText("Click to sign");
   });
 
   test("a new field can be filled once Prepare Form is closed", async ({ page, mockfs }) => {

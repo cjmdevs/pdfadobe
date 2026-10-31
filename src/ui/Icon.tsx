@@ -113,6 +113,14 @@ import summary from "@fluentui/svg-icons/icons/document_text_20_regular.svg?raw"
 import checkRequired from "@fluentui/svg-icons/icons/checkmark_circle_20_regular.svg?raw";
 import resetForm from "@fluentui/svg-icons/icons/arrow_reset_20_regular.svg?raw";
 import fieldHighlight from "@fluentui/svg-icons/icons/text_field_20_regular.svg?raw";
+import signature from "@fluentui/svg-icons/icons/signature_20_regular.svg?raw";
+import certificate from "@fluentui/svg-icons/icons/certificate_20_regular.svg?raw";
+import docSigned from "@fluentui/svg-icons/icons/document_signature_20_regular.svg?raw";
+import calendar from "@fluentui/svg-icons/icons/calendar_ltr_20_regular.svg?raw";
+import checkmark from "@fluentui/svg-icons/icons/checkmark_20_regular.svg?raw";
+import cross from "@fluentui/svg-icons/icons/dismiss_20_regular.svg?raw";
+import dot from "@fluentui/svg-icons/icons/circle_small_20_regular.svg?raw";
+import textT from "@fluentui/svg-icons/icons/text_t_20_regular.svg?raw";
 
 const SVG = {
   open,
@@ -227,6 +235,14 @@ const SVG = {
   importFile,
   flatten,
   summary,
+  signature,
+  certificate,
+  docSigned,
+  calendar,
+  checkmark,
+  cross,
+  dot,
+  textT,
 };
 
 export type IconName = keyof typeof SVG;

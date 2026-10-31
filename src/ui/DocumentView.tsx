@@ -9,6 +9,7 @@ import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
 import { LinkBorders } from "./LinkBorders";
 import { EraserLayer } from "./markup/EraserLayer";
 import { StampLayer } from "./markup/StampLayer";
+import { SignBoxLayer } from "./sign/SignBoxLayer";
 import { StampsPalette } from "./markup/StampsPalette";
 import { EditLayer } from "./edit/EditLayer";
 import { RedactLayer } from "./redact/RedactLayer";
@@ -283,6 +284,7 @@ function PageLayers({
         <FlyerLayer documentId={documentId} pageIndex={pageIndex} />
         <RedactLayer documentId={documentId} pageIndex={pageIndex} />
         <FieldPlaceLayer documentId={documentId} pageIndex={pageIndex} />
+        <SignBoxLayer documentId={documentId} pageIndex={pageIndex} />
       </PagePointerProvider>
     </Rotate>
   );

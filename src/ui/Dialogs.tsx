@@ -17,6 +17,9 @@ import { BatchOcr } from "./scan/BatchOcr";
 import { OptimizeDialog } from "./optimize/OptimizeDialog";
 import { DecorateDialog } from "./decorate/DecorateDialog";
 import { CreatePdfDialog, ExportPdfDialog } from "./convert/ConvertDialogs";
+import { SignatureDialog } from "./sign/SignatureDialog";
+import { CertSignDialog } from "./sign/CertSignDialog";
+import { ProtectDialog, RemoveSecurityDialog } from "./sign/ProtectDialog";
 import {
   CombineDialog,
   ConfirmDialog,
@@ -178,6 +181,38 @@ function MainDialog() {
       return (
         <Modal title="Export PDF" onClose={close}>
           <ExportPdfDialog documentId={dialog.documentId} onClose={close} />
+        </Modal>
+      );
+    case "signatures":
+      return (
+        <Modal
+          title={dialog.create === "initials" ? "Add Initials" : "Add Signature"}
+          onClose={close}
+        >
+          <SignatureDialog kind={dialog.create} documentId={dialog.documentId} onClose={close} />
+        </Modal>
+      );
+    case "certSign":
+      return (
+        <Modal title="Sign with a Certificate" onClose={close}>
+          <CertSignDialog
+            documentId={dialog.documentId}
+            box={dialog.box}
+            field={dialog.field}
+            onClose={close}
+          />
+        </Modal>
+      );
+    case "protect":
+      return (
+        <Modal title="Protect with Passwords" onClose={close}>
+          <ProtectDialog documentId={dialog.documentId} onClose={close} />
+        </Modal>
+      );
+    case "removeSecurity":
+      return (
+        <Modal title="Remove Security" onClose={close}>
+          <RemoveSecurityDialog documentId={dialog.documentId} onClose={close} />
         </Modal>
       );
     case "createPdf":

@@ -88,6 +88,8 @@ export interface Settings {
   showStampNames: boolean;
   /** Floating Stamps Palette shown. */
   stampsPaletteOpen: boolean;
+  /** Fill & Sign: put the date under a placed signature (Phase 8). */
+  signWithDate: boolean;
   /** Custom stamps' category and (renamed) name, by custom stamp id. */
   customStampInfo: Record<string, { category: string; name?: string }>;
   /** Saved Header & Footer and Bates setups (Phase 7). */
@@ -161,6 +163,7 @@ export const DEFAULT_SETTINGS: Settings = {
   lastStamp: null,
   showStampNames: false,
   stampsPaletteOpen: false,
+  signWithDate: false,
   customStampInfo: {},
   headerFooterPresets: [],
 };
@@ -264,6 +267,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     showStampNames: typeof r.showStampNames === "boolean" ? r.showStampNames : d.showStampNames,
     stampsPaletteOpen:
       typeof r.stampsPaletteOpen === "boolean" ? r.stampsPaletteOpen : d.stampsPaletteOpen,
+    signWithDate: typeof r.signWithDate === "boolean" ? r.signWithDate : d.signWithDate,
     customStampInfo: stampInfo(r.customStampInfo),
     headerFooterPresets: sanitizePresets(r.headerFooterPresets),
   };

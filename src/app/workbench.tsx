@@ -113,6 +113,18 @@ export type Dialog =
   | { kind: "workpaperStamp"; documentId: string; templateId: string }
   /** Save pages as PNG/JPEG files or the text as a .txt file (Phase 7). */
   | { kind: "exportPdf"; documentId: string }
+  /** Add Signature / Add Initials, and the saved ones (Phase 8). */
+  | { kind: "signatures"; create: "signature" | "initials"; documentId: string | null }
+  /** Sign with a certificate (Phase 8): `box` is a visible signature's place, null invisible. */
+  | {
+      kind: "certSign";
+      documentId: string;
+      box: { page: number; rect: { x: number; y: number; width: number; height: number } } | null;
+      field: string | null;
+    }
+  /** Protect with passwords / remove security (Phase 8, qpdf). */
+  | { kind: "protect"; documentId: string }
+  | { kind: "removeSecurity"; documentId: string }
   /** A new PDF from scanned images (Phase 7). */
   | { kind: "createPdf" }
   /** Recognize Text in every PDF of a folder (Phase 7). */
@@ -159,6 +171,11 @@ export interface WorkbenchApi {
    * page content (Edit PDF outlines), never for writing. Null like docBytes.
    */
   contentBytes(id: string): Promise<Uint8Array | null>;
+  /**
+   * The store's bytes as they are, also for a password-protected document (still
+   * encrypted): for Protect / Remove Security, which hand them to qpdf. Never for editing.
+   */
+  fileBytes(id: string): Promise<Uint8Array | null>;
   /**
    * The tab now showing store document `storeId` (a tab's id changes with every edit),
    * or null when it was closed. Reads the live state: safe in long-running callbacks.
@@ -840,6 +857,14 @@ export function WorkbenchProvider({
     [commitMarkup, core, storeBytes],
   );
 
+  const fileBytes = useCallback(
+    async (id: string) => {
+      const sid = metaRef.current[id]?.storeId;
+      return sid ? storeBytes(sid).catch(() => null) : null;
+    },
+    [storeBytes],
+  );
+
   const contentBytes = useCallback(
     async (id: string) => {
       if (core?.documents[id]?.document?.isEncrypted) return null;
@@ -1220,6 +1245,7 @@ export function WorkbenchProvider({
       setSinglePage,
       docBytes,
       contentBytes,
+      fileBytes,
       documentOf,
       editState,
       edit,
@@ -1265,6 +1291,7 @@ export function WorkbenchProvider({
       setSinglePage,
       docBytes,
       contentBytes,
+      fileBytes,
       documentOf,
       editState,
       edit,

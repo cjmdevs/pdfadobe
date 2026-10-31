@@ -71,6 +71,8 @@ export interface Platform {
     json?: boolean;
     formData?: boolean;
     csv?: boolean;
+    /** One certificate file (.pfx, .p12; Phase 8). */
+    pfx?: boolean;
   }): Promise<OpenedFile[]>;
   /** Folder picker; null when cancelled. */
   pickFolder(): Promise<string | null>;
@@ -113,6 +115,10 @@ export interface Platform {
   stamps: StampLibrary;
   /** Font files for Edit PDF (backlog B3). */
   fonts: FontFolders;
+  /** Saved visual signatures and initials (Phase 8; Windows: DPAPI-encrypted). */
+  signatures: SignatureLibrary;
+  /** Signing certificates (Phase 8; Windows: certificate store and .pfx via CNG). */
+  certs: CertProvider;
   /** Opens a file on disk in Adobe Acrobat or Reader (XFA-only forms, Phase 6). Throws
    * PlatformError("acrobatMissing") when neither is installed. */
   openInAcrobat(path: string): Promise<void>;
@@ -165,6 +171,44 @@ export interface StampLibrary {
   /** PNG or JPEG only, up to 5 MB. */
   add(name: string, bytes: Uint8Array): Promise<CustomStamp>;
   remove(id: string): Promise<void>;
+}
+
+export type SignatureKind = "signature" | "initials";
+
+export interface SavedSignature {
+  id: string;
+  kind: SignatureKind;
+}
+
+/** Saved signature images (PNG), per user. Never logged. */
+export interface SignatureLibrary {
+  list(): Promise<SavedSignature[]>;
+  read(id: string): Promise<Uint8Array>;
+  /** PNG only, up to 2 MB. */
+  add(kind: SignatureKind, png: Uint8Array): Promise<SavedSignature>;
+  remove(id: string): Promise<void>;
+}
+
+export interface CertInfo {
+  /** SHA-1 thumbprint, hex. */
+  thumbprint: string;
+  name: string;
+  issuer: string;
+  /** "2027-10-31" */
+  expires: string;
+  /** DER: this certificate first, then its chain. */
+  chain: Uint8Array[];
+}
+
+/** Signing certificates. `sign*` returns a SHA-256 signature over `data` (RSA PKCS#1
+ * v1.5, or ECDSA r || s). The private key never leaves the provider. */
+export interface CertProvider {
+  /** Certificates in the user's store that can sign today. */
+  list(): Promise<CertInfo[]>;
+  sign(thumbprint: string, data: Uint8Array): Promise<Uint8Array>;
+  /** Opens a .pfx in memory (nothing is added to the store). */
+  pfxOpen(pfx: Uint8Array, password: string): Promise<CertInfo>;
+  pfxSign(pfx: Uint8Array, password: string, data: Uint8Array): Promise<Uint8Array>;
 }
 
 /** Several app windows (backlog B1). Documents move by store id (platform.docs). */

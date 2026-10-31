@@ -12,7 +12,14 @@ import {
 } from "@embedpdf/models";
 import { useWorkbench } from "../../app/workbench";
 import { CLOUD_INTENSITY } from "../../markup/properties";
-import { CLOUD_TOOL, ERASER_MODE, STAMP_MODE, toolDefaults } from "../../markup/config";
+import {
+  CLOUD_TOOL,
+  ERASER_MODE,
+  FILL_TEXT_TOOL,
+  SIGN_BOX_MODE,
+  STAMP_MODE,
+  toolDefaults,
+} from "../../markup/config";
 import { FIELD_MODE } from "../forms/prepareStore";
 import { EDIT_MODE } from "../edit/editStore";
 import { FLYER_MODE } from "../flyer/flyerStore";
@@ -103,6 +110,34 @@ export function MarkupBridge({ author }: { author: string }) {
     });
   }, [annots]);
 
+  // Fill & Sign text (Phase 8): EmbedPDF's text box, no border or fill, 11 pt black.
+  useEffect(() => {
+    if (!annots || annots.getTool(FILL_TEXT_TOOL)) return;
+    const freeText = annots.getTool("freeText");
+    if (!freeText) return;
+    annots.addTool({
+      ...freeText,
+      id: FILL_TEXT_TOOL,
+      name: "Fill & Sign text",
+      matchScore: (a: PdfAnnotationObject) =>
+        a.type === PdfAnnotationSubtype.FREETEXT &&
+        (a as { custom?: { pwType?: string } }).custom?.pwType === "FillText"
+          ? 30
+          : 0,
+      defaults: {
+        ...freeText.defaults,
+        contents: "",
+        fontSize: 11,
+        fontColor: "#000000",
+        color: "transparent",
+        strokeColor: "transparent",
+        strokeWidth: 0,
+        subject: "Text",
+        custom: { pwType: "FillText" },
+      },
+    });
+  }, [annots]);
+
   // A shape drawn by clicks (polygon, polyline, cloud, callout) or a drag in progress is
   // dropped when its tool goes off (Esc, another tool): EmbedPDF's handlers keep their
   // half-made shape otherwise and continue it next time. Ink is left alone (its strokes
@@ -134,6 +169,8 @@ export function MarkupBridge({ author }: { author: string }) {
   useEffect(() => {
     im?.registerMode({ id: ERASER_MODE, scope: "page", exclusive: true, cursor: "cell" });
     im?.registerMode({ id: STAMP_MODE, scope: "page", exclusive: true, cursor: "copy" });
+    // Digitally Sign (Phase 8): a drag marks the signature's box (SignBoxLayer).
+    im?.registerMode({ id: SIGN_BOX_MODE, scope: "page", exclusive: true, cursor: "crosshair" });
     // Workpaper Tools (Phase 4): tickmarks and legend boxes (FlyerLayer).
     im?.registerMode({ id: FLYER_MODE, scope: "page", exclusive: true, cursor: "copy" });
     // Edit PDF (B3): EditLayer handles the pointer while the Edit tool is open.

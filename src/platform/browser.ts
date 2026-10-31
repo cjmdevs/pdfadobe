@@ -9,13 +9,17 @@ import { MemoryDocStore } from "../app/docstore";
 import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
 import { QpdfError } from "../engine/pages/qpdf";
 import { OcrError } from "../engine/ocr/tesseract";
+import { browserTestCert } from "./browserCert";
 import {
   PlatformError,
   baseName,
   type FileErrorKind,
   type OpenedFile,
   type AppWindows,
+  type CertProvider,
   type CustomStamp,
+  type SavedSignature,
+  type SignatureLibrary,
   type StampLibrary,
   type FontFolders,
   type Platform,
@@ -30,24 +34,27 @@ function pickWithInput(
   json = false,
   formData = false,
   csv = false,
+  pfx = false,
 ): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = formData
-      ? ".fdf,.xfdf,.json,.csv"
-      : csv
-        ? ".csv,text/csv"
-        : json
-          ? ".json,application/json"
-          : xfdf
-            ? ".xfdf,application/vnd.adobe.xfdf"
-            : pictures
-              ? "image/jpeg,image/png,.jpg,.jpeg,.png"
-              : images
-                ? "application/pdf,.pdf,image/jpeg,image/png,image/tiff,.tif,.tiff"
-                : "application/pdf,.pdf";
-    input.multiple = !pictures && !formData && !csv;
+    input.accept = pfx
+      ? ".pfx,.p12"
+      : formData
+        ? ".fdf,.xfdf,.json,.csv"
+        : csv
+          ? ".csv,text/csv"
+          : json
+            ? ".json,application/json"
+            : xfdf
+              ? ".xfdf,application/vnd.adobe.xfdf"
+              : pictures
+                ? "image/jpeg,image/png,.jpg,.jpeg,.png"
+                : images
+                  ? "application/pdf,.pdf,image/jpeg,image/png,image/tiff,.tif,.tiff"
+                  : "application/pdf,.pdf";
+    input.multiple = !pictures && !formData && !csv && !pfx;
     input.onchange = () => resolve(Array.from(input.files ?? []));
     input.oncancel = () => resolve([]);
     input.click();
@@ -209,6 +216,40 @@ const stamps: StampLibrary = {
   },
 };
 
+/** Browser build: saved signatures last for the session (tests, development). */
+const sessionSignatures = new Map<string, { info: SavedSignature; bytes: Uint8Array }>();
+const signatures: SignatureLibrary = {
+  list: async () => [...sessionSignatures.values()].map((s) => s.info),
+  read: async (id) => {
+    const s = sessionSignatures.get(id);
+    if (!s) throw new PlatformError("notFound", "this saved signature could not be read");
+    return s.bytes;
+  },
+  add: async (kind, bytes) => {
+    if (bytes[0] !== 0x89 || bytes[1] !== 0x50) {
+      throw new PlatformError("other", "a saved signature must be a PNG image");
+    }
+    const info: SavedSignature = { id: crypto.randomUUID(), kind };
+    sessionSignatures.set(info.id, { info, bytes });
+    return info;
+  },
+  remove: async (id) => {
+    sessionSignatures.delete(id);
+  },
+};
+
+/** Browser build: one throwaway test certificate made with WebCrypto (e2e tests). */
+const certs: CertProvider = {
+  list: async () => [(await browserTestCert()).info],
+  sign: async (_thumbprint, data) => (await browserTestCert()).sign(data),
+  pfxOpen: async () => {
+    throw new PlatformError("unsupported", ".pfx files can only be used in the Windows app");
+  },
+  pfxSign: async () => {
+    throw new PlatformError("unsupported", ".pfx files can only be used in the Windows app");
+  },
+};
+
 export const browserPlatform: Platform = {
   kind: "browser",
 
@@ -227,6 +268,7 @@ export const browserPlatform: Platform = {
           opts?.json,
           opts?.formData,
           opts?.csv,
+          opts?.pfx,
         )
       ).map(fileToOpened),
     );
@@ -267,6 +309,8 @@ export const browserPlatform: Platform = {
 
   docs,
   stamps,
+  signatures,
+  certs,
   fonts,
   get windows() {
     return fakeWindowsOnce();

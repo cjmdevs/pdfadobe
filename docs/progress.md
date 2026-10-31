@@ -5,50 +5,25 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 7 (scan, OCR, optimize, document tools, conversions) done: owner check passed
-  2026-10-31**, tagged `phase-07-done` (`docs/testing/phase-07-test-guide.md`, then
-  `phase-07-fixes-test-guide.md` all 6 steps). Spec and decisions in
-  `docs/phases/phase-07.md`. On the build PC: `npm run check` (580 Vitest + 1 intended
-  skip, 55 Rust, license-check), 184 Playwright. Details in "Phase 7" below.
-- **Phase 7 owner check 2026-10-31:** 5, 6, 7 and 9 passed; 8 passed (background hard to
-  see). Every Tesseract step failed in the installed app: Tauri canonicalises the app
-  path, so the resource folder is `\\?\C:\...`, and Tesseract cannot open tessdata
-  under a verbatim path. Fixed (`plain_path` in `ocr_job.rs`); failures now carry
-  Tesseract's setup error line; Turn Upright no longer hides a broken Tesseract as
-  "upright"; background default is pale yellow. Re-check
-  passed 2026-10-31. Lesson: anything that hands a resource
-  path to an outside program must be tested with a `\\?\` path.
+- **Phase 8 (signatures, certificates, security) built 2026-10-31, owner check pending**
+  (`docs/testing/phase-08-test-guide.md`). Spec and decisions in `docs/phases/phase-08.md`.
+  On the build PC: `npm run check` (595 Vitest + 1 intended skip, 61 Rust,
+  license-check), 190 Playwright. Details in "Phase 8" below.
+- **Phase 7 (scan, OCR, optimize, document tools, conversions) done 2026-10-31**, tagged
+  `phase-07-done`. Lesson: anything that hands a resource path to an outside program
+  must be tested with a `\\?\` path (Tauri canonicalises the app path).
 - **Phase 6 (forms) done 2026-10-28**, tagged `phase-06-done`. Save, Save As and Fill
   from CSV strip a hybrid form's XFA twin and /Perms (`bytesForSave`).
 - **Phase 5 (redaction) done 2026-10-28**, tagged `phase-05-done`.
-- **Phase 4 done 2026-10-31**, tagged `phase-04-done`. Stages 1-3 + fixes passed
-  2026-10-27; stage 4 (PDFlyer marks in old workpapers) was built in B6.
-- **B3 Edit PDF stage 1 done 2026-10-27** (`docs/testing/b3-stage1-test-guide.md`).
-- **B6 parity pass done: owner check 2026-10-31 passed, letter-tickmark re-check passed
-  2026-10-31** (`docs/testing/b6-fixes-test-guide.md`). PDFlyer format
-  (decoded from the owner's sample): tickmarks are /Stamp, Subject `Category:Item`
-  ("Letter Connectors:A"), /Name `#V3JpdHRlbiBCeSBOYW4u`, closed /Popup, 100x100 AP;
-  tape is /FreeText `Calculator Tape:PDFlyer` with /TapeData rows `[section, note,
-  amount, op, decimals]`, Courier New 9 pt grey, /F 516; sticky notes /FreeText `Sticky
-  Note:` + /NoteData. Built: Stamp Summary of foreign marks, our tickmarks/tapes in
-  PDFlyer's format (`engine/flyer/pdflyer.ts`), PDFlyer-style 10-key calculator,
-  Acrobat-style Stamp menu/palette/custom stamps, Customize Quick Tools, Comments panel,
-  matching-letter rings with "Go to the next C". Deviations: ◇ = subtotal, * = total
-  (guess, owner approved); subtotal prints "S"; tickmark art keeps our size; the sample
-  PDF stays out of git. Not verified: PDFlyer reading our marks; clipboard in WebView2.
-- **B3 Edit PDF stage 2 (2026-10-28/30), owner checks in progress:** paragraph grouping
-  (indents, lists, alignment; Join / Split; `/PWBox` marked content keeps box ids), text
-  box controls (move, handles, X/Y/W/H, auto-fit, push text below), Acrobat-like Format
-  panel (own `Tc`/`TJ` writer, HarfBuzz kerning), Objects panel (flip, crop removes
-  pixels, rotate, replace, arrange, align, Edit Using), Edit toolbar (Link, Crop Pages,
-  Phase 7 slots). Two fix rounds after the owner check
-  (`docs/testing/b3-stage2-fixes-test-guide.md`, `...-fixes2-test-guide.md`): editor
-  draws real fonts and list markers, link boxes locked and clickable, Join keeps
-  layout. Still open: Shift+→ in the installed app (not reproducible in dev or e2e).
-  Deviations: auto-fit, fixed height and padding are app-only; paste is plain text;
-  horizontal scaling is not previewed while typing.
-- Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
-- Phase 2 + B4 + B1 done, tagged `phase-02-done`.
+- **Phase 4 done 2026-10-31**, tagged `phase-04-done` (stage 4 built in B6).
+- **B6 parity pass done 2026-10-31** (`docs/testing/b6-fixes-test-guide.md`): PDFlyer
+  format decoded from the owner's sample (tickmarks /Stamp `Category:Item`, tape /FreeText
+  `Calculator Tape:PDFlyer` with /TapeData, sticky notes /FreeText + /NoteData); our marks
+  are written in PDFlyer's format (`engine/flyer/pdflyer.ts`). Not verified: PDFlyer
+  reading our marks; clipboard in WebView2.
+- **B3 Edit PDF stage 1 done 2026-10-27; stage 2 owner checks in progress.** Still open:
+  Shift+right arrow in the installed app (not reproducible in dev or e2e).
+- Phases 0-3, B1, B4 done (tags `phase-02-done`, `phase-03-done`).
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.
 
 ## Phase log (summary)
@@ -101,56 +76,61 @@ Keep it under 2 pages; summarize older phases.
   (by design); recalculation is one undo step per field; date formats not validated;
   keystroke filters not enforced; Detect knows blanks, lines and boxes only.
 
-## Phase 7: scan, OCR, optimize, document tools, conversions (2026-10-31)
+## Phase 8: signatures, certificates, security (2026-10-31)
 
-Plan approved 2026-10-31 with the recommended answers (`docs/phases/phase-07.md`).
+Plan approved 2026-10-31 with the recommended answers (`docs/phases/phase-08.md`).
 
-- **OCR sidecar**: `scripts/build-tesseract.mjs` builds Tesseract 5.5.4 + Leptonica
-  1.87.0 + zlib 1.3.1 with the VS C++ toolchain (static CRT, one `tesseract.exe`, needs
-  only KERNEL32) into `src-tauri/vendor/tesseract/` (git-ignored, bundled as a Tauri
-  resource) with tessdata 4.1.0 `eng` + `osd` and `pdf.ttf`, pinned by SHA-256. No image
-  libraries: pages go in as PGM. CI builds it (cached). Rust `ocr_job.rs`: `ocr_run` /
-  `ocr_cancel`, qpdf-style job folders, allowlisted arguments, no config files.
-- **Recognize Text** (`src/engine/ocr/`): skip pages with 20+ characters of text; render
-  at 300 dpi as displayed; OSD for quarter turns, own projection-profile skew estimate;
-  OCR a straightened copy into Tesseract's text-only PDF; place it back with the inverse
-  turn. Runs in the page worker (progress + cancel messages; Tesseract jobs go through
-  the main thread like qpdf). One undo step; "nothing to read" adds no step.
-- **Graft, not qpdf --overlay** (`src/engine/pages/graft.ts`): qpdf 12's overlay turns
-  the page's own content into a form XObject. Layers are copied in as a form XObject
-  with `--update-from-json` plus one extra content stream; the page's streams stay as
-  they are. Everything added carries `/PWDecor <kind>` (ocr, header, bates, watermark,
-  background) so Remove finds it.
-- **Scan & OCR tool**: toolbar like image_5 (Insert, Enhance, Recognize Text, Bates
-  Numbering | Extract, rotate, delete). Enhance: Straighten Pages (a rotation wrapped
-  around the content, lossless), Turn Pages Upright (OSD, /Rotate), Reduce File Size.
-  Recognize Text in a Folder writes `<name>_OCR.pdf` beside each PDF.
-- **Optimize** (`src/engine/optimize/`): Email 100 dpi q50, Standard 150 q70, Archive
-  300 q85. qpdf decodes images (Flate/LZW/JPEG), we resample and encode JPEG, written back
-  in place. Identity-H TrueType fonts subset (HarfBuzz glyph set, retained glyph ids).
-  Then unused resources, object streams, flate level 9, linearize unless that makes the
-  file bigger than the original. Saved as `<name>_Optimized.pdf`.
-- **Document tools** (`src/engine/decorate/`): Header & Footer (six boxes; {page}
-  {pages} {date} {file}; standard fonts; margins; page range; start number; saved
-  settings in `Settings.headerFooterPresets`), Bates (prefix/start/digits/suffix; several
-  files run on and save `_Bates.pdf` copies), Watermark (text or image, opacity,
-  rotation, behind/in front, position), Background (colour or image). In the Edit PDF
-  toolbar (Header & Footer, Watermark, More > Background / Bates) and Scan & OCR (Bates).
-- **Conversions**: Export PDF (PNG/JPEG at 72-600 dpi, `<name>_Page_N`; text as UTF-8
-  `.txt` with form feeds between pages); Create PDF from images (files or a folder,
-  natural name order, JPEG/PNG/TIFF, optional OCR).
+- **Certificate signing** (`src/engine/sign/`, Node-safe): no @signpdf. Own incremental
+  update writer (`incremental.ts`: objects from qpdf JSON v2 written back as PDF syntax;
+  xref table or uncompressed xref stream, matching the original). An unsigned file is
+  first rewritten by qpdf (repairs damage); a signed one is only appended to, so earlier
+  signatures stay valid. CMS by pkijs (`cms.ts`): detached, SHA-256, signed attributes
+  contentType, messageDigest, signing-certificate-v2; no signing-time (PAdES puts it in
+  /M). /SubFilter /ETSI.CAdES.detached; 24 KB reserved for /Contents. Visible signature:
+  a form XObject in the page's displayed orientation (`/Matrix` from the page frame;
+  `frameOf` is the qpdf-object twin of `pageFrames`), Helvetica details plus the name or
+  a saved signature image. Empty signature fields can be signed. Output `<name>_Signed.pdf`.
+- **Keys** (`src-tauri/src/certsign.rs`): the private key never leaves Windows. CNG signs
+  (BCryptHash + NCryptSignHash; RSA PKCS#1 v1.5 or ECDSA r||s). Store: Personal,
+  certificates with a key, valid today, key usage allowing signing. .pfx:
+  PFXImportCertStore with PKCS12_NO_PERSIST_KEY (memory only); that key is found only
+  with CRYPT_ACQUIRE_CACHE_FLAG. The frontend passes the .pfx and password per call.
+- **Signatures panel** (Certificates tool): scans /ByteRange, checks digest and
+  signature with pkijs, says "changed after this signature" when bytes follow the signed
+  revision, and opens the signed version. No trust check (v1).
+- **Saved signatures** (`signatures.rs`): PNG, DPAPI (current user, own entropy) in
+  `<config>\signatures\<id>.sig`. Typed (Dancing Script, Great Vibes, Allura, Caveat),
+  drawn (pen pressure), or an image (paper made see-through, cropped).
+- **Fill & Sign tool**: Text (borderless free text, tool `fillText`), Check, X, Dot,
+  Date, Sign (saved signature or initials, optional date under it). Marks are stamps with
+  a one-page PDF appearance (`engine/sign/marks.ts`), movable and resizable.
+- **Protect tool** (`src/engine/security.ts`): AES-256 (R6) only; open and/or
+  permissions password; print, changes, copy. Remove Security with either password.
+  Output `<name>_Protected.pdf` / `_Unprotected.pdf`. Passwords reach qpdf in a job file
+  (`--job-json-file`), never its command line; both runners allow only the job-file keys
+  inputFile, outputFile, password, decrypt, encrypt, showEncryption, with plain job names.
+- Signature fields: empty ones say "Click to sign" (opens Sign with a Certificate);
+  fields with an appearance (signed) now show it, with a see-through click box on top.
 
-**Deviations:** Tesseract build adds zlib (its PDF writer needs it; Zlib licence).
-Headers, Bates and watermarks use the 14 standard PDF fonts only (WinAnsi; other
-characters print as "?"), not installed fonts. Remove only finds what PDF Workbench
-added, not Acrobat's own headers/watermarks; Acrobat will not list ours in its Header &
-Footer > Update. jpeg-js writes three-channel JPEGs, so grey images become RGB JPEGs (a
-few percent bigger). Linearizing is skipped when it would grow the file (200-page text
-file: +58 KB of hint tables). Images to PDF reused Phase 2's writer (UTIF was already a
-dependency, so no new one). Header/footer placement is fixed to the displayed page.
-**Not verified yet:** OCR, Optimize and conversions in the installed app (the Rust
-runner is unit-tested; e2e runs the same engine in the browser build); how Acrobat
-shows our layers and subset fonts (owner check).
+**Deviations:** no @signpdf (decision 1). No timestamp server, so PAdES B-B only, no
+LTV. Signing a password-protected file is refused (remove security first). Protect
+writes a new file instead of changing the open one. Remove Security also accepts the
+open password (qpdf needs only that; Acrobat asks for the permissions password). The
+Signatures panel cannot check a password-protected file. The browser build signs with a
+throwaway WebCrypto certificate ("Browser Test Signer") for e2e; .pfx only in the
+Windows app. Every tool is built now, so "Show tools that are coming later" adds nothing.
+**Not verified yet:** Acrobat calling our signatures valid (owner check); signing with a
+Windows store certificate in the installed app (Rust tests cover .pfx signing via CNG,
+checked by OpenSSL, and listing the store); smart-card PIN prompts.
+
+## Earlier detail: Phase 7 (summary)
+
+Tesseract 5.5.4 + Leptonica 1.87.0 + zlib built from source (`scripts/build-tesseract.mjs`,
+needs the VS C++ workload) and bundled; OCR runs on a straightened copy and its text is
+grafted back (`pages/graft.ts`, `/PWDecor` tags; not qpdf --overlay). Enhance, batch OCR,
+Optimize (Email/Standard/Archive), Header & Footer, Bates, Watermark, Background (14
+standard fonts only), Export PNG/JPEG/text, Create PDF from images. Remove only finds
+what PDF Workbench added.
 
 ## Dependency versions and licenses
 
@@ -168,6 +148,12 @@ the `windows` crate gains its `Win32_System_Registry` feature (Open in Acrobat).
 Tesseract 5.5.4 (Apache-2.0), Leptonica 1.87.0 (BSD-2-Clause), zlib 1.3.1 (Zlib),
 tessdata 4.1.0 eng/osd (Apache-2.0). Noto Sans (OFL-1.1, from `@embedpdf/fonts-latin`)
 is used by a test only. No new crates.
+**Phase 8: pkijs 3.4.3 runtime (BSD-3-Clause) with asn1js 3.1.0 and bytestreamjs 2.0.1
+(BSD-3-Clause), pvtsutils 1.3.6, pvutils 1.2.0, @noble/hashes 1.8.0 (MIT), tslib 2.9.1
+(0BSD); @fontsource/dancing-script, great-vibes, allura, caveat 5.3.0 (OFL-1.1, fonts
+bundled unmodified).** No new crates: the `windows` crate gains `Win32_Security_Cryptography`
+and `Win32_System_Time`. Test only: OpenSSL from Git for Windows (Apache-2.0) checks
+signatures when present.
 
 ## Known gaps / notes for later phases
 
@@ -191,5 +177,10 @@ is used by a test only. No new crates.
   subset simple TrueType, Type 1 or CFF fonts. Optimize, Export and Create PDF cannot be
   cancelled (OCR can). Watermark offsets (dx, dy) exist in the engine, not in the dialog.
   Build PC needs the VS C++ workload for `npm run build-tesseract`.
-- e2e flakes seen this phase, both passing alone: Edit PDF "Shift+arrow pressed while
+- **Phase 8:** saving markup on a signed file rewrites it (PDFium), which breaks the
+  signature (the "digitally signed" warning covers page changes only): sign last, or
+  sign again. The signature's text is Helvetica (WinAnsi; other characters print as "?").
+  24 KB is reserved for the CMS: very long certificate chains are refused. The signature
+  box assumes the crop box starts at 0,0, like the rest of the app.
+- e2e flakes seen in Phase 7 and 8, all passing alone (Edit PDF list spacing too): Edit PDF "Shift+arrow pressed while
   the last move is saving" (also fails without Phase 7) and the Stamp menu save check.

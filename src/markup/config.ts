@@ -14,6 +14,10 @@ export const CLOUD_TOOL = "cloud";
 export const ERASER_MODE = "markupEraser";
 /** Interaction mode while a picked stamp waits for its click (StampLayer). */
 export const STAMP_MODE = "markupStamp";
+/** Interaction mode while "Digitally Sign" waits for the signature's box (SignBoxLayer). */
+export const SIGN_BOX_MODE = "signBox";
+/** Fill & Sign's text tool: EmbedPDF's text box without a border (see MarkupBridge). */
+export const FILL_TEXT_TOOL = "fillText";
 
 /** Markup buttons in the Comment toolbar: EmbedPDF tool id, label, icon. */
 export const MARKUP_TOOLS = [

@@ -3,10 +3,12 @@
 // (Tools pane, tool toolbar, quick toolbar, Customize dialog) only reads this list:
 // later phases add tools here and never change the shell.
 import type { ComponentType } from "react";
+import type { PendingStamp } from "../ui/markup/stampPlacement";
+import type { SavedSignature } from "../platform/types";
 import type { PageActions } from "../app/pageActions";
 import type { PageOpDialog, WorkbenchApi } from "../app/workbench";
 import type { IconName } from "../ui/Icon";
-import { MARKUP_TOOLS } from "../markup/config";
+import { FILL_TEXT_TOOL, MARKUP_TOOLS } from "../markup/config";
 import type { TickmarkDef } from "../engine/flyer/tickmarks";
 import type { LibraryEntry } from "../flyer/library";
 import { TICK_SECTIONS } from "../engine/flyer/tickmarks";
@@ -21,6 +23,63 @@ const flyerFiles = () => import("../ui/flyer/flyerFiles");
 const formActions = () => import("../ui/forms/formActions");
 const scanActions = () => import("../ui/scan/scanActions");
 const decorateActions = () => import("../ui/decorate/decorateActions");
+const fillSign = () => import("../ui/sign/fillSign");
+
+/** Fill & Sign: arms a mark made by `make` (loaded on use). */
+function armMark(
+  c: ToolContext,
+  make: (m: Awaited<ReturnType<typeof fillSign>>) => Promise<PendingStamp>,
+) {
+  void fillSign()
+    .then(make)
+    .then(
+      (s) => c.markup?.armStamp(s),
+      (e: unknown) =>
+        c.wb.toast(
+          `Could not make the mark: ${e instanceof Error ? e.message : String(e)}`,
+          "error",
+        ),
+    );
+}
+
+function signItems(c: ToolContext): MenuItem[] {
+  const saved = c.markup?.savedSignatures ?? [];
+  const place = (s: SavedSignature): MenuItem => ({
+    id: s.id,
+    label: s.kind === "initials" ? "Place initials" : "Place signature",
+    run: (cc) => armMark(cc, (m) => m.signatureStamp(s, cc.wb.settings.signWithDate)),
+  });
+  const add = (kind: "signature" | "initials"): MenuItem => ({
+    id: `add-${kind}`,
+    label: kind === "initials" ? "Add Initials…" : "Add Signature…",
+    run: (cc) => cc.wb.setDialog({ kind: "signatures", create: kind, documentId: cc.documentId }),
+  });
+  const sigs = saved.filter((s) => s.kind === "signature");
+  const inits = saved.filter((s) => s.kind === "initials");
+  return [
+    ...sigs.map((s, i) => ({
+      ...place(s),
+      label: sigs.length > 1 ? `Place signature ${i + 1}` : place(s).label,
+    })),
+    add("signature"),
+    ...inits.map((s, i) => ({
+      ...place(s),
+      label: inits.length > 1 ? `Place initials ${i + 1}` : place(s).label,
+      separator: i === 0,
+    })),
+    { ...add("initials"), separator: inits.length === 0 },
+    {
+      id: "with-date",
+      label: "Add the date under signatures",
+      check: true,
+      checked: c.wb.settings.signWithDate,
+      separator: true,
+      run: (cc) => cc.wb.updateSettings({ signWithDate: !cc.wb.settings.signWithDate }),
+    },
+  ];
+}
+
+const markupOn = (c: ToolContext) => c.documentId !== null && c.markup !== null;
 const formDataFiles = () => import("../ui/forms/formDataFiles");
 const prepareStore = () => import("../ui/forms/prepareStore");
 const prepareActions = () => import("../ui/forms/prepareActions");
@@ -44,6 +103,16 @@ export interface ToolContext {
   flyer: FlyerCommands | null;
   /** Redact (Phase 5); null without a document that takes markup. */
   redact: RedactCommands | null;
+  /** Certificate signing (Phase 8); null without a document. */
+  sign: SignCommands | null;
+}
+
+export interface SignCommands {
+  /** "Digitally Sign" is on: a drag (or click) on a page marks the signature's place. */
+  drawing: boolean;
+  setDrawing(on: boolean): void;
+  /** The document is password-protected (signing needs it removed first). */
+  encrypted: boolean;
 }
 
 export interface RedactCommands {
@@ -137,6 +206,10 @@ export interface MarkupCommands {
   pasteStamp(): void;
   /** Acrobat's Stamp menu (stampLibrary.ts). */
   stampMenu(): MenuItem[];
+  /** Arms any stamp (Fill & Sign marks and signatures) for the next click. */
+  armStamp(s: PendingStamp): void;
+  /** The user's saved signatures and initials (Fill & Sign). */
+  savedSignatures: SavedSignature[];
   /** Ids (/NM) of the selected annotations. */
   selectedIds: string[];
   /** Picks an XFDF file and adds its comments (undoable). */
@@ -638,6 +711,133 @@ export const TOOLS: ToolDef[] = [
           { id: "manage", label: "Manage Stamps…", run: openStamps },
         ],
         enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+    ],
+  },
+  {
+    id: "fillSign",
+    name: "Fill & Sign",
+    icon: "signature",
+    color: "#c2410c",
+    description: "Sign with your saved signature or initials; add text, check marks and dates",
+    comingIn: null,
+    open: "toolbar",
+    toolbar: [
+      {
+        id: "fsText",
+        label: "Add text (click where it goes)",
+        caption: "Text",
+        icon: "textT",
+        run: (c) =>
+          c.markup?.setTool(c.markup.activeTool === FILL_TEXT_TOOL ? null : FILL_TEXT_TOOL),
+        pressed: (c) => c.markup?.activeTool === FILL_TEXT_TOOL,
+        enabled: markupOn,
+      },
+      {
+        id: "fsCheck",
+        label: "Check mark",
+        caption: "Check",
+        icon: "checkmark",
+        run: (c) => armMark(c, (m) => m.markStamp("check")),
+        enabled: markupOn,
+      },
+      {
+        id: "fsCross",
+        label: "Cross mark",
+        caption: "X",
+        icon: "cross",
+        run: (c) => armMark(c, (m) => m.markStamp("cross")),
+        enabled: markupOn,
+      },
+      {
+        id: "fsDot",
+        label: "Dot",
+        caption: "Dot",
+        icon: "dot",
+        run: (c) => armMark(c, (m) => m.markStamp("dot")),
+        enabled: markupOn,
+      },
+      {
+        id: "fsDate",
+        label: "Today's date",
+        caption: "Date",
+        icon: "calendar",
+        run: (c) => armMark(c, (m) => m.dateStamp()),
+        enabled: markupOn,
+      },
+      {
+        id: "fsSign",
+        label: "Sign yourself",
+        caption: "Sign",
+        icon: "signature",
+        divider: true,
+        menuOnly: true,
+        run: () => undefined,
+        items: signItems,
+        enabled: markupOn,
+      },
+    ],
+  },
+  {
+    id: "certificates",
+    name: "Certificates",
+    icon: "certificate",
+    color: "#0f766e",
+    description: "Digitally sign with a certificate; see the signatures in a document",
+    comingIn: null,
+    open: "toolbar",
+    panel: () => import("../ui/sign/SignaturePanel"),
+    toolbar: [
+      {
+        id: "certSignBox",
+        label: "Digitally sign: drag a box where the signature goes",
+        caption: "Digitally Sign",
+        icon: "docSigned",
+        run: (c) => c.sign?.setDrawing(!c.sign.drawing),
+        pressed: (c) => c.sign?.drawing ?? false,
+        enabled: (c) => c.sign !== null,
+      },
+      {
+        id: "certSignInvisible",
+        label: "Sign with a certificate without a visible signature",
+        caption: "Invisible",
+        icon: "certificate",
+        run: (c) => {
+          if (c.documentId)
+            c.wb.setDialog({ kind: "certSign", documentId: c.documentId, box: null, field: null });
+        },
+        enabled: (c) => c.sign !== null,
+      },
+    ],
+  },
+  {
+    id: "protect",
+    name: "Protect",
+    icon: "protect",
+    color: "#3a6fd8",
+    description: "Passwords and permissions (AES-256), or remove security",
+    comingIn: null,
+    open: "toolbar",
+    toolbar: [
+      {
+        id: "protectPassword",
+        label: "Protect with passwords…",
+        caption: "Protect",
+        icon: "lock",
+        run: (c) => {
+          if (c.documentId) c.wb.setDialog({ kind: "protect", documentId: c.documentId });
+        },
+        enabled: (c) => c.sign !== null && !c.sign.encrypted,
+      },
+      {
+        id: "removeSecurity",
+        label: "Remove security…",
+        caption: "Remove Security",
+        icon: "unlock",
+        run: (c) => {
+          if (c.documentId) c.wb.setDialog({ kind: "removeSecurity", documentId: c.documentId });
+        },
+        enabled: (c) => c.sign !== null && c.sign.encrypted,
       },
     ],
   },
@@ -1154,35 +1354,7 @@ export const TOOLS: ToolDef[] = [
   decorTool("watermark", "watermark", "Watermark", "watermark"),
   decorTool("background", "background", "Background", "fill"),
   decorTool("bates", "bates", "Bates Numbering", "bates"),
-  planned("protect", "Protect", "protect", "#3a6fd8", "Passwords and permissions", []),
 ];
-
-function planned(
-  id: string,
-  name: string,
-  icon: IconName,
-  color: string,
-  description: string,
-  actions: { id: string; label: string; icon: IconName; dropdown?: boolean }[],
-): ToolDef {
-  return {
-    id,
-    name,
-    icon,
-    color,
-    description,
-    comingIn: "later",
-    open: "toolbar",
-    toolbar: actions.map((a) => ({
-      id: a.id,
-      label: a.label,
-      icon: a.icon,
-      run: () => undefined,
-      enabled: () => false,
-      ...(a.dropdown ? { items: [] } : {}),
-    })),
-  };
-}
 
 export const isBuilt = (t: ToolDef) => t.comingIn === null;
 

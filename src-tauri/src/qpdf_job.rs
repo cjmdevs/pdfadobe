@@ -61,6 +61,7 @@ pub fn run_frame(qpdf: &Path, body: &[u8]) -> Result<Vec<u8>, FileError> {
     let (header, data): (JobHeader, &[u8]) = split_frame(body)?;
     check_job(&header)?;
     let inputs = job_inputs(&header, data)?;
+    check_job_files(&header.args, &inputs)?;
     let (stdout, warnings, files) = run_job(qpdf, &header.args, &inputs, &header.outputs)?;
     encode_result(stdout, warnings, files)
 }
@@ -159,6 +160,45 @@ pub fn check_job(h: &JobHeader) -> Result<(), FileError> {
         }
         if a.contains('/') || a.contains('\\') || a.contains("..") || has_drive_letter(a) {
             return Err(FileError::other(format!("invalid qpdf argument: {a}")));
+        }
+    }
+    Ok(())
+}
+
+/// Keys a `--job-json-file` may use (Phase 8: Protect / Remove Security). A job file
+/// could otherwise name files outside the job folder, which the argument checks forbid.
+const JOB_FILE_KEYS: &[&str] = &[
+    "inputFile",
+    "outputFile",
+    "password",
+    "decrypt",
+    "encrypt",
+    "showEncryption",
+];
+
+/// Checks every `--job-json-file` input: only known keys, files by plain job names.
+pub fn check_job_files(args: &[String], inputs: &[(&str, &[u8])]) -> Result<(), FileError> {
+    for a in args {
+        let Some(name) = a.strip_prefix("--job-json-file=") else {
+            continue;
+        };
+        let bytes = inputs
+            .iter()
+            .find(|(n, _)| *n == name)
+            .map(|(_, b)| *b)
+            .ok_or("the qpdf job file is missing")?;
+        let v: serde_json::Value =
+            serde_json::from_slice(bytes).map_err(|_| "the qpdf job file is not valid")?;
+        let obj = v.as_object().ok_or("the qpdf job file is not valid")?;
+        for (k, val) in obj {
+            if !JOB_FILE_KEYS.contains(&k.as_str()) {
+                return Err(FileError::other(format!(
+                    "qpdf job file key not allowed: {k}"
+                )));
+            }
+            if (k == "inputFile" || k == "outputFile") && !val.as_str().is_some_and(valid_name) {
+                return Err("invalid job file name in the qpdf job file".into());
+            }
         }
     }
     Ok(())
@@ -286,6 +326,23 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn job_files_only_name_job_files() {
+        let args = vec!["--job-json-file=job.json".to_string()];
+        let ok = br#"{"inputFile":"in0.pdf","outputFile":"out.pdf","password":"x","decrypt":""}"#;
+        assert!(check_job_files(&args, &[("job.json", ok)]).is_ok());
+        for bad in [
+            &br#"{"inputFile":"C:\x.pdf","outputFile":"out.pdf"}"#[..],
+            br#"{"inputFile":"in0.pdf","outputFile":"..\out.pdf"}"#,
+            br#"{"inputFile":"in0.pdf","replaceInput":""}"#,
+            br#"{"inputFile":"in0.pdf","passwordFile":"c.pdf"}"#,
+            b"not json",
+        ] {
+            assert!(check_job_files(&args, &[("job.json", bad)]).is_err());
+        }
+        assert!(check_job_files(&args, &[]).is_err());
     }
 
     #[test]
