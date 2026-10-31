@@ -201,6 +201,24 @@ describe("Recognize Text", { timeout: 120_000 }, () => {
     await check(await scanPdf(render(src, 200)), wordCentres(src));
   });
 
+  it("leaves the scan drawn directly on the page (Edit PDF and redaction see it)", async () => {
+    const scan = await scanPdf(render(await sourcePdf(), 200));
+    const r = await ocrDocument(m, ocr, qpdf, scan, {}, new OcrControl(ocr));
+    const doc = RawDoc.open(m, r.bytes);
+    try {
+      const types = doc.withPage(0, (p) =>
+        Array.from({ length: m.FPDFPage_CountObjects(p) }, (_, i) =>
+          m.FPDFPageObj_GetType(m.FPDFPage_GetObject(p, i)),
+        ),
+      );
+      // 3 = image (the scan), 5 = form (the text layer).
+      expect(types.filter((t) => t === 3)).toHaveLength(1);
+      expect(types.filter((t) => t === 5)).toHaveLength(1);
+    } finally {
+      doc.close();
+    }
+  });
+
   it("reads a scan tilted by 3 degrees, words where the scan shows them", async () => {
     const src = await sourcePdf();
     const truth = new Map([...wordCentres(src)].map(([k, p]) => [k, turn(p, 3)]));

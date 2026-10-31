@@ -1,11 +1,10 @@
 // Recognize Text (Phase 7). For each page: render at 300 dpi as displayed, find its
 // orientation (Tesseract OSD) and skew, OCR a straightened copy into Tesseract's
 // text-only PDF, then place that invisible text back on the page with the inverse
-// turn. The page's own content (the scan) is never changed: qpdf overlays the text as
-// one form XObject per page, the way OCRmyPDF's sandwich renderer does.
+// turn. The page's own content (the scan) is never changed: the text is grafted on as
+// one form XObject per page (pages/graft.ts), like OCRmyPDF's sandwich renderer.
 import {
   PDFDocument,
-  PDFName,
   concatTransformationMatrix,
   drawObject,
   popGraphicsState,
@@ -13,7 +12,8 @@ import {
 } from "pdf-lib";
 import type { PdfiumModule } from "../pdfium";
 import { RawDoc } from "../pages/raw";
-import { runToFile, type Qpdf } from "../pages/qpdf";
+import type { Qpdf } from "../pages/qpdf";
+import { graftLayers, pageFrames } from "../pages/graft";
 import { estimateSkew, renderGray, rotateFine, rotateQuarter, toPgm, type Gray } from "./image";
 import { OcrCancelled, type Ocr } from "./tesseract";
 
@@ -260,8 +260,6 @@ async function buildLayer(reads: PageRead[], dpi: number): Promise<Uint8Array> {
       drawObject(name),
       popGraphicsState(),
     );
-    // Keeps qpdf from scaling: the layer's box is exactly the displayed page.
-    page.node.set(PDFName.of("TrimBox"), out.context.obj([0, 0, r.size.w, r.size.h]));
   }
   return out.save({ useObjectStreams: false });
 }
@@ -305,18 +303,18 @@ export async function ocrDocument(
   if (!reads.length) return { bytes, ...report };
   const layer = await buildLayer(reads, dpi);
   report.read = reads.map((r) => r.index);
-  const out = await runToFile(qpdf, {
-    inputs: { "in.pdf": bytes, "layer.pdf": layer },
-    args: [
-      "in.pdf",
-      "--overlay",
-      "layer.pdf",
-      `--to=${report.read.map((i) => i + 1).join(",")}`,
-      `--from=1-${reads.length}`,
-      "--",
-      "out.pdf",
-    ],
-    outputs: ["out.pdf"],
-  });
+  const frames = pageFrames(m, bytes);
+  const out = await graftLayers(
+    qpdf,
+    bytes,
+    layer,
+    reads.map((r, i) => ({
+      page: r.index,
+      layerPage: i,
+      behind: false,
+      matrix: frames[r.index]?.toUser ?? [1, 0, 0, 1, 0, 0],
+    })),
+    "ocr",
+  );
   return { bytes: out, ...report };
 }
