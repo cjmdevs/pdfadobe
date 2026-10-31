@@ -139,6 +139,26 @@ export class PdfObjects {
     return this.changed.size > 0;
   }
 
+  /** The pending changes, for writers other than qpdf (signing appends them itself). */
+  changes(): { ref: string; value?: JVal; stream?: { dict: JDict; data: Uint8Array } }[] {
+    return [...this.changed].map(([key, o]) => {
+      const ref = key === "trailer" ? key : key.slice(4);
+      if (!o) return { ref, value: null };
+      if (!o.stream) return { ref, value: o.value ?? null };
+      const bin = atob(o.stream.data ?? "");
+      const data = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) data[i] = bin.charCodeAt(i);
+      return { ref, stream: { dict: o.stream.dict, data } };
+    });
+  }
+
+  /** The highest object number in use. */
+  get maxObjectId(): number {
+    const h = isDict(this.header) ? this.header : {};
+    const max = typeof h["maxobjectid"] === "number" ? h["maxobjectid"] : 0;
+    return Math.max(max, ...this.refs().map((r) => Number(r.split(" ")[0])));
+  }
+
   /** The --update-from-json document for the pending changes. */
   updateJson(): string {
     const body: Record<string, JObject | { value: null }> = {};

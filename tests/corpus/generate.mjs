@@ -843,6 +843,33 @@ async function signedFake() {
   return doc.save();
 }
 
+/** Two pages, an empty signature field "Client Signature" on page 2. Synthetic. */
+async function signField() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic signature field");
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  doc
+    .addPage([612, 792])
+    .drawText("Engagement letter (synthetic). Page 1.", { x: 72, y: 700, size: 14, font });
+  const page = doc.addPage([612, 792]);
+  page.drawText("Sign below (synthetic).", { x: 72, y: 700, size: 14, font });
+  const ctx = doc.context;
+  const field = ctx.register(
+    ctx.obj({
+      Type: "Annot",
+      Subtype: "Widget",
+      FT: "Sig",
+      T: PDFString.of("Client Signature"),
+      Rect: [72, 560, 312, 620],
+      F: 4,
+      P: page.ref,
+    }),
+  );
+  page.node.set(PDFName.of("Annots"), ctx.obj([field]));
+  doc.catalog.set(PDFName.of("AcroForm"), ctx.obj({ Fields: [field] }));
+  return doc.save();
+}
+
 /**
  * A dynamic XFA form (XFA-only): /NeedsRendering true, an XFA template, no AcroForm
  * widgets. The page shows only the placeholder a non-XFA viewer would see. Synthetic.
@@ -1340,6 +1367,7 @@ export async function generateCorpus({ force = false } = {}) {
   await write("leak-revisions.pdf", leakRevisions);
   for (const w of WORKPAPERS) await write(w.file, () => workpaper(w));
   await write("signed-fake.pdf", signedFake);
+  await write("sign-field.pdf", signField);
   await write("pdflyer-sample.pdf", pdflyerSample);
   await write("stamp-reviewed.png", stampPng);
   // useObjectStreams: false so the xref is a plain table that damagedXref can break.
