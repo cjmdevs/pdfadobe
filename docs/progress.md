@@ -50,6 +50,12 @@ Keep it under 2 pages; summarize older phases.
   has a real-looking name). Not verified: that PDFlyer accepts our tickmarks and tapes
   (needs a coworker on PDFlyer); clipboard reading in the installed WebView2.
   No new dependencies.
+- **B6 owner check 2026-10-31:** steps 2-9 passed. Step 1: the 8 seen was the synthetic
+  file (the real sample lists 35 in tests). Added: a selected letter/number tickmark
+  (PDFlyer's or ours, same Subject) rings the matching ones on the page and offers "Go
+  to the next C (1 of 3; page N)". Re-check: `docs/testing/b6-fixes-test-guide.md`.
+  e2e: save-and-read tests now poll the saved file (Ctrl+S sometimes had not written it
+  yet; flaky before B6 too).
 - **B3 Edit PDF stage 2 (2026-10-28/30), owner checks in progress:** paragraph grouping
   (indents, lists, alignment; Join / Split; `/PWBox` marked content keeps box ids), text
   box controls (move, handles, X/Y/W/H, auto-fit, push text below), Acrobat-like Format
