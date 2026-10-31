@@ -6,6 +6,7 @@ import type { TickmarkDef } from "../engine/flyer/tickmarks";
 import type { StampTemplate } from "../engine/flyer/userStamps";
 import { sanitizeStampTemplates, sanitizeTickmarks } from "../flyer/library";
 import { DEFAULT_CALC, sanitizeCalc, type CalcSettings } from "../flyer/calc";
+import { sanitizePresets, type HeaderFooterPreset } from "../engine/decorate";
 
 export type Theme = "system" | "light" | "dark";
 export type ViewMode = "continuous" | "single" | "twoUp";
@@ -89,6 +90,8 @@ export interface Settings {
   stampsPaletteOpen: boolean;
   /** Custom stamps' category and (renamed) name, by custom stamp id. */
   customStampInfo: Record<string, { category: string; name?: string }>;
+  /** Saved Header & Footer and Bates setups (Phase 7). */
+  headerFooterPresets: HeaderFooterPreset[];
 }
 
 export const MAX_RECENT = 15;
@@ -159,6 +162,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showStampNames: false,
   stampsPaletteOpen: false,
   customStampInfo: {},
+  headerFooterPresets: [],
 };
 
 const oneOf =
@@ -261,6 +265,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     stampsPaletteOpen:
       typeof r.stampsPaletteOpen === "boolean" ? r.stampsPaletteOpen : d.stampsPaletteOpen,
     customStampInfo: stampInfo(r.customStampInfo),
+    headerFooterPresets: sanitizePresets(r.headerFooterPresets),
   };
 }
 

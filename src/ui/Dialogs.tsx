@@ -15,6 +15,7 @@ import { SettingsBody } from "./SettingsDialog";
 import { FlattenBody } from "./markup/FlattenDialog";
 import { BatchOcr } from "./scan/BatchOcr";
 import { OptimizeDialog } from "./optimize/OptimizeDialog";
+import { DecorateDialog } from "./decorate/DecorateDialog";
 import {
   CombineDialog,
   ConfirmDialog,
@@ -154,6 +155,22 @@ function MainDialog() {
       return (
         <Modal title="Reduce File Size" onClose={close}>
           <OptimizeDialog documentId={dialog.documentId} onClose={close} />
+        </Modal>
+      );
+    case "decorate":
+      return (
+        <Modal
+          title={
+            {
+              header: "Add Header & Footer",
+              bates: "Bates Numbering",
+              watermark: "Add Watermark",
+              background: "Add Background",
+            }[dialog.what]
+          }
+          onClose={close}
+        >
+          <DecorateDialog what={dialog.what} documentId={dialog.documentId} onClose={close} />
         </Modal>
       );
     case "batchOcr":

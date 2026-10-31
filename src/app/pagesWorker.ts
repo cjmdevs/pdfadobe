@@ -64,6 +64,19 @@ import {
   type Subsetter,
 } from "../engine/edit/fonts/subset";
 import { optimizeDocument, type OptimizePresetId } from "../engine/optimize";
+import {
+  addBackground,
+  addHeaderFooter,
+  addWatermark,
+  removeDecorations,
+  type BackgroundSpec,
+  type BatesSpec,
+  type DecorKind,
+  type HeaderFooterSpec,
+  type TokenValues,
+  type WatermarkSpec,
+} from "../engine/decorate";
+import { graftKinds } from "../engine/pages/graft";
 import { createKerner, type Kerner } from "../engine/edit/fonts/kern";
 import { applySpacing } from "../engine/edit/spacing";
 import { addPdflyerKeys } from "../engine/flyer/pdflyer";
@@ -289,6 +302,22 @@ export const OPS = {
   /** Reduce File Size (Phase 7): the result is saved as a new file by the caller. */
   optimize: async (c: Ctx, b: Uint8Array, preset: OptimizePresetId) =>
     optimizeDocument(c.module, c.qpdf, await glyphSubsetter(), b, preset),
+  /** Header & Footer, or Bates numbers with `bates` (Phase 7). */
+  addHeaderFooter: (
+    c: Ctx,
+    b: Uint8Array,
+    spec: HeaderFooterSpec,
+    values: TokenValues,
+    bates?: BatesSpec,
+  ) => addHeaderFooter(c.module, c.qpdf, b, spec, values, bates),
+  addWatermark: (c: Ctx, b: Uint8Array, spec: WatermarkSpec) =>
+    addWatermark(c.module, c.qpdf, b, spec),
+  addBackground: (c: Ctx, b: Uint8Array, spec: BackgroundSpec) =>
+    addBackground(c.module, c.qpdf, b, spec),
+  removeDecorations: (c: Ctx, b: Uint8Array, kinds: DecorKind[]) =>
+    removeDecorations(c.qpdf, b, kinds),
+  /** Which kinds of added layers the document has ("header", "watermark", "ocr"...). */
+  decorKinds: async (c: Ctx, b: Uint8Array) => [...(await graftKinds(c.qpdf, b))],
   /** Enhance: turn tilted pages level (lossless). */
   straightenPages: (c: Ctx, b: Uint8Array, pages: number[]) =>
     straightenPages(c.module, c.qpdf, b, pages),

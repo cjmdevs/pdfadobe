@@ -1285,13 +1285,13 @@ test.describe("Edit PDF", () => {
       await expect(page.getByTestId("edit-panel")).toContainText("Click text to edit it");
     });
 
-    test("Crop Pages opens the crop dialog; Phase 7 buttons stay hidden", async ({ page }) => {
+    test("Crop Pages opens the crop dialog; Phase 7 buttons are there", async ({ page }) => {
       await openEdit(page);
       await toolbarButton(page, "Crop pages").click();
       await expect(page.getByRole("dialog")).toBeVisible();
       await page.keyboard.press("Escape");
-      await expect(toolbarButton(page, "Header & Footer")).toHaveCount(0);
-      await expect(toolbarButton(page, "Watermark")).toHaveCount(0);
+      await expect(toolbarButton(page, "Header & Footer").first()).toBeVisible();
+      await expect(toolbarButton(page, "Watermark").first()).toBeVisible();
     });
   });
 

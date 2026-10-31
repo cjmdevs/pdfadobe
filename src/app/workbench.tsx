@@ -115,6 +115,8 @@ export type Dialog =
   | { kind: "batchOcr" }
   /** Reduce File Size into a new file (Phase 7). */
   | { kind: "optimize"; documentId: string }
+  /** Add or update a header/footer, Bates numbers, watermark or background (Phase 7). */
+  | { kind: "decorate"; what: "header" | "bates" | "watermark" | "background"; documentId: string }
   | null;
 
 /** Dialog-driven page operations (src/ui/PageOpsDialogs.tsx). */

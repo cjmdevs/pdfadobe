@@ -20,6 +20,7 @@ const markupFiles = () => import("../ui/markup/markupFiles");
 const flyerFiles = () => import("../ui/flyer/flyerFiles");
 const formActions = () => import("../ui/forms/formActions");
 const scanActions = () => import("../ui/scan/scanActions");
+const decorateActions = () => import("../ui/decorate/decorateActions");
 const formDataFiles = () => import("../ui/forms/formDataFiles");
 const prepareStore = () => import("../ui/forms/prepareStore");
 const prepareActions = () => import("../ui/forms/prepareActions");
@@ -492,6 +493,21 @@ export const TOOLS: ToolDef[] = [
       // Phase 7's tools, shown here (like Acrobat's Edit toolbar) once they are built.
       phase7Action("headerFooter", "Header & Footer", "headerFooter"),
       phase7Action("watermark", "Watermark", "watermark"),
+      {
+        id: "more",
+        label: "More: background and Bates numbering",
+        caption: "More",
+        icon: "more",
+        menuOnly: true,
+        run: () => undefined,
+        items: () =>
+          (["background", "bates"] as const).map((id) => ({
+            id,
+            label: id === "background" ? "Background" : "Bates Numbering",
+            run: () => undefined,
+            items: decorItems(id),
+          })),
+      },
     ],
   },
   {
@@ -1092,6 +1108,10 @@ export const TOOLS: ToolDef[] = [
       },
     ],
   },
+  decorTool("headerFooter", "header", "Header & Footer", "headerFooter"),
+  decorTool("watermark", "watermark", "Watermark", "watermark"),
+  decorTool("background", "background", "Background", "fill"),
+  decorTool("bates", "bates", "Bates Numbering", "bates"),
   planned("protect", "Protect", "protect", "#3a6fd8", "Passwords and permissions", []),
 ];
 
@@ -1124,6 +1144,47 @@ function planned(
 
 export const isBuilt = (t: ToolDef) => t.comingIn === null;
 
+type DecorWhat = "header" | "bates" | "watermark" | "background";
+
+/** Add / Update / Remove for one kind of page decoration (Phase 7). */
+function decorItems(what: DecorWhat): MenuItem[] {
+  const open = (c: ToolContext) => {
+    if (c.documentId) c.wb.setDialog({ kind: "decorate", what, documentId: c.documentId });
+  };
+  const remove = (c: ToolContext) => {
+    const id = c.documentId;
+    if (id) void decorateActions().then((m) => m.removeKind(c.wb, id, what));
+  };
+  return [
+    { id: "add", label: "Add…", run: open },
+    { id: "update", label: "Update… (replaces the one added before)", run: open },
+    { id: "remove", label: "Remove", run: remove },
+  ];
+}
+
+/** Header & Footer, Watermark, Background, Bates: shown in the Edit and Scan & OCR
+ * toolbars rather than the Tools pane, like Acrobat. */
+function decorTool(id: string, what: DecorWhat, name: string, icon: IconName): ToolDef {
+  const items = decorItems(what);
+  return {
+    id,
+    name,
+    icon,
+    color: "#2e9e44",
+    description: name,
+    comingIn: null,
+    unlisted: true,
+    open: (c) => items[0]?.run(c),
+    toolbar: items.map((it) => ({
+      id: it.id,
+      label: `${name}: ${it.label}`,
+      caption: it.label.replace(/ \(.*\)$/, ""),
+      icon: it.id === "remove" ? "trash" : icon,
+      run: it.run,
+    })),
+  };
+}
+
 /** One of Organize Pages' actions, also shown in another tool's toolbar (Scan & OCR). */
 function organizeAction(id: string): ToolAction {
   const a = ORGANIZE_TOOLBAR.find((x) => x.id === id);
@@ -1137,21 +1198,28 @@ function organizeAction(id: string): ToolAction {
  */
 function phase7Action(toolId: string, caption: string, icon: IconName): ToolAction {
   const target = () => TOOLS.find((t) => t.id === toolId && isBuilt(t));
+  // A tool that opens a dialog runs here; a toolbar tool takes over the toolbar.
+  const open = (c: ToolContext) => {
+    const t = target();
+    if (!c.documentId || !t) return;
+    if (typeof t.open === "function") t.open(c);
+    else c.wb.setActiveTool(c.documentId, toolId);
+  };
   return {
     id: toolId,
     label: caption,
     caption,
     icon,
     shown: () => target() !== undefined,
-    run: (c) => {
-      if (c.documentId && target()) c.wb.setActiveTool(c.documentId, toolId);
-    },
+    run: open,
     items: () =>
       (target()?.toolbar ?? []).map((a) => ({
         id: a.id,
-        label: a.label,
+        label: a.caption ?? a.label,
         run: (ctx) => {
-          if (ctx.documentId) ctx.wb.setActiveTool(ctx.documentId, toolId);
+          const t = target();
+          if (ctx.documentId && t && t.open === "toolbar")
+            ctx.wb.setActiveTool(ctx.documentId, toolId);
           a.run(ctx);
         },
       })),

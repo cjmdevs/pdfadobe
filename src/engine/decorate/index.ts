@@ -333,3 +333,80 @@ export async function removeDecorations(
 ): Promise<{ bytes: Uint8Array; pages: number[] }> {
   return removeGrafts(qpdf, bytes, kinds);
 }
+
+/** A saved Header & Footer (or Bates) setup, by name (Settings.headerFooterPresets). */
+export interface HeaderFooterPreset {
+  name: string;
+  spec: Omit<HeaderFooterSpec, "pages">;
+  bates?: BatesSpec;
+}
+
+const str = (v: unknown, max = 200): v is string => typeof v === "string" && v.length <= max;
+const numIn = (v: unknown, lo: number, hi: number): v is number =>
+  typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi;
+const DATE_FORMATS: DateFormat[] = ["M/D/YYYY", "MM/DD/YYYY", "YYYY-MM-DD", "MMMM D, YYYY"];
+
+function triple(v: unknown): [string, string, string] | null {
+  return Array.isArray(v) && v.length === 3 && v.every((x) => str(x))
+    ? [v[0] as string, v[1] as string, v[2] as string]
+    : null;
+}
+
+/** Presets read from settings; anything malformed is dropped. */
+export function sanitizePresets(raw: unknown): HeaderFooterPreset[] {
+  if (!Array.isArray(raw)) return [];
+  const out: HeaderFooterPreset[] = [];
+  for (const p of raw.slice(0, 50)) {
+    if (!p || typeof p !== "object") continue;
+    const { name, spec, bates } = p as Record<string, unknown>;
+    const s = (spec ?? {}) as Record<string, unknown>;
+    const style = (s.style ?? {}) as Record<string, unknown>;
+    const mg = (s.margins ?? {}) as Record<string, unknown>;
+    const header = triple(s.header);
+    const footer = triple(s.footer);
+    if (!str(name, 80) || !name.trim() || !header || !footer) continue;
+    if (!(typeof style.font === "string" && style.font in STANDARD_FONTS)) continue;
+    if (
+      !numIn(style.size, 4, 72) ||
+      !(typeof style.color === "string" && /^#[0-9a-f]{6}$/i.test(style.color))
+    )
+      continue;
+    if (![mg.top, mg.bottom, mg.left, mg.right].every((x) => numIn(x, 0, 720))) continue;
+    if (!numIn(s.startNumber, 0, 1e9) || !DATE_FORMATS.includes(s.dateFormat as DateFormat))
+      continue;
+    const b = (bates ?? null) as Record<string, unknown> | null;
+    const okBates =
+      b &&
+      str(b.prefix, 40) &&
+      str(b.suffix, 40) &&
+      numIn(b.start, 0, 1e12) &&
+      numIn(b.digits, 1, 15);
+    out.push({
+      name: name.trim(),
+      spec: {
+        header,
+        footer,
+        style: { font: style.font as FontName, size: style.size, color: style.color },
+        margins: {
+          top: mg.top as number,
+          bottom: mg.bottom as number,
+          left: mg.left as number,
+          right: mg.right as number,
+        },
+        startNumber: s.startNumber,
+        dateFormat: s.dateFormat as DateFormat,
+      },
+      ...(okBates
+        ? {
+            bates: {
+              prefix: b.prefix as string,
+              suffix: b.suffix as string,
+              start: b.start as number,
+              digits: b.digits as number,
+            },
+          }
+        : {}),
+    });
+  }
+  return out;
+}
