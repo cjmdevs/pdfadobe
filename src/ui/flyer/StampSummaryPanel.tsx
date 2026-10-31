@@ -2,10 +2,11 @@
 // filtered by type and author; a click jumps to it. A second tab lists the workpaper
 // notes. Shown in the Tools pane while Workpaper Tools is open.
 import { useMemo, useState } from "react";
+import { useDocumentState } from "@embedpdf/core/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
 import { useWorkbench } from "../../app/workbench";
-import { PW_TYPE_LABELS, noteRows, summaryRows } from "../../flyer/items";
+import { SUMMARY_TYPE_LABELS, noteRows, summaryRows } from "../../flyer/items";
 import { exportSummaryCsv, formatWhen } from "./flyerFiles";
 
 export default function StampSummaryPanel({ documentId }: { documentId: string }) {
@@ -15,9 +16,14 @@ export default function StampSummaryPanel({ documentId }: { documentId: string }
   const [tab, setTab] = useState<"summary" | "notes">("summary");
   const [type, setType] = useState("");
   const [author, setAuthor] = useState("");
+  const pages = useDocumentState(documentId)?.document?.pages;
   const rows = useMemo(
-    () => summaryRows(Object.values(state.byUid).map((t) => t.object)),
-    [state.byUid],
+    () =>
+      summaryRows(
+        Object.values(state.byUid).map((t) => t.object),
+        (i) => pages?.[i]?.size,
+      ),
+    [state.byUid, pages],
   );
   const notes = useMemo(
     () => noteRows(Object.values(state.byUid).map((t) => t.object)),
@@ -87,7 +93,7 @@ export default function StampSummaryPanel({ documentId }: { documentId: string }
               <option value="">All types</option>
               {types.map((t) => (
                 <option key={t} value={t}>
-                  {PW_TYPE_LABELS[t]}
+                  {SUMMARY_TYPE_LABELS[t]}
                 </option>
               ))}
             </select>
@@ -103,7 +109,7 @@ export default function StampSummaryPanel({ documentId }: { documentId: string }
             </select>
           </div>
           {rows.length === 0 && (
-            <p className="hint">No tickmarks, connectors or sign-off stamps yet.</p>
+            <p className="hint">No tickmarks, connectors, stamps or tapes yet.</p>
           )}
           <ul>
             {shown.map((r) => (
@@ -113,6 +119,7 @@ export default function StampSummaryPanel({ documentId }: { documentId: string }
                   <span className="meta">
                     Page {r.pageIndex + 1} · {r.author}
                     {r.created ? ` · ${formatWhen(r.created)}` : ""}
+                    {r.offPage ? " · off page" : ""}
                   </span>
                 </button>
               </li>

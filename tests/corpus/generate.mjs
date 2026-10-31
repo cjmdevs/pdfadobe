@@ -1017,6 +1017,227 @@ async function workpaper(spec) {
   return doc.save();
 }
 
+// ---- PDFlyer-style marks (backlog B6) ---------------------------------------
+
+/** The /Name PDFlyer writes on its tickmarks (a literal "#", then base64 of "Written By
+ * Nan."), as found in the owner's sample. Our own drawings below; nothing copied. */
+export const PDFLYER_MARK = "#V3JpdHRlbiBCeSBOYW4u";
+
+/** What `pdflyer-sample.pdf` holds, page 1 (subjects as PDFlyer and Acrobat write them). */
+export const PDFLYER_SAMPLE = {
+  tickmarks: [
+    { subj: "Letter Connectors:A", rect: [80, 700, 96, 716] },
+    { subj: "Letter Connectors:A", rect: [180, 700, 196, 716] },
+    { subj: "Connectors:2", rect: [300, 700, 316, 716], note: "Ties to schedule 2" },
+    { subj: "Engagement:Agrees to General Ledger", rect: [400, 700, 416, 716] },
+  ],
+  tape: {
+    rect: [36, 560, 133, 614],
+    rows: [
+      ["1 - 0", "", "", "", "2"],
+      ["1 - 1", "", "8.00", "+", "2"],
+      ["1 - 2", "", "8.00", "+", "2"],
+      ["1 - 3", "", "2.00", "+", "2"],
+      ["1 - 4", "", "18.00", "*", "2"],
+    ],
+  },
+  /** PDFlyer leaves its sticky notes below the page (negative y), as in the sample. */
+  stickyNote: { rect: [36, -128, 150, -36], text: "Double click to change note" },
+  textBox: { rect: [88, 236, 274, 297], text: "Synthetic text box" },
+  acrobatStamp: { name: "#DReviewed", subj: "Reviewed", rect: [234, 394, 490, 449] },
+};
+
+async function pdflyerSample() {
+  const doc = await PDFDocument.create();
+  stamp(doc, "Synthetic PDFlyer-marked workpaper");
+  const helv = await doc.embedFont(StandardFonts.Helvetica);
+  const page = doc.addPage([612, 792]);
+  page.drawText("Synthetic workpaper with PDFlyer-style marks. No client data.", {
+    x: 72,
+    y: 500,
+    size: 11,
+    font: helv,
+  });
+  const ctx = doc.context;
+  const fonts = {
+    Helv: ctx.register(
+      ctx.obj({
+        Type: "Font",
+        Subtype: "Type1",
+        BaseFont: "Helvetica",
+        Encoding: "WinAnsiEncoding",
+      }),
+    ),
+    HeBo: ctx.register(
+      ctx.obj({
+        Type: "Font",
+        Subtype: "Type1",
+        BaseFont: "Helvetica-Bold",
+        Encoding: "WinAnsiEncoding",
+      }),
+    ),
+    Cour: ctx.register(
+      ctx.obj({ Type: "Font", Subtype: "Type1", BaseFont: "Courier", Encoding: "WinAnsiEncoding" }),
+    ),
+  };
+  const form = (bbox, ops) =>
+    ctx.register(
+      ctx.stream(ops, {
+        Type: "XObject",
+        Subtype: "Form",
+        FormType: 1,
+        BBox: bbox,
+        Resources: { Font: fonts },
+      }),
+    );
+  const date = PDFString.of("D:20250115120000Z");
+  const annots = [];
+  const add = (dict) => {
+    const ref = ctx.register(ctx.obj(dict));
+    annots.push(ref);
+    return ref;
+  };
+  const esc = (s) => s.replace(/[\\()]/g, (c) => `\\${c}`);
+  // Circle of radius 42 around (50,50), drawn with four Béziers.
+  const k = 42 * 0.5523;
+  const circle =
+    `92 50 m 92 ${50 + k} ${50 + k} 92 50 92 c ${50 - k} 92 8 ${50 + k} 8 50 c ` +
+    `8 ${50 - k} ${50 - k} 8 50 8 c ${50 + k} 8 92 ${50 - k} 92 50 c S`;
+  PDFLYER_SAMPLE.tickmarks.forEach((t, i) => {
+    const label = t.subj.split(":")[1];
+    const text = label.length > 2 ? "GL" : label;
+    const ap = form(
+      [0, 0, 100, 100],
+      `q 1 0 0 RG 5 w ${circle} Q BT ${label.length > 2 ? "1 0 0" : "0 0 0"} rg /HeBo 56 Tf ` +
+        `${text.length > 1 ? 14 : 32} 30 Td (${esc(text)}) Tj ET`,
+    );
+    const ref = add({
+      Type: "Annot",
+      Subtype: "Stamp",
+      Rect: t.rect,
+      AP: { N: ap },
+      F: 4,
+      Name: PDFLYER_MARK,
+      Subj: PDFString.of(t.subj),
+      T: PDFString.of("Test Preparer"),
+      NM: PDFString.of(`pdflyer-tick-${i + 1}`),
+      CreationDate: date,
+      M: date,
+      ...(t.note ? { Contents: PDFString.of(t.note) } : {}),
+    });
+    const popup = add({
+      Type: "Annot",
+      Subtype: "Popup",
+      Rect: [612, t.rect[1] - 100, 816, t.rect[3]],
+      F: 28,
+      Open: false,
+      Parent: ref,
+    });
+    ctx.lookup(ref).set(PDFName.of("Popup"), popup);
+  });
+
+  const { tape } = PDFLYER_SAMPLE;
+  const tapeLines = tape.rows.map(([sec, note, amt, op]) =>
+    `${sec} | ${note} | ${amt.padStart(5)} ${op}`.trimEnd(),
+  );
+  const [x0, y0, x1, y1] = tape.rect;
+  add({
+    Type: "Annot",
+    Subtype: "FreeText",
+    Rect: tape.rect,
+    AP: {
+      N: form(
+        tape.rect,
+        `0.753 g ${x0 + 0.5} ${y0 + 0.5} ${x1 - x0 - 1} ${y1 - y0 - 1} re B BT /Cour 9 Tf 0 g ` +
+          `${x0 + 2} ${y1 - 9} Td 10.8 TL ` +
+          tapeLines.map((l) => `(${esc(l)}) Tj T*`).join(" ") +
+          " ET",
+      ),
+    },
+    C: [0.753, 0.753, 0.753],
+    Contents: PDFString.of(tapeLines.join("\n")),
+    DS: PDFString.of('font:"Courier New"; color:#000000; font-size:9pt;'),
+    F: 516,
+    M: date,
+    NM: PDFString.of("pdflyer-tape-1"),
+    Rotate: 0,
+    Subj: PDFString.of("Calculator Tape:PDFlyer"),
+    T: PDFString.of("Test Preparer"),
+    TapeData: tape.rows.map((r) => r.map((c) => PDFString.of(c))),
+  });
+
+  const note = PDFLYER_SAMPLE.stickyNote;
+  add({
+    Type: "Annot",
+    Subtype: "FreeText",
+    Rect: note.rect,
+    AP: {
+      N: form(
+        note.rect,
+        `1 1 0.498 rg ${note.rect[0]} ${note.rect[1]} 114 92 re f BT /Helv 10 Tf 0 g ` +
+          `${note.rect[0] + 2} ${note.rect[3] - 12} Td (${esc(note.text)}) Tj ET`,
+      ),
+    },
+    C: [1, 1, 0.498],
+    Contents: PDFString.of(note.text),
+    DS: PDFString.of("color:#000000; font:normal normal 10pt;"),
+    F: 4,
+    M: date,
+    NM: PDFString.of("pdflyer-note-1"),
+    NoteData: true,
+    Rotate: 0,
+    Subj: PDFString.of("Sticky Note:"),
+    T: PDFString.of("Test Preparer"),
+  });
+
+  const box = PDFLYER_SAMPLE.textBox;
+  add({
+    Type: "Annot",
+    Subtype: "FreeText",
+    Rect: box.rect,
+    AP: {
+      N: form(
+        box.rect,
+        `1 0 0 RG 1 w ${box.rect[0] + 0.5} ${box.rect[1] + 0.5} 185 60 re S BT /Helv 12 Tf ` +
+          `0 0.5 0 rg ${box.rect[0] + 2} ${box.rect[3] - 13} Td (${esc(box.text)}) Tj ET`,
+      ),
+    },
+    C: [1, 1, 1],
+    Contents: PDFString.of(box.text),
+    DA: PDFString.of("0 0.5 0 rg /Helv 12 Tf"),
+    F: 4,
+    M: date,
+    NM: PDFString.of("acrobat-textbox-1"),
+    Subj: PDFString.of("Text Box"),
+    T: PDFString.of("Test Preparer"),
+  });
+
+  const st = PDFLYER_SAMPLE.acrobatStamp;
+  add({
+    Type: "Annot",
+    Subtype: "Stamp",
+    Rect: st.rect,
+    AP: {
+      N: form(
+        st.rect,
+        `0.12 0.3 0.6 RG 2 w ${st.rect[0] + 2} ${st.rect[1] + 2} 252 51 re S BT /HeBo 22 Tf ` +
+          `0.12 0.3 0.6 rg ${st.rect[0] + 10} ${st.rect[1] + 28} Td (REVIEWED) Tj ` +
+          `/Helv 10 Tf 0 -18 Td (By Test Preparer at 12:00 pm, Jan 15, 2025) Tj ET`,
+      ),
+    },
+    C: [0.86, 0.2, 0.15],
+    CreationDate: date,
+    F: 4,
+    M: date,
+    Name: st.name,
+    NM: PDFString.of("acrobat-stamp-1"),
+    Subj: PDFString.of(st.subj),
+    T: PDFString.of("Test Preparer"),
+  });
+  page.node.set(PDFName.of("Annots"), ctx.obj(annots));
+  return doc.save({ useObjectStreams: false });
+}
+
 // ---- qpdf -------------------------------------------------------------------
 
 /**
@@ -1079,6 +1300,7 @@ export async function generateCorpus({ force = false } = {}) {
   await write("leak-revisions.pdf", leakRevisions);
   for (const w of WORKPAPERS) await write(w.file, () => workpaper(w));
   await write("signed-fake.pdf", signedFake);
+  await write("pdflyer-sample.pdf", pdflyerSample);
   await write("stamp-reviewed.png", stampPng);
   // useObjectStreams: false so the xref is a plain table that damagedXref can break.
   await write("damaged-xref.pdf", async () => {

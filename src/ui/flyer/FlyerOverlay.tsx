@@ -26,8 +26,12 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
   const pages = doc?.document?.pages;
   const flyer = useDocToolContext(documentId).flyer;
   const rows = useMemo(
-    () => summaryRows(Object.values(state.byUid).map((t) => t.object)),
-    [state.byUid],
+    () =>
+      summaryRows(
+        Object.values(state.byUid).map((t) => t.object),
+        (i) => pages?.[i]?.size,
+      ),
+    [state.byUid, pages],
   );
   const rowsRef = useRef(rows);
   useEffect(() => {

@@ -3,7 +3,7 @@
 // EmbedPDF's annotation custom data (stored in the PDF as the /EPDFCustom JSON string)
 // under `pwType`, and its Subject reads "Tickmark: Footed". Node-safe, no React.
 
-import type { PdfAnnotationObject } from "@embedpdf/models";
+import { PdfAnnotationSubtype, type PdfAnnotationObject } from "@embedpdf/models";
 import { sequenceNumber, type TickmarkDef } from "../engine/flyer/tickmarks";
 
 export type PwType =
@@ -118,10 +118,44 @@ export function noteRows(annots: PdfAnnotationObject[]): NoteRow[] {
     .sort((p, q) => p.pageIndex - q.pageIndex || p.y - q.y);
 }
 
+/** Items made by PDFlyer or Acrobat that the Stamp Summary lists too (backlog B6). */
+export type ForeignType = "PdflyerTickmark" | "PdflyerTape" | "PdflyerNote" | "Stamp" | "TextBox";
+
+export type SummaryType = PwType | ForeignType;
+
+export const SUMMARY_TYPE_LABELS: Record<SummaryType, string> = {
+  ...PW_TYPE_LABELS,
+  PdflyerTickmark: "PDFlyer tickmark",
+  PdflyerTape: "PDFlyer tape",
+  PdflyerNote: "PDFlyer note",
+  Stamp: "Stamp",
+  TextBox: "Text box",
+};
+
+/** PDFlyer's subjects: "Category:Item" ("Letter Connectors:A", "Engagement:Agrees to"),
+ * "Calculator Tape:PDFlyer" and "Sticky Note:". */
+const PDFLYER_TAPE = "Calculator Tape:PDFlyer";
+const PDFLYER_NOTE = "Sticky Note:";
+
+/** What a PDFlyer or Acrobat item is, and its row name; null for anything else. */
+export function foreignItem(a: PdfAnnotationObject): { type: ForeignType; name: string } | null {
+  const subject = (a as { subject?: string }).subject?.trim() ?? "";
+  if (a.type === PdfAnnotationSubtype.FREETEXT) {
+    if (subject === PDFLYER_TAPE) return { type: "PdflyerTape", name: "Calculator tape" };
+    if (subject === PDFLYER_NOTE) return { type: "PdflyerNote", name: "Sticky note" };
+    return { type: "TextBox", name: "Text box" };
+  }
+  if (a.type !== PdfAnnotationSubtype.STAMP) return null;
+  const [, category, item] = /^([^:]+):(.+)$/.exec(subject) ?? [];
+  if (category && item)
+    return { type: "PdflyerTickmark", name: `${item.trim()} (${category.trim()})` };
+  return { type: "Stamp", name: subject || "Stamp" };
+}
+
 export interface SummaryRow {
   id: string;
   pageIndex: number;
-  type: PwType;
+  type: SummaryType;
   /** "Footed (B)", "Tickmark legend", "Connector to page 5", "Prepared by". */
   name: string;
   /** Tickmark meaning, or the stamp's text (name, date, reference). */
@@ -131,6 +165,8 @@ export interface SummaryRow {
   /** Points from the page's top-left corner. */
   x: number;
   y: number;
+  /** Outside the page (PDFlyer leaves its sticky notes below it): no click lands there. */
+  offPage?: boolean;
 }
 
 function rowName(d: PwData, subject: string): string {
@@ -150,25 +186,38 @@ function rowName(d: PwData, subject: string): string {
   }
 }
 
-/** Every tickmark, legend, connector and user/status stamp (not notes: see noteRows), in
- * page then top-to-bottom order. */
-export function summaryRows(annots: PdfAnnotationObject[]): SummaryRow[] {
+/** Every tickmark, legend, connector and user/status stamp (not our notes: see
+ * noteRows), plus PDFlyer's marks, stamps and text boxes, in page then top-to-bottom
+ * order. `pageSize` (points) flags items outside their page. */
+export function summaryRows(
+  annots: PdfAnnotationObject[],
+  pageSize?: (pageIndex: number) => { width: number; height: number } | undefined,
+): SummaryRow[] {
   const rows: SummaryRow[] = [];
   for (const a of annots) {
     const d = pwData(a);
-    if (!d || d.pwType === "Note" || d.pwType === "ConnectorLink" || d.pwType === "TickLink")
+    const foreign = d ? null : foreignItem(a);
+    if (d && (d.pwType === "Note" || d.pwType === "ConnectorLink" || d.pwType === "TickLink"))
       continue;
+    const kind = d ? { type: d.pwType, name: "" } : foreign;
+    if (!kind) continue;
     const subject = (a as { subject?: string }).subject ?? "";
+    const size = pageSize?.(a.pageIndex);
+    const { origin: o, size: s } = a.rect;
     rows.push({
       id: a.id,
       pageIndex: a.pageIndex,
-      type: d.pwType,
-      name: rowName(d, subject),
-      meaning: d.pwType === "Legend" || d.pwType === "Connector" ? "" : (a.contents ?? ""),
+      type: kind.type,
+      name: d ? rowName(d, subject) : kind.name,
+      meaning: d?.pwType === "Legend" || d?.pwType === "Connector" ? "" : (a.contents ?? ""),
       author: a.author ?? "",
       created: a.created ?? null,
-      x: Math.round(a.rect.origin.x),
-      y: Math.round(a.rect.origin.y),
+      x: Math.round(o.x),
+      y: Math.round(o.y),
+      ...(size &&
+      (o.x >= size.width || o.y >= size.height || o.x + s.width <= 0 || o.y + s.height <= 0)
+        ? { offPage: true }
+        : {}),
     });
   }
   return rows.sort((p, q) => p.pageIndex - q.pageIndex || p.y - q.y || p.x - q.x);
@@ -181,17 +230,28 @@ const csvCell = (v: string) => {
 };
 
 export function summaryCsv(rows: SummaryRow[], formatDate: (d: Date) => string): string {
-  const head = ["Page", "Type", "Name", "Meaning", "Author", "Date", "X (pt)", "Y (pt)"];
+  const head = [
+    "Page",
+    "Type",
+    "Name",
+    "Meaning",
+    "Author",
+    "Date",
+    "X (pt)",
+    "Y (pt)",
+    "Off page",
+  ];
   const body = rows.map((r) =>
     [
       String(r.pageIndex + 1),
-      PW_TYPE_LABELS[r.type],
+      SUMMARY_TYPE_LABELS[r.type],
       r.name,
       r.meaning,
       r.author,
       r.created ? formatDate(r.created) : "",
       String(r.x),
       String(r.y),
+      r.offPage ? "yes" : "",
     ]
       .map(csvCell)
       .join(","),

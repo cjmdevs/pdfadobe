@@ -122,7 +122,7 @@ describe("tickmarks after save and reopen", () => {
     // Counting goes on where the last session stopped.
     expect(nextSequence(letters, annots)).toBe(3);
     const csv = summaryCsv(rows, (d) => d.toISOString());
-    expect(csv.split("\r\n")[0]).toBe("Page,Type,Name,Meaning,Author,Date,X (pt),Y (pt)");
+    expect(csv.split("\r\n")[0]).toBe("Page,Type,Name,Meaning,Author,Date,X (pt),Y (pt),Off page");
     expect(csv).toContain("1,Tickmark,Footed,Footed,Test Preparer,");
   });
 

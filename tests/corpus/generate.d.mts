@@ -59,3 +59,12 @@ export const FLAT_FORM_LAYOUT: {
 };
 /** Field names in generated/calc-form.pdf (Phase 6 calculations). */
 export const CALC_FORM: { inputs: string[]; sumKids: string[] };
+export const PDFLYER_MARK: string;
+/** pdflyer-sample.pdf (backlog B6): PDFlyer-style marks plus an Acrobat stamp and text box. */
+export const PDFLYER_SAMPLE: {
+  tickmarks: { subj: string; rect: number[]; note?: string }[];
+  tape: { rect: number[]; rows: string[][] };
+  stickyNote: { rect: number[]; text: string };
+  textBox: { rect: number[]; text: string };
+  acrobatStamp: { name: string; subj: string; rect: number[] };
+};
