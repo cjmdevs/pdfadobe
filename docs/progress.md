@@ -13,99 +13,54 @@ Keep it under 2 pages; summarize older phases.
 - **Phase 5 (redaction) done: owner check passed 2026-10-28**, tagged `phase-05-done`.
 - **Phase 4 stages 1-3 + fixes: owner check passed 2026-10-27** (combined run A-J and
   `docs/testing/phase-04-fixes-test-guide.md`). Stage 4 (PDFlyer marks in old
-  workpapers) waits for a synthetic PDFlyer sample in `tests/corpus/pdflyer/`; after it,
-  tag `phase-04-done`.
+  workpapers) built in B6 (sample generated as `tests/corpus/generated/pdflyer-sample.pdf`
+  rather than kept in `tests/corpus/pdflyer/`); tag `phase-04-done` after its owner check.
 - **B3 Edit PDF, stage 1 done: owner check passed 2026-10-27** (all 11 steps of
   `docs/testing/b3-stage1-test-guide.md`, including the Acrobat check and firm fonts
   offline via `\\localhost`). On the build PC:
   117/117 Playwright at the time.
-- **B3 stage 2 (plan approved 2026-10-28), step 1 done: paragraph grouping.** Grouping
-  now joins first-line and hanging indents, list markers across a tab ("1." + text),
-  spaced list items (one box, a paragraph per item, same marker kind), centred and
-  right-aligned blocks, double-spaced prose (not form rows: lines must be alone on their
-  row), bigger run-in heads and superscripts. Re-typeset keeps indents, markers, item
-  spacing and alignment. New sample `real-format/word-layouts.pdf`; expectations can
-  name a `group` (one box per group, groups never share). **Join** (Ctrl+click boxes)
-  and **Split at caret**, one undo step each. Decision: every box we write is wrapped in
-  marked content `/PWBox <</id N>> BDC … EMC` (`src/engine/edit/marks.ts`); grouping keeps
-  one id in one box, so Join/Split survive save + reopen. Standard PDF, ignored by other
-  viewers; no sidecar. **Show bounding boxes** toggle (default on, as stage 1).
-- **B3 stage 2 step 2 done: text box controls.** Drag a box to move it (a click still
-  edits; the editor opens on release), arrow keys 1 pt / Shift 10 pt (one undo step once
-  the keys stop). A move moves the text objects as they are (`src/engine/edit/move.ts`;
-  shared objects split first, `isolateBox`). Selected box: 8 frame handles (sides re-wrap,
-  top moves the text, bottom sets a fixed height and turns auto-fit off). Panel: X/Y/W/H
-  in inches from the page's top-left, auto-fit height, padding, "When text grows, push
-  the text below down" (moves the text boxes below in the same column; images and ruled
-  lines stay; warns when pushed text leaves the page). Images: X/Y/W/H and "Lock aspect
-  ratio" (Shift while dragging does the other). **Deviation:** auto-fit, fixed height and
-  padding are app-only for the session (a PDF has no text-box object); they only change
-  the frame, its warning and the X/Y/W/H numbers. Handles show no resize cursors.
-- **B3 stage 2 step 3 done: formatting.** Rich editor (contentEditable: a block per
-  paragraph, a span per run; `richModel.ts`); Format panel like Acrobat's: font, size,
-  colour, B/I/U, superscript/subscript, bulleted (• – o) and numbered (1. 1) a. A. i. I.)
-  lists with style dropdowns, decrease/increase indent (0.25 in), alignment, line
-  spacing (multiple of the size), paragraph spacing (after), horizontal scaling,
-  character spacing; "More": first-line/left/right indent, space before, word spacing,
-  kerning. With a selection, character formats apply to it; without, to the whole box;
-  paragraph formats apply to the paragraphs the selection touches. Engine: runs per
-  paragraph, generated list markers on a hanging indent (`lists.ts`), and **spike item 5
-  decided: own content-stream writer** — PDFium keeps Tc/Tw/TJ through later edits but
-  can't set them, so spaced runs carry their spacing on the `/PWBox` mark and
-  `spacing.ts` writes `Tc` + `TJ` arrays after save (qpdf update); Tz goes in the text
-  matrix. Kerning: HarfBuzz shaper (harfbuzz.wasm) for font files, AFM pairs for the
-  standard 14, none for a PDF's own subsets. Marks also keep each run's spacing settings
-  (/cs /ws /hs /kn) so the panel shows them again. **Deviations:** paste is plain text;
-  horizontal scaling isn't previewed while typing (exact after the edit); a new list
-  marker in a PDF's own subset font is drawn in Helvetica; simulated bold now reads back
-  as bold. New dependency: @pdf-lib/standard-fonts 1.0.0 (MIT, already installed).
-- **B3 stage 2 step 4 done: Objects panel.** Flip horizontal/vertical (a mirror in the
-  image matrix; vertical = mirror + 180°), crop (upright images: drag the crop handles,
-  Apply; the pixels outside are **removed** from the file, not clipped, so a cropped JPEG
-  is stored again as Flate), rotate left/right, replace, arrange (front / forward /
-  backward / back, for images and text boxes; `arrange.ts`), align left/centre/right/
-  top/middle/bottom for 2+ objects picked with Ctrl+click (text boxes and images mixed),
-  and **Edit Using** (Paint, Windows' "Open with" dialog, or the default program): the
-  picture (a JPEG as stored, else a PNG) goes to `%TEMP%\PDF Workbench\`, each save there
-  comes back as one undo step, and the temp file is deleted on Stop or when the app quits
-  (`src-tauri/src/external_edit.rs`; a save counts once the file stops changing).
-  Edit Using follows the document by store id (`wb.documentOf`). Inapplicable buttons are
-  greyed out, as in Acrobat. Esc cancels a crop. No new dependencies.
-- **B3 stage 2 step 5 done: Edit toolbar** = Edit, Add Text, Add Image, **Link**, **Crop
-  Pages**, and Header & Footer / Watermark slots. Link (`links.ts`, qpdf object edits):
-  drag to add, click a link to change it (web/email address or a page here; invisible
-  or a visible rectangle in a colour), Remove link, and "Remove all web links" (our
-  tickmark links stay). Only http(s) and mailto addresses are allowed (no javascript:,
-  file:). The Link tool stays on through its own edits (the tab id changes). Crop Pages
-  opens Organize's crop dialog. Header & Footer and Watermark use a new `shown()` on
-  toolbar actions: hidden until Phase 7 registers tools with ids `headerFooter` and
-  `watermark`; then they open those tools and list their actions. No new dependencies.
-  **Stage 2 complete; owner check pending** (`docs/testing/b3-stage2-test-guide.md`).
-- **Stage 2 owner check 2026-10-30:** steps 1, 2, 7, 8, 11 passed (9 partly). Fixed:
-  clicks inside the editor finished the edit (EmbedPDF's pointer overlay, z-index 10,
-  sat over it: the edit layer now rises above it while editing); one click puts the
-  caret where you clicked; the editor draws text in the real font file (installed /
-  firm face of the same name, metric twin for the standard 14; `editorFonts.ts`);
-  panel showed default line/paragraph spacing for one-line paragraphs (now on the
-  marks: /ld /sa); list buttons are one button with a style menu; links were movable
-  boxes and never opened (now locked in their own "link" category, FormMode keeps the
-  lock; a click on a web link asks, then opens it via `open_url`, http(s)/mailto only;
-  page links scroll); "Choose a program" used a flyout that closed on focus loss (now
-  `SHOpenWithDialog` owned by our window, `Win32_UI_Shell` feature, no new crate);
-  arrow keys pressed while a move was saving turned the page (now held and applied);
-  Join re-typeset everything into one paragraph (now it only marks the boxes as one:
-  paragraphs, positions, indents and fonts stay); a growing one-line paragraph ran off
-  the right edge (now wraps at the page margin) and text past the page edge is flagged.
-  Re-check: `docs/testing/b3-stage2-fixes-test-guide.md`.
-- **Re-check 2026-10-30:** 1, 3, 6, 8 passed. Fixed: the editor drew list bullets 18 pt
-  left of the page and its first baseline by CSS (now the marker's `at` and a measured
-  baseline shift); a one-line-per-item list lost its item spacing (leading now the
-  smallest line step); the list menu was cut off by the panel (now fixed-position); a
-  click on a selected box's handle did nothing (now opens the editor); visible links
-  had no border drawn (`LinkBorders.tsx` over each page). Line spacing that grows into
-  the box below is the agreed warn-and-keep (toast now names the push checkbox).
-  Shift+→ in the installed app still open: not reproducible in dev or e2e.
-  Re-check: `docs/testing/b3-stage2-fixes2-test-guide.md`.
+- **B6 parity pass (plan approved 2026-10-30): built, owner check pending**
+  (`docs/testing/b6-parity-test-guide.md`). Owner sample decoded: PDFlyer tickmarks are
+  /Stamp with Subject `Category:Item` ("Letter Connectors:A", "Connectors:2",
+  "Engagement:Agrees to"), /Name `#V3JpdHRlbiBCeSBOYW4u` (base64 "Written By Nan."), a
+  closed /Popup, 100x100 form AP. Tape is /FreeText `Calculator Tape:PDFlyer`, custom
+  /TapeData rows `[section, note, amount, op, decimals]`, Courier New 9 pt, grey,
+  /F 516. Sticky notes are /FreeText `Sticky Note:` with /NoteData, placed below the page.
+  Built: (1) Stamp Summary lists PDFlyer marks, Acrobat stamps and text boxes
+  (`foreignItem`), off-page items flagged; synthetic `pdflyer-sample.pdf` (generator,
+  not committed). This is Phase 4 stage 4: tag `phase-04-done` after the owner check.
+  (2) Our tickmarks use PDFlyer's subjects; Save adds PDFlyer's /Name and a popup with
+  qpdf (`engine/flyer/pdflyer.ts`, also drops orphan popups). (3) Tape is PDFlyer's grey
+  free text (Acrobat lists it as text), /TapeData on save, updated in place; a PDFlyer
+  tape opens in our calculator (parsed from its text). (4) Calculator laid out key for
+  key as PDFlyer's 10 Key Calculator: tape grid by section, seven-segment display,
+  memory, decimals 0-4/F, New Tape (= next section), +/-, %, Add Line (non-add), Date
+  Time, -= and += (finish x or /), Delete Line (totals worked out again), GT, ◇
+  (subtotal), * (total), 000. (5) Stamp tool like Acrobat's: Stamp menu (last stamp,
+  favorites, Dynamic / Sign Here / Standard Business / custom categories as submenus,
+  Show Stamp Names, Paste Clipboard Image), Stamps Palette, Custom Stamps (create from a
+  file or the clipboard with a category; rename, recategorise, delete). Dynamic stamps
+  print user and time. Our own artwork. (6) Customize Quick Tools like Acrobat's (icon
+  strip, divider, move, delete, tool tree, Save greyed until a change). (7) Comments
+  panel: "N comments", search, sort, filter popover, options menu, Acrobat-style rows.
+  **Deviations:** the PDFlyer user guide was not in `docs/reference`, so ◇ = subtotal
+  and * = total is a guess from printing calculators (owner approved); New Tape starts
+  a section on the same tape; subtotal prints "S" on the PDF (◇ is not in the standard
+  fonts); tickmark art stays our size (not 100x100); the sample PDF stays out of git (it
+  has a real-looking name). Not verified: that PDFlyer accepts our tickmarks and tapes
+  (needs a coworker on PDFlyer); clipboard reading in the installed WebView2.
+  No new dependencies.
+- **B3 Edit PDF stage 2 (2026-10-28/30), owner checks in progress:** paragraph grouping
+  (indents, lists, alignment; Join / Split; `/PWBox` marked content keeps box ids), text
+  box controls (move, handles, X/Y/W/H, auto-fit, push text below), Acrobat-like Format
+  panel (own `Tc`/`TJ` writer, HarfBuzz kerning), Objects panel (flip, crop removes
+  pixels, rotate, replace, arrange, align, Edit Using), Edit toolbar (Link, Crop Pages,
+  Phase 7 slots). Two fix rounds after the owner check
+  (`docs/testing/b3-stage2-fixes-test-guide.md`, `...-fixes2-test-guide.md`): editor
+  draws real fonts and list markers, link boxes locked and clickable, Join keeps
+  layout. Still open: Shift+→ in the installed app (not reproducible in dev or e2e).
+  Deviations: auto-fit, fixed height and padding are app-only; paste is plain text;
+  horizontal scaling is not previewed while typing.
 - Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.
