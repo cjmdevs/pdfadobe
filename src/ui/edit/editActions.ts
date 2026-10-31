@@ -77,7 +77,7 @@ export function reportTextEdit(wb: WorkbenchApi, r: RetypesetResult | null, hit:
     );
   else if (hit)
     wb.toast(
-      `The text now runs into ${hit}. Drag the box's edges to change its size, turn on "Push text below down", or undo.`,
+      `The text now runs into ${hit}. Drag the box's edges to change its size, tick "When text grows, push the text below down", or undo.`,
     );
 }
 

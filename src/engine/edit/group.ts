@@ -473,7 +473,14 @@ export function groupChars(chars: PageChar[], rules: Rules): TextBox[] {
   return open.map((bx) => finishBox(bx));
 }
 
-function finishBox({ lines, leading, align, bodyL }: OpenBox): TextBox {
+function finishBox({ lines, leading: found, align, bodyL }: OpenBox): TextBox {
+  // A box of one-line items (a list, an address block) has no wrapped line to measure
+  // its line spacing on: the smallest step between its lines is it.
+  const steps = lines
+    .slice(1)
+    .map((x, i) => (lines[i]?.y ?? x.y) - x.y)
+    .filter((d) => d > 0);
+  const leading = found ?? (steps.length ? Math.min(...steps) : null);
   const l = Math.min(...lines.map((x) => x.l));
   const r = Math.max(...lines.map((x) => x.r));
   const width = r - l;

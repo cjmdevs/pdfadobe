@@ -31,6 +31,8 @@ export interface ParaFmt {
   spaceBefore?: number;
   spaceAfter?: number;
   list?: ListStyle | null;
+  /** Where the page draws this item's list marker, points from the box's left (editor only). */
+  markerAt?: number;
 }
 
 export interface Run {
@@ -217,5 +219,7 @@ function engineChar(f: CharFmt) {
 }
 
 function enginePara(f: ParaFmt) {
-  return Object.fromEntries(Object.entries(f).filter(([, v]) => v !== undefined));
+  return Object.fromEntries(
+    Object.entries(f).filter(([k, v]) => v !== undefined && k !== "markerAt"),
+  );
 }

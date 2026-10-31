@@ -889,6 +889,20 @@ test.describe("Edit PDF", () => {
       await expect(box(page, "MEMORANDUM")).toBeVisible();
     });
 
+    test("a click (no drag) on a selected box's handle opens the editor", async ({ page }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await page.keyboard.press("Escape");
+      await expect(editor(page)).toHaveCount(0);
+      const h = (await page.locator("[data-testid=edit-frame-handle][data-edge=w]").boundingBox())!;
+      await page.mouse.click(h.x + h.width / 2, h.y + h.height / 2);
+      await expect(editor(page)).toBeFocused();
+      await page.keyboard.press("Escape");
+      await settled(page);
+      await expect(page.getByRole("button", { name: /^Undo / })).toBeDisabled();
+    });
+
     test("the left handle re-wraps from the left; the X field moves the box", async ({ page }) => {
       await openEdit(page);
       const [x, y] = await center(page, "We selected sales");
@@ -1080,6 +1094,48 @@ test.describe("Edit PDF", () => {
       await expect(box(page, "1. We selected sales")).toHaveCount(1);
     });
 
+    test("a new list item is spaced like the others; the editor puts bullets where the page has them", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      const before = (await box(page, "• Proposed").boundingBox())!;
+      const [x, y] = await center(page, "• Proposed");
+      await page.mouse.click(x, y);
+      await expect(editor(page)).toBeFocused();
+      // The bullet's left edge in the editor: the item's text edge less the hang.
+      const bullet = await editor(page)
+        .locator(".rp")
+        .first()
+        .evaluate((el) => {
+          const s = getComputedStyle(el);
+          return (
+            el.getBoundingClientRect().left +
+            parseFloat(s.paddingLeft) -
+            parseFloat(s.getPropertyValue("--hang"))
+          );
+        });
+      expect(bullet).toBeCloseTo(before.x, -1);
+      await page.keyboard.press("Control+End");
+      await page.keyboard.press("Enter");
+      await page.keyboard.type("Third item here");
+      await page.keyboard.press("Escape");
+      await settled(page);
+      const after = (await box(page, "• Proposed").boundingBox())!;
+      // Two items before, three now: half as tall again (not squeezed onto one line).
+      expect(after.height / before.height).toBeGreaterThan(1.35);
+      expect(after.height / before.height).toBeLessThan(1.65);
+    });
+
+    test("the list menu opens over the page, not cut off by the panel", async ({ page }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await panel(page).getByRole("button", { name: "Bulleted list" }).click();
+      const menu = panel(page).getByRole("menu");
+      await expect(menu).toBeVisible();
+      expect(await menu.evaluate((el) => getComputedStyle(el).position)).toBe("fixed");
+    });
+
     test("selected box: increase indent moves it right; character spacing widens it", async ({
       page,
     }) => {
@@ -1152,12 +1208,14 @@ test.describe("Edit PDF", () => {
       await page.getByTestId("link-save").click();
       await settled(page);
       expect(await savedLinks(page, mockfs)).toEqual(["page"]);
+      await expect(page.getByTestId("link-border")).toHaveCount(1);
 
       const l2 = (await page.getByTestId("edit-link").boundingBox())!;
       await page.mouse.click(l2.x + l2.width / 2, l2.y + l2.height / 2);
       await page.getByTestId("link-remove").click();
       await settled(page);
       await expect(page.getByTestId("edit-link")).toHaveCount(0);
+      await expect(page.getByTestId("link-border")).toHaveCount(0);
       expect(await savedLinks(page, mockfs)).toEqual([]);
     });
 

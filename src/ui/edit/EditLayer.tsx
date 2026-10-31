@@ -118,9 +118,12 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     client: { x: number; y: number };
   } | null>(null);
   /** One of the selected text box's frame handles being dragged: the frame now. */
-  const [frameDrag, setFrameDrag] = useState<{ box: EditTextBox; edge: Edge; now: Rect } | null>(
-    null,
-  );
+  const [frameDrag, setFrameDrag] = useState<{
+    box: EditTextBox;
+    edge: Edge;
+    now: Rect;
+    client: { x: number; y: number };
+  } | null>(null);
   const overflow = useOverflowNote(documentId);
   const pending = usePendingImage(documentId);
   const selection = useEditSelection(documentId);
@@ -311,7 +314,12 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           const edge = edgeAt(frame, pdf(pos), px(HANDLE));
           if (edge) {
             evt.setPointerCapture?.();
-            setFrameDrag({ box: selBox, edge, now: frame });
+            setFrameDrag({
+              box: selBox,
+              edge,
+              now: frame,
+              client: { x: evt.clientX, y: evt.clientY },
+            });
             return;
           }
         }
@@ -354,6 +362,16 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         if (f) {
           evt.releasePointerCapture?.();
           setFrameDrag(null);
+          // A click on a handle (no drag) is a click in the text: it opens the editor there.
+          if (Math.hypot(evt.clientX - f.client.x, evt.clientY - f.client.y) < DRAG_PX) {
+            editSession.open(documentId, {
+              kind: "box",
+              page: pageIndex,
+              box: f.box,
+              at: f.client,
+            });
+            return;
+          }
           void applyFrame(latest.current.wb, documentId, pageIndex, f.box, f.now);
           return;
         }

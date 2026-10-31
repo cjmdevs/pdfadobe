@@ -97,6 +97,15 @@ Keep it under 2 pages; summarize older phases.
   paragraphs, positions, indents and fonts stay); a growing one-line paragraph ran off
   the right edge (now wraps at the page margin) and text past the page edge is flagged.
   Re-check: `docs/testing/b3-stage2-fixes-test-guide.md`.
+- **Re-check 2026-10-30:** 1, 3, 6, 8 passed. Fixed: the editor drew list bullets 18 pt
+  left of the page and its first baseline by CSS (now the marker's `at` and a measured
+  baseline shift); a one-line-per-item list lost its item spacing (leading now the
+  smallest line step); the list menu was cut off by the panel (now fixed-position); a
+  click on a selected box's handle did nothing (now opens the editor); visible links
+  had no border drawn (`LinkBorders.tsx` over each page). Line spacing that grows into
+  the box below is the agreed warn-and-keep (toast now names the push checkbox).
+  Shift+→ in the installed app still open: not reproducible in dev or e2e.
+  Re-check: `docs/testing/b3-stage2-fixes2-test-guide.md`.
 - Phase 3 (markup) done: owner check passed 2026-10-27, tagged `phase-03-done`.
 - Phase 2 + B4 + B1 done, tagged `phase-02-done`.
   Rerun `npm run corpus -- --force` after a manual test saves over generated files.

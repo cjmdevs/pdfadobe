@@ -21,17 +21,18 @@ export function ListMenu({
   disabled: boolean;
   onPick(list: ListStyle | null): void;
 }) {
-  const [open, setOpen] = useState(false);
+  /** Where the menu opens (screen pixels, under the button), or null when closed. */
+  const [open, setOpen] = useState<{ x: number; y: number } | null>(null);
   const root = useRef<HTMLSpanElement>(null);
   useEffect(() => {
     if (!open) return;
     const away = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
+      if (!root.current?.contains(e.target as Node)) setOpen(null);
     };
     const esc = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       e.stopPropagation();
-      setOpen(false);
+      setOpen(null);
     };
     document.addEventListener("pointerdown", away);
     window.addEventListener("keydown", esc, true);
@@ -50,7 +51,7 @@ export function ListMenu({
       ? b.kind === "bullet" && a.glyph === b.glyph
       : b.kind === "number" && a.format === b.format);
   const pick = (l: ListStyle | null) => {
-    setOpen(false);
+    setOpen(null);
     onPick(l);
   };
 
@@ -61,18 +62,27 @@ export function ListMenu({
         className={`format-toggle list-button${current ? " pressed" : ""}`}
         aria-label={label}
         aria-haspopup="menu"
-        aria-expanded={open}
+        aria-expanded={open !== null}
         aria-pressed={current !== null}
         title={label}
         disabled={disabled}
         // Keep the editor's selection.
         onMouseDown={(e) => e.preventDefault()}
-        onClick={() => setOpen(!open)}
+        onClick={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          setOpen(open ? null : { x: r.left, y: r.bottom + 2 });
+        }}
       >
         {current ? sample(current).split(" ")[0] : glyph} ▾
       </button>
       {open && (
-        <span className="list-menu-items" role="menu" aria-label={`${label} styles`}>
+        // Fixed on screen: the side panel scrolls and would cut it off.
+        <span
+          className="list-menu-items"
+          role="menu"
+          aria-label={`${label} styles`}
+          style={{ left: open.x, top: open.y }}
+        >
           {styles.map((l) => (
             <button
               key={sample(l)}

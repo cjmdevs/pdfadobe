@@ -118,6 +118,7 @@ function modelOf(session: EditSession, fresh: PlainStyle): RichPara[] {
         ...(st?.indent ? { indent: st.indent } : {}),
         ...(st?.spaceBefore ? { spaceBefore: st.spaceBefore } : {}),
         ...(st?.list ? { list: st.list } : {}),
+        ...(mk ? { markerAt: mk.at } : {}),
       },
     };
   });
@@ -169,7 +170,13 @@ function draw(
     .map((p, i) => {
       const ind = p.para.indent ?? { first: 0, left: 0 };
       const marker = markers[i];
-      const hang = marker ? Math.max(ind.first - ind.left, 0) || 18 : 0;
+      // The marker sits where the page has it (`at` from the box's left), the text at the indent.
+      const at = p.para.markerAt;
+      const hang = !marker
+        ? 0
+        : at !== undefined && ind.left > at
+          ? ind.left - at
+          : Math.max(ind.left - ind.first, 0) || 18;
       const block = css({
         textAlign: p.para.align === "justify" ? "justify" : p.para.align,
         lineHeight: p.para.leading ? `${p.para.leading * scale}px` : undefined,
@@ -198,6 +205,22 @@ function draw(
       return `<div class="rp" data-i="${i}"${marker ? ` data-marker="${esc(marker)}"` : ""} style="${esc(block)}">${spans.join("") || "<br>"}</div>`;
     })
     .join("");
+}
+
+/**
+ * How far to move the editor down (screen pixels) so its first baseline is at `want`
+ * below its top edge, where the page draws it: CSS puts a baseline by the font's own
+ * ascent and the line height, which is not where the PDF has it.
+ */
+function baselineShift(el: HTMLElement, want: number): number {
+  const first = el.querySelector(".rp");
+  if (!first) return 0;
+  const probe = document.createElement("span");
+  probe.style.cssText = "display:inline-block;width:0;height:0;vertical-align:baseline";
+  first.insertBefore(probe, first.firstChild);
+  const got = probe.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
+  probe.remove();
+  return want - got;
 }
 
 function spanCss(f: CharFmt, scale: number): string {
@@ -310,6 +333,15 @@ export function TextEditor({
   const lastSel = useRef<[Pos, Pos] | null>(null);
   /** Fonts from files used in the text (their bytes never go into the DOM). */
   const fonts = useRef(new Map<string, CharFmt["font"]>());
+  /** Screen pixels the editor moves down to put its first baseline on the page's. */
+  const [lift, setLift] = useState(0);
+  const settle = () => {
+    const el = ref.current;
+    if (!el || session.kind !== "box") return;
+    // The top border is 1px.
+    const want = (session.box.rect.t - session.box.baseline) * scale + 1;
+    setLift(Math.round(baselineShift(el, want) * 10) / 10);
+  };
 
   /** The model as the DOM has it now. */
   const now = () => {
@@ -331,6 +363,7 @@ export function TextEditor({
     // has focus already (a panel field keeps its own; the selection is remembered).
     const focused = document.activeElement === el;
     draw(el, doc, scale, fonts.current);
+    settle();
     if (sel) lastSel.current = sel;
     if (!sel || !focused) return;
     const [a, b] = sel;
@@ -489,13 +522,14 @@ export function TextEditor({
   };
 
   // The latest commit for Escape, the tool closing and clicks on the page.
-  const latest = useRef({ commit, split, format, report, ensureFonts });
+  const latest = useRef({ commit, split, format, report, ensureFonts, settle });
   useEffect(() => {
-    latest.current = { commit, split, format, report, ensureFonts };
+    latest.current = { commit, split, format, report, ensureFonts, settle };
   });
   useEffect(() => {
     const el = ref.current;
     if (el) draw(el, model.current, scale, fonts.current);
+    latest.current.settle();
     latest.current.ensureFonts();
     editSession.registerCommit(documentId, () => latest.current.commit());
     editSession.registerSplit(documentId, () => latest.current.split());
@@ -548,8 +582,9 @@ export function TextEditor({
         };
   const grows = session.kind === "box" ? session.box.grows : session.width === null;
   const box: CSSProperties = {
-    left: rect.l * scale,
-    top: (pageHeight - rect.t) * scale,
+    // The text starts at the frame's edge (inside the 1px border and padding).
+    left: rect.l * scale - 2,
+    top: (pageHeight - rect.t) * scale + lift,
     minHeight: (rect.t - rect.b) * scale,
     ...(grows ? { minWidth: (rect.r - rect.l) * scale } : { width: (rect.r - rect.l) * scale }),
     whiteSpace: grows ? "pre" : "pre-wrap",

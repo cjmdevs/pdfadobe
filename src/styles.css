@@ -2174,10 +2174,8 @@ button.primary.danger-fill {
   display: inline-flex;
 }
 .list-menu-items {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 20;
+  position: fixed;
+  z-index: 1000;
   display: flex;
   flex-direction: column;
   min-width: 90px;
@@ -2197,4 +2195,11 @@ button.primary.danger-fill {
 }
 .list-menu-items button:hover {
   background: rgba(26, 95, 180, 0.12);
+}
+
+/* Visible link rectangles (LinkBorders): drawn over the page, never in the way. */
+.link-borders {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
