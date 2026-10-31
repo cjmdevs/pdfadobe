@@ -11,6 +11,8 @@ mcp-server/dist/
 *.tiff
 !tests/corpus/**/*.pdf
 !tests/corpus/fixtures/*.tif
+# Left from manual Combine testing (synthetic); swept in by broad adds twice.
+tests/corpus/fixtures/Combined.pdf
 *.bak
 
 # Env / OS / editor
