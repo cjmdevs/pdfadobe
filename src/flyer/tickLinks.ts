@@ -111,3 +111,35 @@ export function tickLinkChanges(
   }
   return { create, remove };
 }
+
+/** PDFlyer's letter and number tickmark categories (owner's sample): the same Subject,
+ * "Letter Connectors:C" or "Connectors:2", means the same mark. Ours use them too (B6). */
+const MATCH = /^(Letter Connectors|Connectors):\s*(.+)$/;
+
+/** Every letter/number tickmark with the same value as `a` (PDFlyer's or ours), in page
+ * order; empty when `a` is not one. */
+export function matchingTickmarks(
+  annots: PdfAnnotationObject[],
+  a: PdfAnnotationObject,
+): PdfAnnotationObject[] {
+  const key = (x: PdfAnnotationObject) => {
+    if (x.type !== PdfAnnotationSubtype.STAMP) return null;
+    const m = MATCH.exec((x as { subject?: string }).subject?.trim() ?? "");
+    return m ? `${m[1]}:${m[2]}` : null;
+  };
+  const k = key(a);
+  if (!k) return [];
+  return annots
+    .filter((x) => key(x) === k)
+    .sort(
+      (p, q) =>
+        p.pageIndex - q.pageIndex ||
+        p.rect.origin.y - q.rect.origin.y ||
+        p.rect.origin.x - q.rect.origin.x,
+    );
+}
+
+/** The value a matching tickmark shows ("C", "2"), from its Subject. */
+export function matchLabel(a: PdfAnnotationObject): string | null {
+  return MATCH.exec((a as { subject?: string }).subject?.trim() ?? "")?.[2] ?? null;
+}

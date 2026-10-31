@@ -172,9 +172,12 @@ test("a connector across two pages: a marker and a link on each page", async ({ 
   await tb(page, "Draw a connector (click the start, then the end; Esc stops)").click();
   await clickPage(page, 0.3, 0.3);
   // The end on page 2.
-  await page.mouse.wheel(0, 700);
   const second = page.locator('[data-testid=viewport] [data-page-index="1"]');
-  await expect(second).toBeInViewport({ ratio: 0.3 });
+  // One wheel turn did not always reach it (the viewer can still be settling).
+  await expect(async () => {
+    await page.mouse.wheel(0, 400);
+    await expect(second).toBeInViewport({ ratio: 0.3, timeout: 500 });
+  }).toPass();
   const p2 = (await second.boundingBox())!;
   await page.mouse.move(p2.x + p2.width * 0.5, p2.y + 80);
   await page.mouse.click(p2.x + p2.width * 0.5, p2.y + 80);
@@ -331,9 +334,17 @@ test("letter tickmarks: pick C, it stays C; matching Cs link across pages; Clear
   await page.keyboard.press("Escape");
 
   await page.keyboard.press("Control+s");
+  // The save may not have started yet: wait for the file to hold the Cs.
+  await expect
+    .poll(
+      () =>
+        inspectAnnots(new Uint8Array(bytesAt(mockfs, P.wpA))).filter(
+          (a) => a.subject === "Letter Connectors:C",
+        ).length,
+    )
+    .toBe(3);
   await idle(page);
   const raw = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.wpA)));
-  expect(raw.filter((a) => a.subject === "Letter Connectors:C")).toHaveLength(3);
   expect(
     raw
       .filter((a) => a.subtype === "/Link")
@@ -355,6 +366,17 @@ test("PDFlyer workpaper: every item renders, is in the Stamp Summary and the com
   await expect(summary.getByRole("button", { name: /^A \(Letter Connectors\)/ })).toHaveCount(2);
   await expect(summary.getByRole("button", { name: /^Sticky note.*off page/ })).toHaveCount(1);
   await expect(summary.getByRole("button", { name: /^Reviewed/ })).toHaveCount(1);
+  // A selected PDFlyer letter rings the other As and jumps to the next one.
+  await summary
+    .getByRole("button", { name: /^A \(Letter Connectors\)/ })
+    .first()
+    .click();
+  await expect(page.getByTestId("match-rings").locator(".match-ring")).toHaveCount(1);
+  const next = page.getByRole("button", { name: /^Go to the next A \(1 of 2; page 1\)/ });
+  await next.click();
+  await expect(
+    page.getByRole("button", { name: /^Go to the next A \(2 of 2; page 1\)/ }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Close Workpaper Tools" }).click();
   await page.getByRole("button", { name: "Comment", exact: true }).click();
   await tb(page, "Comments list").click();

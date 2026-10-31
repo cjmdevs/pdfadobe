@@ -2473,3 +2473,10 @@ button.primary.danger-fill {
 .comment > p.comment-text {
   padding-left: 28px;
 }
+
+/* Other tickmarks with the same letter/number as the selected one (B6) */
+.match-ring {
+  border: 2px solid #0a66d0;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgb(10 102 208 / 25%);
+}

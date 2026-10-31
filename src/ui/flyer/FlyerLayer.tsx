@@ -41,6 +41,7 @@ import {
 import { nextSequence, tickmarkSubject, type PwData } from "../../flyer/items";
 import { pushRecent, tickRef } from "../../flyer/library";
 import { foot, sendAmount } from "../../flyer/calc";
+import { matchingTickmarks } from "../../flyer/tickLinks";
 import { tapeAnnotation } from "../../flyer/tapeRows";
 import { calcStore, useCalcView } from "./calcStore";
 import { numberAt, numbersIn, numbersOn, type ShownNumber } from "./pageNumbers";
@@ -439,7 +440,40 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
       {marks.totalRect && box(marks.totalRect, "rgb(0 160 60 / 0.25)", "total")}
     </div>
   );
-  if (!active || !item) return footLayer || null;
+  // A selected letter/number tickmark: rings around the others with the same value.
+  const [one, ...others] = state.selectedUids;
+  const picked = one && !others.length ? state.byUid[one]?.object : undefined;
+  const matches = picked
+    ? matchingTickmarks(
+        Object.values(state.byUid).map((t) => t.object),
+        picked,
+      ).filter((a) => a.pageIndex === pageIndex && a.id !== picked.id)
+    : [];
+  const ringLayer = matches.length > 0 && (
+    <div aria-hidden="true" data-testid="match-rings">
+      {matches.map((a) => (
+        <div
+          key={a.id}
+          className="match-ring"
+          style={{
+            position: "absolute",
+            left: a.rect.origin.x * scale - 4,
+            top: a.rect.origin.y * scale - 4,
+            width: a.rect.size.width * scale + 8,
+            height: a.rect.size.height * scale + 8,
+            pointerEvents: "none",
+          }}
+        />
+      ))}
+    </div>
+  );
+  if (!active || !item)
+    return footLayer || ringLayer ? (
+      <>
+        {footLayer}
+        {ringLayer}
+      </>
+    ) : null;
   if (item.kind === "pick" || item.kind === "foot") {
     const hover = cursor ? numberAt(nums, cursor.x, cursor.y) : null;
     return (

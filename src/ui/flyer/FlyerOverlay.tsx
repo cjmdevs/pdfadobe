@@ -7,7 +7,7 @@ import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { reroutes } from "../../flyer/connectors";
-import { nextLinked, tickLinkChanges } from "../../flyer/tickLinks";
+import { matchLabel, matchingTickmarks, nextLinked, tickLinkChanges } from "../../flyer/tickLinks";
 import { foreignItem, pwData } from "../../flyer/items";
 import { parseTapeText } from "../../flyer/tapeRows";
 import { useWorkbench } from "../../app/workbench";
@@ -75,8 +75,16 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
       : sel?.pwType === "Tickmark" && sel.pwLink
         ? selected?.object
         : undefined;
-  const linkedNext = linked ? nextLinked(all, linked) : null;
-  const linkedLabel = linked ? pwData(linked)?.pwLabel : undefined;
+  // Otherwise any letter/number tickmark, PDFlyer's included: the same Subject matches.
+  const group = !linked && selected ? matchingTickmarks(all, selected.object) : [];
+  const at = group.findIndex((a) => a.id === selected?.object.id);
+  const matchNext = group.length > 1 ? (group[(at + 1) % group.length] ?? null) : null;
+  const linkedNext = linked ? nextLinked(all, linked) : matchNext;
+  const linkedLabel = linked
+    ? pwData(linked)?.pwLabel
+    : selected
+      ? (matchLabel(selected.object) ?? undefined)
+      : undefined;
   const partner =
     sel?.pwType === "Connector" && sel.pwPair
       ? all.find((a) => {
@@ -125,9 +133,11 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
         scope?.selectAnnotation(partner.pageIndex, partner.id);
       }}
     >
-      {linkedNext
-        ? `Go to the next ${linkedLabel ?? ""} (page ${partner.pageIndex + 1})`
-        : `Go to the other end (page ${partner.pageIndex + 1})`}
+      {matchNext
+        ? `Go to the next ${linkedLabel ?? ""} (${at + 1} of ${group.length}; page ${partner.pageIndex + 1})`
+        : linkedNext
+          ? `Go to the next ${linkedLabel ?? ""} (page ${partner.pageIndex + 1})`
+          : `Go to the other end (page ${partner.pageIndex + 1})`}
     </button>
   );
   // A selected calculator tape opens in the calculator for changes.
