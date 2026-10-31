@@ -1,5 +1,6 @@
 mod acrobat;
 mod app_windows;
+mod certsign;
 mod docstore;
 mod external_edit;
 mod fileio;
@@ -10,6 +11,7 @@ mod print;
 mod qpdf_job;
 mod repair;
 mod settings;
+mod signatures;
 mod stamps;
 
 use tauri::Manager;
@@ -81,6 +83,14 @@ pub fn run() {
             stamps::stamp_read,
             stamps::stamp_add,
             stamps::stamp_remove,
+            signatures::signatures_list,
+            signatures::signature_read,
+            signatures::signature_add,
+            signatures::signature_remove,
+            certsign::certs_list,
+            certsign::cert_sign,
+            certsign::pfx_open,
+            certsign::pfx_sign,
             fonts::fonts_list,
             fonts::font_read,
             fonts::font_index_load,
