@@ -56,6 +56,9 @@ Keep it under 2 pages; summarize older phases.
   to the next C (1 of 3; page N)". Re-check: `docs/testing/b6-fixes-test-guide.md`.
   e2e: save-and-read tests now poll the saved file (Ctrl+S sometimes had not written it
   yet; flaky before B6 too).
+  Re-check: our own placed letters could not be clicked (their /Link to the next match
+  sat over them and took the click). Those links are no longer click targets in our app
+  (`TickLinkRenderer.tsx`, hidden while links are locked); they stay in the file.
 - **B3 Edit PDF stage 2 (2026-10-28/30), owner checks in progress:** paragraph grouping
   (indents, lists, alignment; Join / Split; `/PWBox` marked content keeps box ids), text
   box controls (move, handles, X/Y/W/H, auto-fit, push text below), Acrobat-like Format
