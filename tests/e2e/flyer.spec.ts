@@ -199,9 +199,14 @@ test("calculator: keys, click amounts, foot with variance, tape on the page", as
   page,
   mockfs,
 }) => {
+  // PDFlyer's calculator is about as wide as half the page: room for both side by side.
+  await page.setViewportSize({ width: 1920, height: 1080 });
   await boot(page);
   await openPaths(page, [P.footing]);
   await waitForPainted(page, 0);
+  await page.getByLabel("Zoom percentage").fill("75");
+  await page.getByLabel("Zoom percentage").press("Enter");
+  await expect(page.getByLabel("Zoom percentage")).toHaveValue("75%");
   await page.getByRole("button", { name: "Workpaper Tools", exact: true }).click();
   await tb(page, "Calculator: 10-key or standard, click amounts, foot/cross-foot, tape").click();
   const calc = page.getByTestId("calculator");
@@ -243,7 +248,7 @@ test("calculator: keys, click amounts, foot with variance, tape on the page", as
   await calc.getByRole("button", { name: "Mark total" }).click();
 
   // Tape on the page.
-  await calc.getByRole("button", { name: "Place tape on page" }).click();
+  await calc.getByRole("button", { name: "To PDF" }).click();
   const t = at(480, 560);
   await page.mouse.move(t.x, t.y);
   await page.mouse.move(t.x + 2, t.y);

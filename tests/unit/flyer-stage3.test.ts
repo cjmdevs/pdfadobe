@@ -13,6 +13,8 @@ const require = createRequire(import.meta.url);
 import { pageNumbers, parseAmount } from "../../src/engine/flyer/numbers";
 import {
   DEFAULT_CALC,
+  deleteLine,
+  textLine,
   EMPTY_CALC,
   display,
   foot,
@@ -84,6 +86,35 @@ describe("calculator", () => {
   it("10-key multiplies, then + adds the product", () => {
     const s = keys(DEFAULT_CALC, "1", "2", "*", "3", "=", "+");
     expect(s.acc).toBe(36);
+  });
+
+  it("PDFlyer keys: += finishes ×, memory, +/-, %, Add Line, ◇, *, GT, New Tape", () => {
+    let s = keys(DEFAULT_CALC, "1", "2", "*", "3", "+");
+    expect(s.acc).toBe(36);
+    s = keys(DEFAULT_CALC, "5", "0", "MS", "C", "MR", "+", "MR", "M+", "MR", "+");
+    expect(s.acc).toBe(150);
+    s = keys(DEFAULT_CALC, "2", "0", "0", "+", "1", "0", "%", "+", "4", "Neg", "AddLine", "S");
+    expect(s.tape.map((l) => `${l.op}${l.value}`)).toEqual(["+200", "+20", "#-4", "S220"]);
+    s = keys(DEFAULT_CALC, "5", "+", "T", "NewTape", "7", "+", "T", "GT");
+    expect(s.tape.map((l) => `${l.sec ?? 1}:${l.op}${l.value}`)).toEqual([
+      "1:+5",
+      "1:T5",
+      "2:+7",
+      "2:T7",
+      "2:G12",
+    ]);
+    expect(display(keys(DEFAULT_CALC, "1", "000"), DEFAULT_CALC)).toBe("1000");
+  });
+
+  it("Delete Line takes a line off and works the totals out again", () => {
+    const s = keys(DEFAULT_CALC, "5", "+", "7", "+", "S", "T");
+    const d = deleteLine(s, 0, DEFAULT_CALC);
+    expect(d.tape.map((l) => `${l.op}${l.value}`)).toEqual(["+7", "S7", "T7"]);
+    expect(textLine(d, "1/2/26 9:00 AM").tape.at(-1)).toEqual({
+      op: "@",
+      value: 0,
+      note: "1/2/26 9:00 AM",
+    });
   });
 
   it("standard calculator works left to right", () => {

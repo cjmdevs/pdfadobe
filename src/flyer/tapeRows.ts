@@ -32,8 +32,10 @@ const PRINT: Record<TapeOp, string> = {
   "=": "=",
   T: "*",
   S: "S",
+  G: "G",
   "": "",
   "#": "#",
+  "@": "",
 };
 
 /** PDFlyer's /TapeData rows: [section, note, amount, op, decimals]. */
@@ -50,7 +52,8 @@ export function tapeData(tape: TapeLine[], decimals: CalcDecimals): string[][] {
       rows.push([`${s} - 0`, "", "", "", dec]);
     }
     n++;
-    rows.push([`${s} - ${n}`, l.note ?? "", formatAmount(l.value, decimals), PRINT[l.op], dec]);
+    const amount = l.op === "@" ? "" : formatAmount(l.value, decimals);
+    rows.push([`${s} - ${n}`, l.note ?? "", amount, PRINT[l.op], dec]);
   }
   return rows;
 }
@@ -85,6 +88,7 @@ const READ: Record<string, TapeOp> = {
   T: "T",
   S: "S",
   "◇": "S",
+  G: "G",
   "#": "#",
 };
 

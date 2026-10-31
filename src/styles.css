@@ -1665,46 +1665,127 @@ button.primary.danger-fill {
   white-space: pre-wrap;
 }
 
-/* Calculator (Phase 4 stage 3) */
+/* Calculator (Phase 4 stage 3; PDFlyer's 10 Key Calculator layout since B6) */
 .calc-panel {
   position: absolute;
-  left: 16px;
+  right: 16px;
   top: 16px;
   z-index: 21;
-  width: 248px;
+  width: 430px;
+  max-width: calc(100% - 32px);
   max-height: calc(100% - 32px);
   overflow-y: auto;
-  padding: 6px;
+  padding: 8px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .calc-panel header {
+  cursor: move;
   display: flex;
   justify-content: space-between;
   gap: 4px;
 }
-.calc-display {
-  display: block;
-  padding: 4px 6px;
-  font:
-    600 18px/1.3 Consolas,
-    "Courier New",
-    monospace;
-  text-align: right;
-  background: var(--bg-chrome);
+.calc-tape {
+  height: 220px;
+  overflow-y: auto;
   border: 1px solid var(--border);
+  color: #1c1c1c;
+}
+.calc-tape table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.calc-tape th {
+  position: sticky;
+  top: 0;
+  padding: 2px 4px;
+  text-align: left;
+  font-weight: normal;
+  background: #f3f3f3;
+  border-right: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+}
+.calc-tape td {
+  padding: 0 4px;
+  white-space: nowrap;
+}
+.calc-tape td:first-child {
+  padding-left: 20px;
+}
+.calc-tape td.amt {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.calc-tape tr.sec td {
+  padding-left: 2px;
+}
+.calc-tape tr.sec button {
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  font: inherit;
+  color: inherit;
+}
+.calc-tape tr.picked {
+  background: rgb(0 0 0 / 12%);
+}
+.calc-tape tr.neg .amt {
+  color: #b3261e;
+}
+.calc-tape input {
+  width: 100%;
+  min-width: 60px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+}
+.calc-display {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  height: 56px;
+  padding: 6px 10px;
+  font-size: 40px;
+  background: #ececec;
+  border: 1px solid #c8c8c8;
+}
+.seven-seg {
+  height: 1em;
+}
+.seven-seg .on {
+  fill: #1c1c1c;
+}
+.seven-seg .off {
+  fill: rgb(0 0 0 / 5%);
 }
 .calc-keys {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 3px;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(6, 34px);
+  gap: 6px;
 }
-.calc-keys button {
-  height: 30px;
+.calc-keys button,
+.calc-keys select {
+  min-width: 0;
+  padding: 0 2px;
+  font-size: 12px;
+  line-height: 1.1;
+  white-space: pre-line;
+  background: #fff;
+  border: 1px solid #c8c8c8;
+  border-radius: 4px;
+}
+.calc-keys button.num {
+  font-size: 15px;
+}
+.calc-keys button:hover:not(:disabled) {
+  background: #f0f0f0;
 }
 .calc-actions,
 .calc-panel .row {
@@ -1725,31 +1806,6 @@ button.primary.danger-fill {
 .calc-foot .variance {
   color: var(--danger);
   font-weight: 600;
-}
-.calc-tape {
-  margin: 0;
-  padding: 4px 6px;
-  max-height: 160px;
-  overflow-y: auto;
-  list-style: none;
-  color: #1c1c1c;
-  font:
-    12px/1.4 Consolas,
-    "Courier New",
-    monospace;
-  border: 1px solid var(--border);
-}
-.calc-tape li {
-  display: grid;
-  grid-template-columns: 1fr 18px auto;
-  gap: 4px;
-  text-align: right;
-}
-.calc-tape li.neg {
-  color: #b3261e;
-}
-.calc-tape small {
-  color: #555;
 }
 
 /* Tickmark sections (glyph instead of an icon) and letter/number grids */

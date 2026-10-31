@@ -1,10 +1,11 @@
-// Calculator (Phase 4 stage 3): a 10-key adding machine and a standard calculator, both
-// printing to a tape. Pure state in, state out; no React. Amounts are kept as numbers
+// Calculator (Phase 4 stage 3; keys as PDFlyer's 10 Key Calculator since B6): a 10-key
+// adding machine and a standard calculator, both printing to a tape. Pure state in, state out; no React. Amounts are kept as numbers
 // and rounded to cents for display and totals (no binary-fraction noise like 0.1+0.2).
 
 export type CalcMode = "tenKey" | "standard";
 /** Decimal places shown; "F" = as many as needed. */
-export type CalcDecimals = 0 | 2 | "F";
+export type CalcDecimals = 0 | 1 | 2 | 3 | 4 | "F";
+export const CALC_DECIMALS: readonly CalcDecimals[] = [0, 1, 2, 3, 4, "F"];
 
 export interface CalcSettings {
   mode: CalcMode;
@@ -30,7 +31,7 @@ export function sanitizeCalc(v: unknown): CalcSettings {
   const r = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   return {
     mode: r.mode === "standard" ? "standard" : "tenKey",
-    decimals: r.decimals === 0 || r.decimals === "F" ? r.decimals : 2,
+    decimals: CALC_DECIMALS.includes(r.decimals as CalcDecimals) ? (r.decimals as CalcDecimals) : 2,
     addMode: r.addMode === true,
     tapeColor:
       typeof r.tapeColor === "string" &&
@@ -41,9 +42,10 @@ export function sanitizeCalc(v: unknown): CalcSettings {
   };
 }
 
-/** "+" "-" add/subtract; "×" "÷" operands; "=" result; "T" total; "S" subtotal; "" a
- * first operand (standard); "#" a number printed but not added (a note). */
-export type TapeOp = "+" | "-" | "×" | "÷" | "=" | "T" | "S" | "" | "#";
+/** "+" "-" add/subtract; "×" "÷" operands; "=" result; "T" total (*); "S" subtotal (◇);
+ * "G" grand total; "" a first operand (standard); "#" a number printed but not added
+ * (a note, Add Line); "@" a line of text only (Date Time; its value is 0, not printed). */
+export type TapeOp = "+" | "-" | "×" | "÷" | "=" | "T" | "S" | "G" | "" | "#" | "@";
 
 export interface TapeLine {
   op: TapeOp;
@@ -66,6 +68,12 @@ export interface CalcState {
   /** What the display shows when nothing is typed. */
   shown: number;
   tape: TapeLine[];
+  /** Memory (MS, M+, M-, MR, MC). */
+  mem: number;
+  /** Tape section new lines go in (New Tape starts the next). */
+  sec: number;
+  /** Totals since the tape began, for GT. */
+  gt: number;
 }
 
 export const EMPTY_CALC: CalcState = {
@@ -75,6 +83,9 @@ export const EMPTY_CALC: CalcState = {
   pendingAdd: null,
   shown: 0,
   tape: [],
+  mem: 0,
+  sec: 1,
+  gt: 0,
 };
 
 /** Rounds to 10 places: sums of cents stay exact enough to print and compare. */
@@ -112,6 +123,7 @@ export type CalcKey =
   | "8"
   | "9"
   | "00"
+  | "000"
   | "."
   | "+"
   | "-"
@@ -122,7 +134,23 @@ export type CalcKey =
   | "S"
   | "C"
   | "CE"
-  | "Backspace";
+  | "Backspace"
+  | "MC"
+  | "MS"
+  | "MR"
+  | "M-"
+  | "M+"
+  /** +/- */
+  | "Neg"
+  | "%"
+  | "GT"
+  /** New Tape: the next section, running total back to 0. */
+  | "NewTape"
+  /** Add Line: the amount printed on the tape, not added. */
+  | "AddLine";
+
+/** A tape line in the section being keyed. */
+const line = (s: CalcState, l: TapeLine): TapeLine => (s.sec === 1 ? l : { ...l, sec: s.sec });
 
 export function press(s: CalcState, key: CalcKey, cfg: CalcSettings): CalcState {
   if (/^\d+$/.test(key)) {
@@ -132,8 +160,71 @@ export function press(s: CalcState, key: CalcKey, cfg: CalcSettings): CalcState 
   if (key === ".") return s.entry.includes(".") ? s : { ...s, entry: (s.entry || "0") + "." };
   if (key === "Backspace") return { ...s, entry: s.entry.slice(0, -1) };
   if (key === "CE") return { ...s, entry: "" };
-  if (key === "C") return { ...EMPTY_CALC, tape: s.tape };
-  return cfg.mode === "tenKey" ? tenKey(s, key, cfg) : standard(s, key, cfg);
+  if (key === "C") return { ...EMPTY_CALC, tape: s.tape, mem: s.mem, sec: s.sec, gt: s.gt };
+  const typed = entryValue(s, cfg);
+  const value = typed ?? s.shown;
+  const recall = (v: number): CalcState => ({ ...s, entry: Number.isFinite(v) ? String(v) : "" });
+  switch (key) {
+    case "MC":
+      return { ...s, mem: 0 };
+    case "MS":
+      return { ...s, mem: value };
+    case "MR":
+      return recall(s.mem);
+    case "M+":
+    case "M-":
+      return { ...s, mem: apply(s.mem, key === "M+" ? "+" : "-", value) };
+    case "Neg":
+      return recall(tidy(-value));
+    case "%":
+      // Percent of the number waiting (× or ÷) or of the running total.
+      return recall(tidy(((s.pending?.value ?? s.acc) * value) / 100));
+    case "AddLine":
+      return { ...s, entry: "", shown: value, tape: [...s.tape, line(s, { op: "#", value })] };
+    case "GT":
+      return { ...s, entry: "", shown: s.gt, tape: [...s.tape, line(s, { op: "G", value: s.gt })] };
+    case "NewTape":
+      return { ...EMPTY_CALC, tape: s.tape, mem: s.mem, gt: s.gt, sec: s.sec + 1 };
+    default:
+      return cfg.mode === "tenKey" ? tenKey(s, key, cfg) : standard(s, key, cfg);
+  }
+}
+
+/** A line of text (Date Time) on the tape. */
+export function textLine(s: CalcState, text: string): CalcState {
+  return { ...s, tape: [...s.tape, line(s, { op: "@", value: 0, note: text })] };
+}
+
+/** The tape without line `index`; the running total, subtotals and totals worked out again
+ * from the lines left (× ÷ lines stay as printed). */
+export function deleteLine(s: CalcState, index: number, cfg: CalcSettings): CalcState {
+  if (index < 0 || index >= s.tape.length) return s;
+  const tape: TapeLine[] = [];
+  const acc = new Map<number, number>();
+  let gt = 0;
+  for (const [i, l] of s.tape.entries()) {
+    if (i === index) continue;
+    const sec = l.sec ?? 1;
+    const a = acc.get(sec) ?? 0;
+    if (l.op === "+" || l.op === "-") acc.set(sec, apply(a, l.op, l.value));
+    if (l.op === "S") {
+      tape.push({ ...l, value: a });
+      continue;
+    }
+    if (l.op === "T") {
+      gt = tidy(gt + a);
+      acc.set(sec, 0);
+      tape.push({ ...l, value: a });
+      continue;
+    }
+    if (l.op === "G") {
+      tape.push({ ...l, value: gt });
+      continue;
+    }
+    tape.push(l);
+  }
+  const now = acc.get(s.sec) ?? 0;
+  return { ...s, tape, gt, ...(cfg.mode === "standard" ? {} : { acc: now, shown: now }) };
 }
 
 function tenKey(s: CalcState, key: CalcKey, cfg: CalcSettings): CalcState {
@@ -141,10 +232,29 @@ function tenKey(s: CalcState, key: CalcKey, cfg: CalcSettings): CalcState {
   switch (key) {
     case "+":
     case "-": {
+      // -= and += finish a waiting × or ÷ and add (or subtract) the result.
+      if (s.pending && typed !== null) {
+        const r = apply(s.pending.value, s.pending.op, typed);
+        const acc = apply(s.acc, key, r);
+        return {
+          ...s,
+          entry: "",
+          pending: null,
+          acc,
+          shown: acc,
+          tape: [...s.tape, line(s, { op: "=", value: typed }), line(s, { op: key, value: r })],
+        };
+      }
       // No entry: repeat the shown amount (like an adding machine's repeat add).
       const v = typed ?? s.shown;
       const acc = apply(s.acc, key, v);
-      return { ...s, entry: "", acc, shown: acc, tape: [...s.tape, { op: key, value: v }] };
+      return {
+        ...s,
+        entry: "",
+        acc,
+        shown: acc,
+        tape: [...s.tape, line(s, { op: key, value: v })],
+      };
     }
     case "*":
     case "/": {
@@ -155,7 +265,7 @@ function tenKey(s: CalcState, key: CalcKey, cfg: CalcSettings): CalcState {
         entry: "",
         pending: { op, value: v },
         shown: v,
-        tape: [...s.tape, { op, value: v }],
+        tape: [...s.tape, line(s, { op, value: v })],
       };
     }
     case "=": {
@@ -167,18 +277,28 @@ function tenKey(s: CalcState, key: CalcKey, cfg: CalcSettings): CalcState {
         entry: Number.isFinite(r) ? String(r) : "",
         pending: null,
         shown: r,
-        tape: [...s.tape, { op: "=", value: typed }, { op: "#", value: r, note: "result" }],
+        tape: [
+          ...s.tape,
+          line(s, { op: "=", value: typed }),
+          line(s, { op: "#", value: r, note: "result" }),
+        ],
       };
     }
     case "S":
-      return { ...s, entry: "", shown: s.acc, tape: [...s.tape, { op: "S", value: s.acc }] };
+      return {
+        ...s,
+        entry: "",
+        shown: s.acc,
+        tape: [...s.tape, line(s, { op: "S", value: s.acc })],
+      };
     case "T":
       return {
         ...s,
         entry: "",
         acc: 0,
+        gt: tidy(s.gt + s.acc),
         shown: s.acc,
-        tape: [...s.tape, { op: "T", value: s.acc }],
+        tape: [...s.tape, line(s, { op: "T", value: s.acc })],
       };
     default:
       return s;
@@ -197,7 +317,6 @@ function standard(s: CalcState, key: CalcKey, cfg: CalcSettings): CalcState {
         : { ...s, pending: null, pendingAdd: op };
     }
     const acc = waiting ? apply(s.acc, waiting, typed) : typed;
-    const line: TapeLine = { op: waiting ?? "", value: typed };
     return {
       ...s,
       entry: "",
@@ -205,7 +324,7 @@ function standard(s: CalcState, key: CalcKey, cfg: CalcSettings): CalcState {
       shown: acc,
       pending: op === "×" || op === "÷" ? { op, value: acc } : null,
       pendingAdd: op === "+" || op === "-" ? op : null,
-      tape: [...s.tape, line],
+      tape: [...s.tape, line(s, { op: waiting ?? "", value: typed })],
     };
   }
   if (key === "=" || key === "T") {
@@ -213,8 +332,11 @@ function standard(s: CalcState, key: CalcKey, cfg: CalcSettings): CalcState {
     const r = apply(s.acc, waiting, typed);
     return {
       ...EMPTY_CALC,
+      mem: s.mem,
+      sec: s.sec,
+      gt: key === "T" ? tidy(s.gt + r) : s.gt,
       shown: r,
-      tape: [...s.tape, { op: waiting, value: typed }, { op: "=", value: r }],
+      tape: [...s.tape, line(s, { op: waiting, value: typed }), line(s, { op: "=", value: r })],
     };
   }
   return s;
@@ -235,7 +357,7 @@ export function sendAmount(
       entry: "",
       acc,
       shown: acc,
-      tape: [...s.tape, { op: subtract ? "-" : "+", value: v }],
+      tape: [...s.tape, line(s, { op: subtract ? "-" : "+", value: v })],
     };
   }
   // Typed in as if keyed (no implied decimals).
