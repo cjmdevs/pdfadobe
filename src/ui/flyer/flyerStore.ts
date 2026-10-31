@@ -31,7 +31,7 @@ export type PendingItem =
   /** Foot/cross-foot: drag around a column or row of amounts, then click the total. */
   | { kind: "foot"; width: 0; height: 0 }
   /** Calculator tape waiting to be placed (once). */
-  | { kind: "tape"; art: StampDrawing; width: number; height: number };
+  | { kind: "tape"; width: number; height: number };
 
 let pending: PendingItem | null = null;
 const listeners = new Set<() => void>();

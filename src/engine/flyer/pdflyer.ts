@@ -3,7 +3,8 @@
 // "Category:Item" subject and a closed /Popup (owner's sample, 2026-10-28). PDFium can't
 // write a stamp /Name outside the standard set, so this pass adds them with qpdf, like
 // the link and redaction object edits, to every tickmark we tagged (pwType). It also
-// drops popups whose parent is gone. Node-safe.
+// drops popups whose parent is gone, and gives our calculator tapes PDFlyer's /TapeData.
+// Node-safe.
 
 import { runToFile, type Qpdf } from "../pages/qpdf";
 import { isRef, PdfObjects, withKey, type JDict, type JVal } from "../redact/objects";
@@ -35,18 +36,24 @@ function text(v: JVal | undefined): string | null {
   return null;
 }
 
-function pwType(d: JDict): string | null {
+function custom(d: JDict): { pwType?: unknown; pwTapeData?: unknown } {
   const raw = text(d["/EPDFCustom"]);
-  if (!raw) return null;
+  if (!raw) return {};
   try {
-    const v = JSON.parse(raw) as { pwType?: unknown };
-    return typeof v.pwType === "string" ? v.pwType : null;
+    const v: unknown = JSON.parse(raw);
+    return v && typeof v === "object" ? v : {};
   } catch {
-    return null;
+    return {};
   }
 }
 
-/** Adds PDFlyer's keys to our tickmarks; the bytes as they were when nothing changes. */
+/** PDFlyer's /TapeData (rows of strings) from our tape's custom data. */
+function tapeData(rows: unknown): JVal | null {
+  if (!Array.isArray(rows)) return null;
+  return rows.map((r) => (Array.isArray(r) ? r.map((c) => `u:${String(c)}`) : []));
+}
+
+/** Adds PDFlyer's keys to our tickmarks and tapes; the bytes as they were when nothing changes. */
 export async function addPdflyerKeys(qpdf: Qpdf, bytes: Uint8Array): Promise<Uint8Array> {
   // Our tags are plain text in an uncompressed object, unless a rewrite packed objects.
   if (!contains(bytes, ascii("pwType")) && !contains(bytes, ascii("/ObjStm"))) return bytes;
@@ -68,7 +75,15 @@ export async function addPdflyerKeys(qpdf: Qpdf, bytes: Uint8Array): Promise<Uin
     for (const ref of [...next]) {
       if (!isRef(ref)) continue;
       let d = objs.dict(ref);
-      if (!d || d["/Subtype"] !== "/Stamp" || pwType(d) !== "Tickmark") continue;
+      if (!d) continue;
+      const c = custom(d);
+      if (d["/Subtype"] === "/FreeText" && c.pwType === "Tape") {
+        const data = tapeData(c.pwTapeData);
+        if (data && JSON.stringify(d["/TapeData"]) !== JSON.stringify(data))
+          objs.set(ref, withKey(d, "/TapeData", data));
+        continue;
+      }
+      if (d["/Subtype"] !== "/Stamp" || c.pwType !== "Tickmark") continue;
       const before = d;
       if (d["/Name"] !== PDFLYER_NAME) d = withKey(d, "/Name", PDFLYER_NAME);
       if (!d["/CreationDate"] && d["/M"]) d = withKey(d, "/CreationDate", d["/M"]);

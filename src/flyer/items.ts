@@ -68,7 +68,9 @@ export interface PwData {
   pwNext?: string;
   pwAt?: string;
   /** Calculator tape lines, to open the tape in the calculator again. */
-  pwTape?: { op: string; value: number; note?: string }[];
+  pwTape?: { op: string; value: number; note?: string; sec?: number }[];
+  /** The same as PDFlyer's /TapeData rows (written into the file on save). */
+  pwTapeData?: string[][];
 }
 
 export function pwData(a: PdfAnnotationObject): PwData | null {

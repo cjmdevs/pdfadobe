@@ -40,7 +40,8 @@ import {
 } from "../../flyer/connectors";
 import { nextSequence, tickmarkSubject, type PwData } from "../../flyer/items";
 import { pushRecent, tickRef } from "../../flyer/library";
-import { foot, sendAmount, tapeText } from "../../flyer/calc";
+import { foot, sendAmount } from "../../flyer/calc";
+import { tapeAnnotation } from "../../flyer/tapeRows";
 import { calcStore, useCalcView } from "./calcStore";
 import { numberAt, numbersIn, numbersOn, type ShownNumber } from "./pageNumbers";
 import {
@@ -317,12 +318,15 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
         if (p.kind === "tape") {
           flyerPlacement.set(null);
           m?.activateDefaultMode();
-          const t = calcStore.get().calc.tape;
-          const anno = placeArt(sc, w, pageIndex, size, pos, p.art, {
-            subject: "Calculator tape",
-            contents: tapeText(t, w.settings.calc.decimals),
-            custom: { pwType: "Tape", pwTape: t },
-          });
+          const cfg = w.settings.calc;
+          const anno = tapeAnnotation(
+            calcStore.get().calc.tape,
+            cfg.decimals,
+            cfg.tapeColor,
+            { pageIndex, x: pos.x - p.width / 2, y: pos.y - p.height / 2, page: size },
+            w.author,
+          );
+          sc.createAnnotation(pageIndex, anno);
           sc.selectAnnotation(pageIndex, anno.id);
           return;
         }

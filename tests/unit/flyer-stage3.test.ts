@@ -3,7 +3,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { PdfAnnotationSubtype, type PdfStampAnnoObject } from "@embedpdf/models";
 import { OUT_DIR } from "../corpus/generate.mjs";
 import { nodeEngine, toArrayBuffer } from "../helpers/pdfium-node";
 import { inspectAnnots } from "../helpers/annot-inspect";
@@ -12,7 +11,6 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 import { pageNumbers, parseAmount } from "../../src/engine/flyer/numbers";
-import { drawTape } from "../../src/engine/flyer/tape";
 import {
   DEFAULT_CALC,
   EMPTY_CALC,
@@ -26,12 +24,21 @@ import {
   type CalcState,
 } from "../../src/flyer/calc";
 import { pwData, summaryRows } from "../../src/flyer/items";
-import { tapeRows } from "../../src/flyer/tapeRows";
+import { TAPE_GREY, parseTapeText, tapeAnnotation } from "../../src/flyer/tapeRows";
+import { addPdflyerKeys } from "../../src/engine/flyer/pdflyer";
+import { RawDoc } from "../../src/engine/pages/raw";
+import { encodePng } from "../../src/engine/pages/png";
+import { renderPage } from "../helpers/edit-render";
+import { nodeQpdf } from "../helpers/qpdf-node";
+import type { PdfiumModule } from "../../src/engine/pdfium";
 
 let engine: Engine;
+let m: PdfiumModule;
+const qpdf = nodeQpdf();
 
 beforeAll(async () => {
   engine = await nodeEngine();
+  m = (await createPdfium(readFileSync(require.resolve("@embedpdf/pdfium/pdfium.wasm")))).module;
 });
 afterAll(async () => {
   await engine.closeAllDocuments().toPromise();
@@ -108,7 +115,7 @@ describe("calculator", () => {
 });
 
 describe("tape on the page", () => {
-  it("is a /Stamp with an appearance that reopens with its lines", async () => {
+  it("is PDFlyer's grey free text, listed as text, that reopens with its lines", async () => {
     const doc = await engine
       .openDocumentBuffer({
         id: "tape",
@@ -116,35 +123,47 @@ describe("tape on the page", () => {
       })
       .toPromise();
     const s = keys(DEFAULT_CALC, ...digits("1234.5"), "+", ...digits("100"), "-", "T");
-    const art = await drawTape(tapeRows(s.tape, 2), "#FFFDE7");
-    const anno: PdfStampAnnoObject = {
-      type: PdfAnnotationSubtype.STAMP,
-      id: "tape",
-      pageIndex: 0,
-      rect: { origin: { x: 420, y: 300 }, size: { width: art.width, height: art.height } },
-      subject: "Calculator tape",
-      contents: "1,234.50 +\n100.00 -\n1,134.50 T",
-      author: "Test Preparer",
-      flags: ["print"],
-      custom: { pwType: "Tape", pwTape: s.tape },
-    };
-    await engine
-      .createPageAnnotation(doc, doc.pages[0]!, anno, {
-        data: toArrayBuffer(art.pdf),
-        mimeType: "application/pdf",
-      })
-      .toPromise();
-    const saved = new Uint8Array(await engine.saveAsCopy(doc).toPromise());
+    const anno = tapeAnnotation(
+      s.tape,
+      2,
+      TAPE_GREY,
+      { pageIndex: 0, x: 420, y: 300, page: { width: 612, height: 792 } },
+      "Test Preparer",
+      "tape",
+    );
+    expect(anno.contents.split(/\n/)).toEqual([
+      "1 - 0 |  |",
+      "1 - 1 |  | 1,234.50 +",
+      "1 - 2 |  |   100.00 -",
+      "1 - 3 |  | 1,134.50 *",
+    ]);
+    await engine.createPageAnnotation(doc, doc.pages[0]!, anno).toPromise();
+    const saved = await addPdflyerKeys(
+      qpdf,
+      new Uint8Array(await engine.saveAsCopy(doc).toPromise()),
+    );
     mkdirSync(join(OUT_DIR, "..", "out"), { recursive: true });
     writeFileSync(join(OUT_DIR, "..", "out", "tape-sample.pdf"), saved);
     const raw = inspectAnnots(saved);
-    expect(raw[0]?.subtype).toBe("/Stamp");
+    expect(raw[0]?.subtype).toBe("/FreeText");
     expect(raw[0]?.hasAppearance).toBe(true);
+    expect(raw[0]?.subject).toBe("Calculator Tape:PDFlyer");
+    expect(raw[0]?.dict["/F"]).toBe(516);
+    expect(raw[0]?.dict["/TapeData"]).toHaveLength(4);
+    // A picture to look at (tests/corpus/out/tape-sample.png).
+    const rd = RawDoc.open(m, saved);
+    try {
+      const r = renderPage(m, rd, 0, 2);
+      writeFileSync(join(OUT_DIR, "..", "out", "tape-sample.png"), encodePng(r));
+    } finally {
+      rd.close();
+    }
     const again = await engine
       .openDocumentBuffer({ id: "tape-again", content: toArrayBuffer(saved) })
       .toPromise();
     const annots = await engine.getPageAnnotations(again, again.pages[0]!).toPromise();
     expect(summaryRows(annots).map((r) => r.name)).toEqual(["Calculator tape"]);
     expect(pwData(annots[0]!)?.pwTape).toEqual(s.tape);
+    expect(parseTapeText(annots[0]!.contents ?? "")).toEqual(s.tape);
   });
 });

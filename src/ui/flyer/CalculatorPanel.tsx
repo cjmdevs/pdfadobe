@@ -1,26 +1,25 @@
 // Floating calculator (Phase 4 stage 3): 10-key adding machine or standard calculator
 // with a tape. Amounts can be clicked on the page, a column or row footed against its
 // total, and the tape placed on the page as an annotation (or an existing tape updated).
+import type { PdfFreeTextAnnoObject } from "@embedpdf/models";
 import { useEffect, useRef } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
 import { useWorkbench } from "../../app/workbench";
 import { BUILT_IN_TICKMARKS, drawTickmark } from "../../engine/flyer/tickmarks";
-import { drawTape } from "../../engine/flyer/tape";
 import {
   EMPTY_CALC,
   display,
   footTape,
   formatAmount,
   press,
-  tapeText,
   type CalcDecimals,
   type CalcKey,
   type CalcSettings,
 } from "../../flyer/calc";
-import { pwData, tickmarkSubject, type PwData } from "../../flyer/items";
-import { tapeRows } from "../../flyer/tapeRows";
+import { tickmarkSubject } from "../../flyer/items";
+import { tapeAnnotation, tapeBox, tapeData, tapeLines } from "../../flyer/tapeRows";
 import { calcStore, useCalcView } from "./calcStore";
 import { placeArt } from "./FlyerLayer";
 import { FLYER_MODE, flyerPlacement, usePendingItem } from "./flyerStore";
@@ -62,7 +61,7 @@ export function CalculatorPanel({ documentId }: { documentId: string }) {
   const setCfg = (patch: Partial<CalcSettings>) =>
     wb.updateSettings({ calc: { ...cfg, ...patch } });
   const { calc, footing, editing } = useCalcView();
-  const { provides: scope, state } = useAnnotation(documentId);
+  const { provides: scope } = useAnnotation(documentId);
   const { provides: im, state: imState } = useInteractionManager(documentId);
   const doc = useDocumentState(documentId);
   const pending = usePendingItem();
@@ -117,49 +116,47 @@ export function CalculatorPanel({ documentId }: { documentId: string }) {
     );
   };
 
-  const placeTape = async () => {
+  const placeTape = () => {
     if (!calc.tape.length) return;
-    const art = await drawTape(tapeRows(calc.tape, cfg.decimals), cfg.tapeColor);
     if (editing && editing.documentId === documentId && scope) {
-      // A new annotation in the same top-left corner (an appearance cannot be changed in
-      // place); connectors attached to the old tape are moved over to it.
+      // Changed in place, its top-left corner kept (a PDFlyer tape becomes ours).
       const size = doc?.document?.pages[editing.pageIndex]?.size;
       if (!size) return;
-      scope.deleteAnnotation(editing.pageIndex, editing.id);
-      const fresh = placeArt(
-        scope,
-        wb,
-        editing.pageIndex,
-        size,
+      const fresh = tapeAnnotation(
+        calc.tape,
+        cfg.decimals,
+        cfg.tapeColor,
         {
-          x: editing.rect.origin.x + art.width / 2,
-          y: editing.rect.origin.y + art.height / 2,
+          pageIndex: editing.pageIndex,
+          x: editing.rect.origin.x,
+          y: editing.rect.origin.y,
+          page: size,
         },
-        art,
-        {
-          subject: "Calculator tape",
-          contents: tapeText(calc.tape, cfg.decimals),
-          custom: { pwType: "Tape", pwTape: calc.tape },
-        },
+        wb.author,
+        editing.id,
       );
-      for (const t of Object.values(state.byUid)) {
-        const d = pwData(t.object);
-        if (d?.pwType !== "Connector" || (d.pwFrom !== editing.id && d.pwTo !== editing.id))
-          continue;
-        const custom: PwData = {
-          ...d,
-          ...(d.pwFrom === editing.id ? { pwFrom: fresh.id } : {}),
-          ...(d.pwTo === editing.id ? { pwTo: fresh.id } : {}),
-        };
-        scope.updateAnnotation(t.object.pageIndex, t.object.id, { custom });
-      }
+      // Its text, box, look and tags; who made it and when stay.
+      const patch: Partial<PdfFreeTextAnnoObject> = {
+        contents: fresh.contents,
+        rect: fresh.rect,
+        fontFamily: fresh.fontFamily,
+        fontSize: fresh.fontSize,
+        fontColor: fresh.fontColor,
+        flags: fresh.flags ?? [],
+        custom: fresh.custom,
+        modified: new Date(),
+        ...(fresh.subject ? { subject: fresh.subject } : {}),
+        ...(fresh.defaultStyle ? { defaultStyle: fresh.defaultStyle } : {}),
+        ...(fresh.color ? { color: fresh.color, backgroundColor: fresh.color } : {}),
+      };
+      scope.updateAnnotation(editing.pageIndex, editing.id, patch);
       calcStore.set({ editing: null });
-      scope.selectAnnotation(editing.pageIndex, fresh.id);
       wb.toast("Tape updated.");
       return;
     }
     scope?.setActiveTool(null);
-    flyerPlacement.set({ kind: "tape", art, width: art.width, height: art.height });
+    const box = tapeBox(tapeLines(tapeData(calc.tape, cfg.decimals)));
+    flyerPlacement.set({ kind: "tape", ...box });
     im?.activate(FLYER_MODE);
     wb.toast("Click on the page to place the tape (Esc cancels).");
   };
@@ -321,7 +318,7 @@ export function CalculatorPanel({ documentId }: { documentId: string }) {
         ))}
       </ol>
       <div className="row">
-        <button type="button" disabled={!calc.tape.length} onClick={() => void placeTape()}>
+        <button type="button" disabled={!calc.tape.length} onClick={placeTape}>
           {editing ? "Update tape" : "Place tape on page"}
         </button>
         <button type="button" onClick={() => calcStore.set({ calc: EMPTY_CALC, editing: null })}>

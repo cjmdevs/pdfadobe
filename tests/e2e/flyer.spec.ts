@@ -69,10 +69,10 @@ test("place tickmarks until Esc, see them in the Stamp Summary, save and reopen"
     (a) => a.subtype === "/Stamp",
   );
   expect(stamps.map((s) => s.subject).sort()).toEqual([
-    "Tickmark legend",
     "Engagement:Agrees to",
     "Engagement:Footed",
     "Engagement:Footed",
+    "Tickmark legend",
   ]);
   expect(stamps.every((s) => s.hasAppearance)).toBe(true);
 
@@ -256,11 +256,11 @@ test("calculator: keys, click amounts, foot with variance, tape on the page", as
   await page.keyboard.press("Control+s");
   await idle(page);
   const raw = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.footing)));
-  const tape = raw.find((x) => x.subject === "Calculator tape")!;
-  expect(tape.subtype).toBe("/Stamp");
+  const tape = raw.find((x) => x.subject === "Calculator Tape:PDFlyer")!;
+  expect(tape.subtype).toBe("/FreeText");
   expect(tape.hasAppearance).toBe(true);
-  expect(tape.contents).toContain("7,850.50 T foot");
-  expect(tape.contents).toContain("-0.50 variance");
+  expect(tape.contents).toMatch(/\| foot +\| +7,850\.50 \*/);
+  expect(tape.contents).toMatch(/\| variance +\| +-0\.50/);
 
   // Open the tape again, add a line, update it in place (same id).
   await summary.getByRole("button", { name: /^Calculator tape/ }).click();
@@ -270,7 +270,7 @@ test("calculator: keys, click amounts, foot with variance, tape on the page", as
   await page.keyboard.press("Control+s");
   await idle(page);
   const tapes = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.footing))).filter(
-    (x) => x.subject === "Calculator tape",
+    (x) => x.subject === "Calculator Tape:PDFlyer",
   );
   expect(tapes).toHaveLength(1);
   expect(tapes[0]!.contents?.endsWith("100.00 +")).toBe(true);
@@ -302,10 +302,10 @@ test("letter tickmarks: pick C, it stays C; matching Cs link across pages; Clear
   await page.mouse.move(p2.x + p2.width * 0.5, p2.y + 120);
   await page.mouse.click(p2.x + p2.width * 0.5, p2.y + 120);
   await page.keyboard.press("Escape");
-  await expect(summary.getByRole("button", { name: /^Letter \(C\)/ })).toHaveCount(3);
+  await expect(summary.getByRole("button", { name: /^C \(Letter Connectors\)/ })).toHaveCount(3);
 
   // Selecting the one on page 2 offers the next C, which is on page 1.
-  await summary.getByRole("button", { name: /^Letter \(C\) Page 2/ }).click();
+  await summary.getByRole("button", { name: /^C \(Letter Connectors\) Page 2/ }).click();
   await page.getByRole("button", { name: "Go to the next C (page 1)" }).click();
 
   // The Letters button now places C again (its last pick).

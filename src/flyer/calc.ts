@@ -19,8 +19,11 @@ export const DEFAULT_CALC: CalcSettings = {
   mode: "tenKey",
   decimals: 2,
   addMode: false,
-  tapeColor: "#FFFDE7",
+  tapeColor: "#C0C0C0",
 };
+
+/** The tape colour before B6 (pale yellow): read as the new default, PDFlyer's grey. */
+const OLD_TAPE_COLOR = "#FFFDE7";
 
 /** Calculator settings from a file or settings; anything wrong falls back. */
 export function sanitizeCalc(v: unknown): CalcSettings {
@@ -30,7 +33,9 @@ export function sanitizeCalc(v: unknown): CalcSettings {
     decimals: r.decimals === 0 || r.decimals === "F" ? r.decimals : 2,
     addMode: r.addMode === true,
     tapeColor:
-      typeof r.tapeColor === "string" && /^#[0-9a-f]{6}$/i.test(r.tapeColor)
+      typeof r.tapeColor === "string" &&
+      /^#[0-9a-f]{6}$/i.test(r.tapeColor) &&
+      r.tapeColor.toUpperCase() !== OLD_TAPE_COLOR
         ? r.tapeColor
         : DEFAULT_CALC.tapeColor,
   };
@@ -45,6 +50,8 @@ export interface TapeLine {
   value: number;
   /** Text after the amount ("Total on page", "Variance"). */
   note?: string;
+  /** Tape section (New Tape starts the next); 1 when missing. */
+  sec?: number;
 }
 
 export interface CalcState {
@@ -239,17 +246,6 @@ export function sendAmount(
 export function display(s: CalcState, cfg: CalcSettings): string {
   if (s.entry) return s.entry;
   return Number.isFinite(s.shown) ? formatAmount(s.shown, cfg.decimals) : "Error";
-}
-
-/** Tape lines as text ("1,234.56 +"), for the annotation's comment text and CSV-like use. */
-export function tapeText(tape: TapeLine[], decimals: CalcDecimals): string {
-  return tape
-    .map((l) =>
-      [formatAmount(l.value, decimals), l.op === "#" ? "" : l.op, l.note ?? ""]
-        .filter(Boolean)
-        .join(" "),
-    )
-    .join("\n");
 }
 
 export interface FootResult {

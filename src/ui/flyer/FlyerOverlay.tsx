@@ -8,7 +8,8 @@ import { useScroll } from "@embedpdf/plugin-scroll/react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { reroutes } from "../../flyer/connectors";
 import { nextLinked, tickLinkChanges } from "../../flyer/tickLinks";
-import { pwData } from "../../flyer/items";
+import { foreignItem, pwData } from "../../flyer/items";
+import { parseTapeText } from "../../flyer/tapeRows";
 import { useWorkbench } from "../../app/workbench";
 import { summaryRows } from "../../flyer/items";
 import { useDocToolContext } from "../../tools/useToolContext";
@@ -130,13 +131,17 @@ export function FlyerOverlay({ documentId }: { documentId: string }) {
     </button>
   );
   // A selected calculator tape opens in the calculator for changes.
-  const tape = sel?.pwType === "Tape" && selected ? selected.object : null;
+  const tape =
+    selected &&
+    (sel?.pwType === "Tape" || (!sel && foreignItem(selected.object)?.type === "PdflyerTape"))
+      ? selected.object
+      : null;
   const editTape = tape && (
     <button
       type="button"
       className="connector-jump"
       onClick={() => {
-        const lines = (sel?.pwTape ?? []) as TapeLine[];
+        const lines = (sel?.pwTape ?? parseTapeText(tape.contents ?? "")) as TapeLine[];
         calcStore.set({
           calc: { ...EMPTY_CALC, tape: lines, shown: lines.at(-1)?.value ?? 0 },
           editing: { documentId, pageIndex: tape.pageIndex, id: tape.id, rect: tape.rect },
