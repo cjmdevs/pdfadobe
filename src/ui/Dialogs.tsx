@@ -16,6 +16,7 @@ import { FlattenBody } from "./markup/FlattenDialog";
 import { BatchOcr } from "./scan/BatchOcr";
 import { OptimizeDialog } from "./optimize/OptimizeDialog";
 import { DecorateDialog } from "./decorate/DecorateDialog";
+import { CreatePdfDialog, ExportPdfDialog } from "./convert/ConvertDialogs";
 import {
   CombineDialog,
   ConfirmDialog,
@@ -171,6 +172,18 @@ function MainDialog() {
           onClose={close}
         >
           <DecorateDialog what={dialog.what} documentId={dialog.documentId} onClose={close} />
+        </Modal>
+      );
+    case "exportPdf":
+      return (
+        <Modal title="Export PDF" onClose={close}>
+          <ExportPdfDialog documentId={dialog.documentId} onClose={close} />
+        </Modal>
+      );
+    case "createPdf":
+      return (
+        <Modal title="Create PDF from Images" onClose={close}>
+          <CreatePdfDialog onClose={close} />
         </Modal>
       );
     case "batchOcr":

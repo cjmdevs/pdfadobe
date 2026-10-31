@@ -77,6 +77,7 @@ import {
   type WatermarkSpec,
 } from "../engine/decorate";
 import { graftKinds } from "../engine/pages/graft";
+import { documentText, pageImage, type ImageFormat } from "../engine/convert";
 import { createKerner, type Kerner } from "../engine/edit/fonts/kern";
 import { applySpacing } from "../engine/edit/spacing";
 import { addPdflyerKeys } from "../engine/flyer/pdflyer";
@@ -318,6 +319,17 @@ export const OPS = {
     removeDecorations(c.qpdf, b, kinds),
   /** Which kinds of added layers the document has ("header", "watermark", "ocr"...). */
   decorKinds: async (c: Ctx, b: Uint8Array) => [...(await graftKinds(c.qpdf, b))],
+  /** Export: one page as a PNG or JPEG file (Phase 7). */
+  pageImage: async (
+    c: Ctx,
+    b: Uint8Array,
+    page: number,
+    dpi: number,
+    format: ImageFormat,
+    quality: number,
+  ) => pageImage(c.module, b, page, dpi, format, quality),
+  /** Export: the document as plain text. */
+  documentText: async (c: Ctx, b: Uint8Array, pages?: number[]) => documentText(c.module, b, pages),
   /** Enhance: turn tilted pages level (lossless). */
   straightenPages: (c: Ctx, b: Uint8Array, pages: number[]) =>
     straightenPages(c.module, c.qpdf, b, pages),

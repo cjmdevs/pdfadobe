@@ -111,6 +111,10 @@ export type Dialog =
   | { kind: "tickmarks" }
   /** Workpaper reference and custom fields before a user/status stamp is placed. */
   | { kind: "workpaperStamp"; documentId: string; templateId: string }
+  /** Save pages as PNG/JPEG files or the text as a .txt file (Phase 7). */
+  | { kind: "exportPdf"; documentId: string }
+  /** A new PDF from scanned images (Phase 7). */
+  | { kind: "createPdf" }
   /** Recognize Text in every PDF of a folder (Phase 7). */
   | { kind: "batchOcr" }
   /** Reduce File Size into a new file (Phase 7). */

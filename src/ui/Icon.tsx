@@ -61,6 +61,7 @@ import ocr from "@fluentui/svg-icons/icons/scan_text_20_regular.svg?raw";
 import bates from "@fluentui/svg-icons/icons/number_symbol_20_regular.svg?raw";
 import enhance from "@fluentui/svg-icons/icons/wand_20_regular.svg?raw";
 import optimize from "@fluentui/svg-icons/icons/arrow_minimize_20_regular.svg?raw";
+import createPdf from "@fluentui/svg-icons/icons/image_multiple_20_regular.svg?raw";
 import protect from "@fluentui/svg-icons/icons/document_lock_20_regular.svg?raw";
 import tickmark from "@fluentui/svg-icons/icons/checkmark_circle_20_regular.svg?raw";
 import calculator from "@fluentui/svg-icons/icons/calculator_20_regular.svg?raw";
@@ -174,6 +175,7 @@ const SVG = {
   bates,
   enhance,
   optimize,
+  createPdf,
   protect,
   tickmark,
   calculator,

@@ -1108,6 +1108,48 @@ export const TOOLS: ToolDef[] = [
       },
     ],
   },
+  {
+    id: "createPdf",
+    name: "Create PDF",
+    icon: "createPdf",
+    color: "#d0336c",
+    description: "A PDF from scanned images (JPEG, PNG, TIFF), searchable if you like",
+    comingIn: null,
+    needsDocument: false,
+    open: (c) => c.wb.setDialog({ kind: "createPdf" }),
+    toolbar: [
+      {
+        id: "fromImages",
+        label: "Create PDF from images…",
+        caption: "From Images",
+        icon: "createPdf",
+        run: (c) => c.wb.setDialog({ kind: "createPdf" }),
+        enabled: () => true,
+      },
+    ],
+  },
+  {
+    id: "exportPdf",
+    name: "Export PDF",
+    icon: "exportFile",
+    color: "#3a6fd8",
+    description: "Pages as PNG or JPEG images, or the text as a .txt file",
+    comingIn: null,
+    open: (c) => {
+      if (c.documentId) c.wb.setDialog({ kind: "exportPdf", documentId: c.documentId });
+    },
+    toolbar: [
+      {
+        id: "export",
+        label: "Export pages as images or text…",
+        caption: "Export",
+        icon: "exportFile",
+        run: (c) => {
+          if (c.documentId) c.wb.setDialog({ kind: "exportPdf", documentId: c.documentId });
+        },
+      },
+    ],
+  },
   decorTool("headerFooter", "header", "Header & Footer", "headerFooter"),
   decorTool("watermark", "watermark", "Watermark", "watermark"),
   decorTool("background", "background", "Background", "fill"),
