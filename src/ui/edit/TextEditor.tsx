@@ -177,16 +177,21 @@ function draw(
         : at !== undefined && ind.left > at
           ? ind.left - at
           : Math.max(ind.left - ind.first, 0) || 18;
-      const block = css({
-        textAlign: p.para.align === "justify" ? "justify" : p.para.align,
-        lineHeight: p.para.leading ? `${p.para.leading * scale}px` : undefined,
-        paddingLeft: `${(marker ? ind.left : Math.min(ind.first, ind.left)) * scale}px`,
-        paddingRight: ind.right ? `${ind.right * scale}px` : undefined,
-        textIndent: marker ? "0" : `${(ind.first - Math.min(ind.first, ind.left)) * scale}px`,
-        marginTop: i && p.para.spaceBefore ? `${p.para.spaceBefore * scale}px` : undefined,
-        marginBottom: p.para.spaceAfter ? `${p.para.spaceAfter * scale}px` : undefined,
-        "--hang": `${hang * scale}px`,
-      });
+      // The paragraph's own format on the block too: text typed into an empty
+      // paragraph (a new list item) lands outside any span and takes it from here.
+      const block = [
+        spanCss(p.base, scale),
+        css({
+          textAlign: p.para.align === "justify" ? "justify" : p.para.align,
+          lineHeight: p.para.leading ? `${p.para.leading * scale}px` : undefined,
+          paddingLeft: `${(marker ? ind.left : Math.min(ind.first, ind.left)) * scale}px`,
+          paddingRight: ind.right ? `${ind.right * scale}px` : undefined,
+          textIndent: marker ? "0" : `${(ind.first - Math.min(ind.first, ind.left)) * scale}px`,
+          marginTop: i && p.para.spaceBefore ? `${p.para.spaceBefore * scale}px` : undefined,
+          marginBottom: p.para.spaceAfter ? `${p.para.spaceAfter * scale}px` : undefined,
+          "--hang": `${hang * scale}px`,
+        }),
+      ].join(";");
       // Cut points: every run edge.
       const cuts = [...new Set([0, p.text.length, ...p.runs.flatMap((r) => [r.start, r.end])])]
         .filter((c) => c >= 0 && c <= p.text.length)

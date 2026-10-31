@@ -1118,6 +1118,17 @@ test.describe("Edit PDF", () => {
       await page.keyboard.press("Control+End");
       await page.keyboard.press("Enter");
       await page.keyboard.type("Third item here");
+      // The new item's text is the same size as the items above it.
+      const sizes = await editor(page)
+        .locator(".rp")
+        .evaluateAll((els) =>
+          els.map((el) => {
+            const t = [...el.childNodes].find((n) => n.textContent?.trim());
+            const node = t?.nodeType === 3 ? el : (t as HTMLElement);
+            return parseFloat(getComputedStyle(node).fontSize);
+          }),
+        );
+      expect(sizes[2]).toBeCloseTo(sizes[0]!, 1);
       await page.keyboard.press("Escape");
       await settled(page);
       const after = (await box(page, "• Proposed").boundingBox())!;
