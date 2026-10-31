@@ -5,7 +5,10 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 8 (signatures, certificates, security) built 2026-10-31; owner check 2026-10-31 passed except step 5 (picked a `localhost` server certificate). Fixed: only certificates allowed to sign documents are listed (extended key usage), the last one is remembered; re-check pending (`phase-08-fixes-test-guide.md`)**
+- **Phase 8 (signatures, certificates, security) done: owner check passed 2026-10-31**,
+  tagged `phase-08-done`. Step 5 first picked a `localhost` server certificate; fixed
+  (only certificates whose extended key usage allows document signing are listed, the
+  last one is remembered) and the re-check passed (`phase-08-fixes-test-guide.md`)
   (`docs/testing/phase-08-test-guide.md`). Spec and decisions in `docs/phases/phase-08.md`.
   On the build PC: `npm run check` (595 Vitest + 1 intended skip, 61 Rust,
   license-check), 190 Playwright. Details in "Phase 8" below.
