@@ -220,6 +220,36 @@ mod win {
         }
     }
 
+    /// Extended key usage allows signing documents (Acrobat's rule): none listed, or any
+    /// purpose, email protection, document signing or Adobe PDF signing. Leaves out
+    /// server certificates (for example a developer "localhost" certificate).
+    fn eku_ok(c: &Cert) -> bool {
+        const OK: &[&[u8]] = &[
+            b"2.5.29.37.0",
+            b"1.3.6.1.5.5.7.3.4",
+            b"1.3.6.1.4.1.311.10.3.12",
+            b"1.2.840.113583.1.1.5",
+        ];
+        let mut len = 0u32;
+        if unsafe { CertGetEnhancedKeyUsage(c.0, 0, None, &mut len) }.is_err() {
+            return true;
+        }
+        let mut buf = vec![0u64; (len as usize).div_ceil(8).max(1)];
+        let usage = buf.as_mut_ptr() as *mut CTL_USAGE;
+        if unsafe { CertGetEnhancedKeyUsage(c.0, 0, Some(usage), &mut len) }.is_err() {
+            return true;
+        }
+        let u = unsafe { &*usage };
+        if u.cUsageIdentifier == 0 {
+            // Zero: good for every use when the reason is "not found", else for none.
+            return unsafe { GetLastError() }.0 == 0x8009_2004; // CRYPT_E_NOT_FOUND
+        }
+        (0..u.cUsageIdentifier as usize).any(|i| {
+            let oid = unsafe { *u.rgpszUsageIdentifier.add(i) };
+            !oid.is_null() && OK.contains(&unsafe { oid.as_bytes() })
+        })
+    }
+
     fn has_key_property(c: &Cert) -> bool {
         let mut len = 0u32;
         unsafe {
@@ -290,7 +320,7 @@ mod win {
         let store = my_store()?;
         Ok(certs(&store)
             .into_iter()
-            .filter(|c| has_key_property(c) && time_valid(c) && usage_ok(c))
+            .filter(|c| has_key_property(c) && time_valid(c) && usage_ok(c) && eku_ok(c))
             .map(|c| info(&c, None))
             .collect())
     }

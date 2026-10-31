@@ -48,13 +48,18 @@ export function CertSignDialog({
       (list) => {
         if (!live) return;
         setCerts(list);
-        if (list[0]) setChoice(list[0].thumbprint);
+        // The certificate used last time, else the first.
+        const last = list.find((c) => c.thumbprint === wb.settings.lastSigningCert);
+        const pick = last ?? list[0];
+        if (pick) setChoice(pick.thumbprint);
       },
       (e: unknown) => live && setListError(message(e)),
     );
     return () => {
       live = false;
     };
+    // Once, when the dialog opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const pickPfx = async () => {
@@ -106,6 +111,7 @@ export function CertSignDialog({
         src,
       );
       if (!path) return;
+      if (src.kind === "store") wb.updateSettings({ lastSigningCert: src.cert.thumbprint });
       onClose();
       wb.toast("Signed. Saved as a new file; the original is unchanged.");
       await wb.openPaths([path]);

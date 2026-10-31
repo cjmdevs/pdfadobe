@@ -90,6 +90,8 @@ export interface Settings {
   stampsPaletteOpen: boolean;
   /** Fill & Sign: put the date under a placed signature (Phase 8). */
   signWithDate: boolean;
+  /** Thumbprint of the store certificate last signed with (Phase 8). */
+  lastSigningCert: string | null;
   /** Custom stamps' category and (renamed) name, by custom stamp id. */
   customStampInfo: Record<string, { category: string; name?: string }>;
   /** Saved Header & Footer and Bates setups (Phase 7). */
@@ -164,6 +166,7 @@ export const DEFAULT_SETTINGS: Settings = {
   showStampNames: false,
   stampsPaletteOpen: false,
   signWithDate: false,
+  lastSigningCert: null,
   customStampInfo: {},
   headerFooterPresets: [],
 };
@@ -268,6 +271,10 @@ export function sanitizeSettings(raw: unknown): Settings {
     stampsPaletteOpen:
       typeof r.stampsPaletteOpen === "boolean" ? r.stampsPaletteOpen : d.stampsPaletteOpen,
     signWithDate: typeof r.signWithDate === "boolean" ? r.signWithDate : d.signWithDate,
+    lastSigningCert:
+      typeof r.lastSigningCert === "string" && /^[0-9A-F]{40}$/.test(r.lastSigningCert)
+        ? r.lastSigningCert
+        : d.lastSigningCert,
     customStampInfo: stampInfo(r.customStampInfo),
     headerFooterPresets: sanitizePresets(r.headerFooterPresets),
   };

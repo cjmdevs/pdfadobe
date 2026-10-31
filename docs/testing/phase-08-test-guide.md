@@ -49,11 +49,18 @@ certificate as a trusted root**, OK. Without this Acrobat says "validity unknown
 
 4. **Saved and encrypted.** Close PDF Workbench, open it again with any PDF. Click
    **Fill & Sign > Sign ▾**. Pass: your saved signatures and initials are listed. In
-   PowerShell run:
-   `Get-ChildItem "$env:APPDATA\com.mgrcpas.pdfworkbench\signatures"` then
-   `Select-String -Path "$env:APPDATA\com.mgrcpas.pdfworkbench\signatures\*.sig" -Pattern PNG`.
-   Pass: one `.sig` file per saved item, and the second command prints nothing (the
-   pictures are encrypted).
+   PowerShell run these two commands, one at a time:
+
+   ```powershell
+   Get-ChildItem "$env:APPDATA\com.mgrcpas.pdfworkbench\signatures"
+   ```
+
+   ```powershell
+   Select-String -Path "$env:APPDATA\com.mgrcpas.pdfworkbench\signatures\*.sig" -Pattern PNG
+   ```
+
+   Pass: the first lists one `.sig` file per saved item, and the second prints nothing
+   (the pictures are encrypted).
 
 5. **Certificate from the Windows store (visible).** Open `text-1p.pdf`, Tools pane >
    **Certificates**. Click **Digitally Sign** and drag a box on the page. Pass: "Sign
