@@ -55,7 +55,8 @@
     ],
     "resources": {
       "vendor/pdfium/": "pdfium/",
-      "vendor/qpdf/": "qpdf/"
+      "vendor/qpdf/": "qpdf/",
+      "vendor/tesseract/": "tesseract/"
     }
   }
 }

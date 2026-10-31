@@ -23,6 +23,7 @@
     "test:rust": "node scripts/fetch-win-binaries.mjs && cargo test --manifest-path src-tauri/Cargo.toml",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run format:rust && npm test && npm run test:rust && npm run license-check",
     "fetch-win-binaries": "node scripts/fetch-win-binaries.mjs",
+    "build-tesseract": "node scripts/build-tesseract.mjs",
     "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
     "check:windows-target": "cargo check --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc"
   },

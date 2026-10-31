@@ -24,7 +24,14 @@ jobs:
       - run: npm ci
       # qpdf.exe (pinned by SHA-256) into src-tauri/vendor/qpdf.
       - run: node scripts/fetch-win-binaries.mjs
-      # Tesseract for the OCR check (Apache-2.0, test-only).
+      # The bundled OCR sidecar (Phase 7): Tesseract + Leptonica + zlib built with MSVC.
+      - uses: actions/cache@v4
+        with:
+          path: src-tauri/vendor/tesseract
+          key: tesseract-${{ hashFiles('scripts/build-tesseract.mjs') }}
+      - run: node scripts/build-tesseract.mjs
+      # Installed Tesseract for the leak suite's OCR check (Apache-2.0, test-only; it
+      # reads PNG, which the bundled sidecar does not).
       # The Chocolatey feed sometimes answers 503: retry, then fail here, not in the tests.
       - name: Install Tesseract
         run: |

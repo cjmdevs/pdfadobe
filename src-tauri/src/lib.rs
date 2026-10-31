@@ -5,6 +5,7 @@ mod external_edit;
 mod fileio;
 mod fonts;
 mod launch;
+mod ocr_job;
 mod print;
 mod qpdf_job;
 mod repair;
@@ -29,6 +30,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_dialog::init())
+        .manage(ocr_job::OcrJobs::default())
         .manage(launch::PendingPaths::default())
         .manage(docstore::DocStore::default())
         .manage(app_windows::Windows::default())
@@ -69,6 +71,8 @@ pub fn run() {
             fileio::list_folder,
             fileio::write_new_file,
             qpdf_job::qpdf_run,
+            ocr_job::ocr_run,
+            ocr_job::ocr_cancel,
             launch::take_launch_paths,
             settings::get_settings,
             settings::set_settings,

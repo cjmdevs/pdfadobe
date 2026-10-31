@@ -25,6 +25,9 @@ use crate::repair::qpdf_path;
 
 #[derive(Debug, Deserialize)]
 pub struct JobHeader {
+    /// Only OCR jobs carry one (to cancel them); qpdf jobs leave it out.
+    #[serde(default)]
+    pub id: u64,
     pub args: Vec<String>,
     pub outputs: Vec<String>,
     pub inputs: Vec<FileEntry>,
@@ -57,15 +60,33 @@ pub async fn qpdf_run(app: AppHandle, request: Request<'_>) -> Result<Response, 
 pub fn run_frame(qpdf: &Path, body: &[u8]) -> Result<Vec<u8>, FileError> {
     let (header, data): (JobHeader, &[u8]) = split_frame(body)?;
     check_job(&header)?;
+    let inputs = job_inputs(&header, data)?;
+    let (stdout, warnings, files) = run_job(qpdf, &header.args, &inputs, &header.outputs)?;
+    encode_result(stdout, warnings, files)
+}
+
+/// Splits a request frame's file bytes by the header's input sizes.
+pub(crate) fn job_inputs<'a>(
+    header: &'a JobHeader,
+    data: &'a [u8],
+) -> Result<Vec<(&'a str, &'a [u8])>, FileError> {
     let mut inputs = Vec::new();
     let mut at = 0;
     for f in &header.inputs {
         let end = at + f.size;
-        let bytes = data.get(at..end).ok_or("qpdf job inputs are truncated")?;
+        let bytes = data.get(at..end).ok_or("job inputs are truncated")?;
         inputs.push((f.name.as_str(), bytes));
         at = end;
     }
-    let (stdout, warnings, files) = run_job(qpdf, &header.args, &inputs, &header.outputs)?;
+    Ok(inputs)
+}
+
+/// Encodes a response frame: header JSON, then the output files.
+pub(crate) fn encode_result(
+    stdout: String,
+    warnings: bool,
+    files: Vec<(String, Vec<u8>)>,
+) -> Result<Vec<u8>, FileError> {
     let entries = files
         .iter()
         .map(|(name, b)| FileEntry {
@@ -89,7 +110,7 @@ pub fn run_frame(qpdf: &Path, body: &[u8]) -> Result<Vec<u8>, FileError> {
     Ok(out)
 }
 
-fn split_frame(body: &[u8]) -> Result<(JobHeader, &[u8]), FileError> {
+pub(crate) fn split_frame(body: &[u8]) -> Result<(JobHeader, &[u8]), FileError> {
     let len = body
         .get(..4)
         .map(|b| u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize)
@@ -145,9 +166,9 @@ pub fn check_job(h: &JobHeader) -> Result<(), FileError> {
 
 static JOB_SEQ: AtomicU64 = AtomicU64::new(0);
 
-fn job_dir() -> Result<PathBuf, FileError> {
+pub(crate) fn job_dir(tool: &str) -> Result<PathBuf, FileError> {
     let d = std::env::temp_dir().join(format!(
-        "pdfwb-qpdf-{}-{}",
+        "pdfwb-{tool}-{}-{}",
         std::process::id(),
         JOB_SEQ.fetch_add(1, Ordering::Relaxed)
     ));
@@ -166,7 +187,7 @@ pub fn run_job(
     inputs: &[(&str, &[u8])],
     outputs: &[String],
 ) -> Result<JobOutput, FileError> {
-    let dir = job_dir()?;
+    let dir = job_dir("qpdf")?;
     let result = (|| {
         for (name, bytes) in inputs {
             fs::write(dir.join(name), bytes)
@@ -254,6 +275,7 @@ mod tests {
 
     fn header(args: &[&str], names: &[&str]) -> JobHeader {
         JobHeader {
+            id: 0,
             args: args.iter().map(|s| s.to_string()).collect(),
             outputs: vec!["out.pdf".into()],
             inputs: names
