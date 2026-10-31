@@ -57,7 +57,13 @@ import {
   type PlainStyle,
 } from "../engine/edit/document";
 import type { Placement } from "../engine/edit/images";
-import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
+import {
+  createGlyphSubsetter,
+  createSubsetter,
+  type GlyphSubsetter,
+  type Subsetter,
+} from "../engine/edit/fonts/subset";
+import { optimizeDocument, type OptimizePresetId } from "../engine/optimize";
 import { createKerner, type Kerner } from "../engine/edit/fonts/kern";
 import { applySpacing } from "../engine/edit/spacing";
 import { addPdflyerKeys } from "../engine/flyer/pdflyer";
@@ -280,6 +286,9 @@ export const OPS = {
   /** Recognize Text (Phase 7): progress per page, cancellable. */
   ocrDocument: (c: Ctx, b: Uint8Array, opts: OcrOptions) =>
     ocrDocument(c.module, c.ocr, c.qpdf, b, opts, c.call.control, c.call.progress),
+  /** Reduce File Size (Phase 7): the result is saved as a new file by the caller. */
+  optimize: async (c: Ctx, b: Uint8Array, preset: OptimizePresetId) =>
+    optimizeDocument(c.module, c.qpdf, await glyphSubsetter(), b, preset),
   /** Enhance: turn tilted pages level (lossless). */
   straightenPages: (c: Ctx, b: Uint8Array, pages: number[]) =>
     straightenPages(c.module, c.qpdf, b, pages),
@@ -332,6 +341,12 @@ const subsetter = () =>
   (subset ??= fetch(subsetWasmUrl)
     .then((r) => r.arrayBuffer())
     .then(createSubsetter));
+/** The same WASM as a glyph-id subsetter (Optimize). */
+let glyphSubset: Promise<GlyphSubsetter> | null = null;
+const glyphSubsetter = () =>
+  (glyphSubset ??= fetch(subsetWasmUrl)
+    .then((r) => r.arrayBuffer())
+    .then(createGlyphSubsetter));
 let qpdfSeq = 0;
 const qpdfWaiting = new Map<number, { resolve(r: QpdfResult): void; reject(e: Error): void }>();
 

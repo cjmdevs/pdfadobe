@@ -57,6 +57,7 @@
     "fast-xml-parser": "^5.11.2",
     "fflate": "0.8.2",
     "harfbuzzjs": "^1.6.4",
+    "jpeg-js": "0.4.4",
     "pdf-lib": "^1.17.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

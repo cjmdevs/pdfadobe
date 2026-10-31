@@ -14,6 +14,7 @@ import { StampDetails } from "./flyer/StampDetails";
 import { SettingsBody } from "./SettingsDialog";
 import { FlattenBody } from "./markup/FlattenDialog";
 import { BatchOcr } from "./scan/BatchOcr";
+import { OptimizeDialog } from "./optimize/OptimizeDialog";
 import {
   CombineDialog,
   ConfirmDialog,
@@ -149,6 +150,12 @@ function MainDialog() {
       );
     case "combine":
       return <CombineDialog startWith={dialog.documentId} onClose={close} />;
+    case "optimize":
+      return (
+        <Modal title="Reduce File Size" onClose={close}>
+          <OptimizeDialog documentId={dialog.documentId} onClose={close} />
+        </Modal>
+      );
     case "batchOcr":
       return (
         <Modal title="Recognize Text in a Folder" onClose={close}>

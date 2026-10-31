@@ -1020,6 +1020,15 @@ export const TOOLS: ToolDef[] = [
               run: go("straighten", c.pages.slice(0, 1)),
             },
             { id: "upright", label: "Turn Pages Upright", run: go("upright", all) },
+            {
+              id: "optimize",
+              label: "Reduce File Size…",
+              separator: true,
+              run: (ctx: ToolContext) => {
+                if (ctx.documentId)
+                  ctx.wb.setDialog({ kind: "optimize", documentId: ctx.documentId });
+              },
+            },
           ];
         },
       },
@@ -1059,6 +1068,28 @@ export const TOOLS: ToolDef[] = [
       organizeAction("rotateLeft"),
       organizeAction("rotateRight"),
       organizeAction("delete"),
+    ],
+  },
+  {
+    id: "optimize",
+    name: "Optimize PDF",
+    icon: "optimize",
+    color: "#c2410c",
+    description: "Reduce file size: smaller images, subset fonts, no unused objects",
+    comingIn: null,
+    open: (c) => {
+      if (c.documentId) c.wb.setDialog({ kind: "optimize", documentId: c.documentId });
+    },
+    toolbar: [
+      {
+        id: "reduce",
+        label: "Reduce File Size…",
+        caption: "Reduce Size",
+        icon: "optimize",
+        run: (c) => {
+          if (c.documentId) c.wb.setDialog({ kind: "optimize", documentId: c.documentId });
+        },
+      },
     ],
   },
   planned("protect", "Protect", "protect", "#3a6fd8", "Passwords and permissions", []),

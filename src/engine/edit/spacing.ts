@@ -49,7 +49,7 @@ export async function applySpacing(
 }
 
 /** Decoded data of the streams `refs` ("12 0 R"). */
-async function streamData(
+export async function streamData(
   qpdf: Qpdf,
   bytes: Uint8Array,
   refs: string[],
@@ -82,7 +82,7 @@ async function streamData(
   return out;
 }
 
-interface Tok {
+export interface Tok {
   kind: "num" | "name" | "str" | "hex" | "dict" | "arr" | "op";
   start: number;
   end: number;
@@ -93,7 +93,7 @@ const WS = new Set([0, 9, 10, 12, 13, 32]);
 const DELIM = new Set([..."()<>[]{}/%"].map((c) => c.charCodeAt(0)));
 
 /** Content-stream tokens (dicts and arrays as one token each). Null on an inline image. */
-function tokenize(s: string): Tok[] | null {
+export function tokenize(s: string): Tok[] | null {
   const out: Tok[] = [];
   let i = 0;
   const n = s.length;
@@ -177,7 +177,7 @@ function tokenize(s: string): Tok[] | null {
 }
 
 /** A PDF string token's bytes. */
-function stringBytes(t: Tok): number[] {
+export function stringBytes(t: Tok): number[] {
   if (t.kind === "hex") {
     let h = t.text.slice(1, -1).replace(/\s+/g, "");
     if (h.length % 2) h += "0";

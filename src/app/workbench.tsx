@@ -113,6 +113,8 @@ export type Dialog =
   | { kind: "workpaperStamp"; documentId: string; templateId: string }
   /** Recognize Text in every PDF of a folder (Phase 7). */
   | { kind: "batchOcr" }
+  /** Reduce File Size into a new file (Phase 7). */
+  | { kind: "optimize"; documentId: string }
   | null;
 
 /** Dialog-driven page operations (src/ui/PageOpsDialogs.tsx). */
