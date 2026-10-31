@@ -262,6 +262,16 @@ describe("Recognize Text", { timeout: 120_000 }, () => {
 });
 
 describe("Enhance", { timeout: 120_000 }, () => {
+  it("fixes the corpus scans the owner check uses", async () => {
+    const { OUT_DIR } = await import("../corpus/generate.mjs");
+    const { join } = await import("node:path");
+    const tilted = new Uint8Array(readFileSync(join(OUT_DIR, "scanned-tilted.pdf")));
+    expect((await straightenPages(m, qpdf, tilted, [0])).turned[0]?.degrees).toBeCloseTo(-3, 0);
+    const sideways = new Uint8Array(readFileSync(join(OUT_DIR, "scanned-sideways.pdf")));
+    const up = await turnPagesUpright(m, ocr, sideways, [0], new OcrControl(ocr));
+    expect(up.turned).toEqual([{ page: 0, degrees: 270 }]);
+  });
+
   it("Straighten Pages turns a tilted scan level without re-encoding it", async () => {
     const src = await sourcePdf();
     const scan = await scanPdf(rotateFine(render(src, 200), 3));

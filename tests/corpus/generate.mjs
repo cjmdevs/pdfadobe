@@ -419,12 +419,39 @@ async function stampPng() {
   return png(img.width, img.height, 6, px);
 }
 
-async function scannedImageOnly(sourceBytes) {
+/** Turns grey pixels clockwise by `deg` about the centre, same size, paper-white fill. */
+function tiltGray(gray, w, h, deg) {
+  const a = (deg * Math.PI) / 180;
+  const cos = Math.cos(a);
+  const sin = Math.sin(a);
+  const out = Buffer.alloc(w * h, 243);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const dx = x - w / 2;
+      const dy = y - h / 2;
+      const sx = Math.round(cos * dx + sin * dy + w / 2);
+      const sy = Math.round(-sin * dx + cos * dy + h / 2);
+      if (sx >= 0 && sy >= 0 && sx < w && sy < h) out[y * w + x] = gray[sy * w + sx];
+    }
+  return out;
+}
+
+/** Turns grey pixels a quarter turn clockwise (w x h -> h x w). */
+function quarterGray(gray, w, h) {
+  const out = Buffer.alloc(w * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) out[x * h + (h - 1 - y)] = gray[y * w + x];
+  return out;
+}
+
+async function scannedImageOnly(sourceBytes, { tilt = 0, sideways = false } = {}) {
   // Rasterize the 1-page text doc with PDFium, add deterministic speckle, embed as
-  // a full-page image. The result has NO text layer (OCR target for a later phase).
+  // a full-page image. The result has NO text layer (OCR target, Phase 7). `tilt`
+  // (degrees clockwise) and `sideways` (a quarter turn, no /Rotate) make the scans
+  // Enhance > Straighten Pages and Turn Pages Upright fix.
   const img = await rasterize(sourceBytes, 200 / 72);
 
-  const gray = Buffer.alloc(img.width * img.height);
+  let gray = Buffer.alloc(img.width * img.height);
   let seed = 42;
   const rand = () => (seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
   for (let i = 0; i < gray.length; i++) {
@@ -436,11 +463,18 @@ async function scannedImageOnly(sourceBytes) {
     if (rand() < 0.002) v = 40; // speckle
     gray[i] = Math.max(0, Math.min(255, Math.round(v)));
   }
+  let [w, h] = [img.width, img.height];
+  if (tilt) gray = tiltGray(gray, w, h, tilt);
+  if (sideways) {
+    gray = quarterGray(gray, w, h);
+    [w, h] = [h, w];
+  }
   const doc = await PDFDocument.create();
   stamp(doc, "Synthetic scanned image-only document");
-  const image = await doc.embedPng(png(img.width, img.height, 0, gray));
-  const page = doc.addPage([612, 792]);
-  page.drawImage(image, { x: 0, y: 0, width: 612, height: 792 });
+  const image = await doc.embedPng(png(w, h, 0, gray));
+  const size = sideways ? [792, 612] : [612, 792];
+  const page = doc.addPage(size);
+  page.drawImage(image, { x: 0, y: 0, width: size[0], height: size[1] });
   return doc.save();
 }
 
@@ -1291,6 +1325,12 @@ export async function generateCorpus({ force = false } = {}) {
   await write("calc-form.pdf", calcForm);
   await write("scanned-image-only.pdf", async () =>
     scannedImageOnly(readFileSync(out("text-1p.pdf"))),
+  );
+  await write("scanned-tilted.pdf", async () =>
+    scannedImageOnly(readFileSync(out("text-1p.pdf")), { tilt: 3 }),
+  );
+  await write("scanned-sideways.pdf", async () =>
+    scannedImageOnly(readFileSync(out("text-1p.pdf")), { sideways: true }),
   );
   await write("ssn-redaction.pdf", ssnFixture);
   await write("leak-scan.pdf", leakScan);
