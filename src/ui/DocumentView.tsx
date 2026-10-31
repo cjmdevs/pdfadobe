@@ -9,6 +9,7 @@ import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
 import { LinkBorders } from "./LinkBorders";
 import { EraserLayer } from "./markup/EraserLayer";
 import { StampLayer } from "./markup/StampLayer";
+import { StampsPalette } from "./markup/StampsPalette";
 import { EditLayer } from "./edit/EditLayer";
 import { RedactLayer } from "./redact/RedactLayer";
 import { FieldPlaceLayer } from "./forms/FieldPlaceLayer";
@@ -221,6 +222,7 @@ function Viewer({ documentId }: { documentId: string }) {
         )}
       </Viewport>
       <FlyerOverlay documentId={documentId} />
+      {settings.stampsPaletteOpen && <StampsPalette documentId={documentId} />}
     </GlobalPointerProvider>
   );
 }

@@ -227,14 +227,20 @@ test.describe("markup", () => {
     expect(JSON.stringify(poly[0]!.dict["/BE"])).toContain('"/S":"/C"');
   });
 
-  test("Approved stamp from the Stamp tool: saved as /Stamp /Approved with our appearance", async ({
+  test("Stamp menu: Dynamic > Approved is saved as /Stamp /Approved; favorites; palette", async ({
     page,
     mockfs,
   }) => {
     await openPaths(page, [P.text]);
     await waitForPainted(page, 0);
     await page.getByRole("button", { name: "Stamp", exact: true }).click();
-    await tb(page, "Approved stamp").click();
+    await tb(page, "Stamp").click();
+    const menu = page.getByRole("menu", { name: "Stamp" });
+    await menu.getByRole("menuitem", { name: "Dynamic" }).click();
+    await page
+      .getByRole("menu", { name: "Dynamic" })
+      .getByRole("menuitemradio", { name: "Approved" })
+      .click();
     const box = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
     await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3);
     await expect(page.getByTestId("stamp-ghost")).toBeVisible();
@@ -252,20 +258,52 @@ test.describe("markup", () => {
     expect(stamps[0]!.subject).toBe("Approved");
     expect(stamps[0]!.author).toBe("Reviewer");
     expect(stamps[0]!.hasAppearance).toBe(true);
+
+    // The last stamp tops the menu; it can become a favorite.
+    await tb(page, "Stamp").click();
+    await menu.getByRole("menuitemradio", { name: "Add Current Stamp To Favorites" }).click();
+    await tb(page, "Stamp").click();
+    await expect(menu.getByRole("menuitemradio", { name: "Approved" })).toHaveCount(2);
+    await expect(
+      menu.getByRole("menuitemradio", { name: "Remove Current Stamp From Favorites" }),
+    ).toBeEnabled();
+    await menu.getByRole("menuitemcheckbox", { name: "Show Stamp Names" }).click();
+    await tb(page, "Stamp").click();
+    await expect(menu.getByRole("menuitemcheckbox", { name: "Show Stamp Names" })).toBeChecked();
+    await page.keyboard.press("Escape");
+
+    // The palette lists a category's stamps; a click arms one.
+    await tb(page, "Stamps Palette").click();
+    const palette = page.getByRole("dialog", { name: "Stamps Palette" });
+    await palette.getByLabel("Stamp category").selectOption("Sign Here");
+    await palette.getByRole("button", { name: "Sign Here", exact: true }).click();
+    await expect(page.getByText(/place the Sign Here stamp/)).toBeVisible();
+    await page.keyboard.press("Escape");
   });
 
-  test("add an image to My stamps, place it; Esc cancels a picked stamp", async ({
+  test("Custom Stamps: an image in its own category, placed from the Stamp menu", async ({
     page,
     mockfs,
   }) => {
-    await openComment(page, P.text);
-    await tb(page, "Stamp").click();
-    const dialog = page.getByRole("dialog", { name: "Stamps" });
+    await openPaths(page, [P.text]);
+    await waitForPainted(page, 0);
+    await page.getByRole("button", { name: "Stamp", exact: true }).click();
+    await tb(page, "Custom Stamps").click();
+    await page.getByRole("menuitemradio", { name: "Create Custom Stamp…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Custom Stamps" });
+    await dialog.getByLabel("Category").fill("Firm");
     const chooser = page.waitForEvent("filechooser");
-    await dialog.getByRole("button", { name: /Add image/ }).click();
+    await dialog.getByRole("button", { name: /Choose image/ }).click();
     await (await chooser).setFiles(join(CORPUS, "stamp-reviewed.png"));
-    await dialog.getByRole("button", { name: "stamp-reviewed", exact: true }).click();
-    await expect(dialog).toHaveCount(0);
+    await expect(dialog.getByLabel("Category of stamp-reviewed")).toHaveValue("Firm");
+    await dialog.getByRole("button", { name: "Close", exact: true }).click();
+
+    await tb(page, "Stamp").click();
+    await page.getByRole("menu", { name: "Stamp" }).getByRole("menuitem", { name: "Firm" }).click();
+    await page
+      .getByRole("menu", { name: "Firm" })
+      .getByRole("menuitemradio", { name: "stamp-reviewed" })
+      .click();
     await expect(page.getByText(/place the stamp-reviewed stamp/)).toBeVisible();
 
     // Esc: nothing placed.
@@ -274,8 +312,13 @@ test.describe("markup", () => {
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
     await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toHaveCount(0);
 
+    // The last stamp tops the menu.
     await tb(page, "Stamp").click();
-    await dialog.getByRole("button", { name: "stamp-reviewed", exact: true }).click();
+    await page
+      .getByRole("menu", { name: "Stamp" })
+      .getByRole("menuitemradio", { name: "stamp-reviewed" })
+      .first()
+      .click();
     // The image loads first; then its outline follows the pointer.
     await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3);
     await page.mouse.move(box.x + box.width * 0.5 + 5, box.y + box.height * 0.3);

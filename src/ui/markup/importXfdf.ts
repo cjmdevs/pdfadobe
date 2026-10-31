@@ -9,7 +9,7 @@ import type {
 } from "@embedpdf/plugin-annotation";
 import { PdfAnnotationSubtype } from "@embedpdf/models";
 import type { WorkbenchApi } from "../../app/workbench";
-import { TEXT_STAMPS, drawTextStamp, stampDetail } from "../../engine/stamps";
+import { TEXT_STAMPS, drawTextStamp, dynamicText, stampTitle } from "../../engine/stamps";
 import { XfdfError, parseXfdf } from "../../engine/xfdf";
 import { pickXfdf } from "./markupFiles";
 
@@ -42,11 +42,11 @@ export async function importXfdf(
   const items: AnnotationTransferItem[] = [];
   for (const a of fresh) {
     if (a.type === PdfAnnotationSubtype.STAMP) {
-      const def = TEXT_STAMPS.find((d) => d.title.toLowerCase() === a.subject?.toLowerCase());
+      const def = TEXT_STAMPS.find((d) => stampTitle(d).toLowerCase() === a.subject?.toLowerCase());
       if (def) {
         const art = await drawTextStamp(
           def,
-          a.author ? stampDetail(a.author, a.created ?? a.modified ?? new Date()) : undefined,
+          a.author ? dynamicText(def, a.author, a.created ?? a.modified ?? new Date()) : undefined,
         );
         items.push({
           annotation: a,

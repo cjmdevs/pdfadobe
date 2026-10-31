@@ -7,7 +7,6 @@ import type { PageActions } from "../app/pageActions";
 import type { PageOpDialog, WorkbenchApi } from "../app/workbench";
 import type { IconName } from "../ui/Icon";
 import { MARKUP_TOOLS } from "../markup/config";
-import { TEXT_STAMPS } from "../engine/stamps";
 import type { TickmarkDef } from "../engine/flyer/tickmarks";
 import type { LibraryEntry } from "../flyer/library";
 import { TICK_SECTIONS } from "../engine/flyer/tickmarks";
@@ -129,8 +128,13 @@ export interface MarkupCommands {
   /** The ink eraser is on. */
   erasing: boolean;
   setErasing(on: boolean): void;
-  /** Arms a built-in stamp (src/engine/stamps.ts id) for the next click on a page. */
-  pickStamp(id: string): void;
+  /** Arms a stamp for the next click on a page: "b:approved" (built-in, or a bare
+   * src/engine/stamps.ts id) or "c:<id>" (custom). */
+  pickStamp(ref: string): void;
+  /** Arms the picture on the clipboard as a stamp (Paste Clipboard Image as Stamp Tool). */
+  pasteStamp(): void;
+  /** Acrobat's Stamp menu (stampLibrary.ts). */
+  stampMenu(): MenuItem[];
   /** Ids (/NM) of the selected annotations. */
   selectedIds: string[];
   /** Picks an XFDF file and adds its comments (undoable). */
@@ -140,7 +144,6 @@ export interface MarkupCommands {
 const openStamps = (c: ToolContext) => {
   if (c.documentId) c.wb.setDialog({ kind: "stamps", documentId: c.documentId });
 };
-const titleCase = (t: string) => `${t.charAt(0)}${t.slice(1).toLowerCase()}`;
 
 export interface ViewCommands {
   /** Current zoom mode, for pressed buttons. */
@@ -176,12 +179,24 @@ export interface ToolAction {
   caption?: string;
 }
 
+/** A stamp's picture in a menu: drawn like the stamp, or a custom stamp's image. */
+export type StampPreview =
+  { title: string; color: string; detail?: string; above?: boolean } | { url: string };
+
 export interface MenuItem {
   id: string;
   label: string;
   run(ctx: ToolContext): void;
   /** Shown with a tick (the active choice). */
   checked?: boolean;
+  /** A setting turned on and off (a checkbox item) rather than a choice. */
+  check?: boolean;
+  /** Greyed out. */
+  disabled?: boolean;
+  /** A submenu that opens beside this item (its run is not used). */
+  items?: MenuItem[];
+  /** Drawn as a stamp picture instead of its label. */
+  stamp?: StampPreview;
   /** A line above this item. */
   separator?: boolean;
   /** Tooltip (grid items show only a letter or number). */
@@ -502,7 +517,9 @@ export const TOOLS: ToolDef[] = [
         id: "stamps",
         label: "Stamp",
         icon: "stamp",
-        run: openStamps,
+        run: () => {},
+        menuOnly: true,
+        items: (c) => c.markup?.stampMenu() ?? [],
         enabled: (c) => hasDoc(c) && c.markup !== null,
       },
       {
@@ -566,24 +583,38 @@ export const TOOLS: ToolDef[] = [
     name: "Stamp",
     icon: "stamp",
     color: "#7b5cd6",
-    description: "Approved, Reviewed, Draft, Confidential and your own image stamps",
+    description: "Dynamic, Sign Here and Standard Business stamps, and your own image stamps",
     comingIn: null,
     open: "toolbar",
     toolbar: [
-      ...TEXT_STAMPS.map((d): ToolAction => ({
-        id: d.id,
-        label: `${titleCase(d.title)} stamp`,
-        caption: titleCase(d.title),
-        icon: "stamp",
-        run: (c) => c.markup?.pickStamp(d.id),
-        enabled: (c) => hasDoc(c) && c.markup !== null,
-      })),
+      // Acrobat's Stamp toolbar (B6): the Stamp menu, the palette, custom stamps.
       {
-        id: "myStamps",
-        label: "All stamps and my image stamps",
-        caption: "More stamps",
+        id: "stampMenu",
+        label: "Stamp",
         icon: "stamp",
-        run: openStamps,
+        run: () => {},
+        menuOnly: true,
+        items: (c) => c.markup?.stampMenu() ?? [],
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+      {
+        id: "stampsPalette",
+        label: "Stamps Palette",
+        icon: "stamp",
+        run: (c) => c.wb.updateSettings({ stampsPaletteOpen: !c.wb.settings.stampsPaletteOpen }),
+        pressed: (c) => c.wb.settings.stampsPaletteOpen,
+        enabled: (c) => hasDoc(c) && c.markup !== null,
+      },
+      {
+        id: "customStamps",
+        label: "Custom Stamps",
+        icon: "stamp",
+        run: () => {},
+        menuOnly: true,
+        items: [
+          { id: "create", label: "Create Custom Stamp…", run: openStamps },
+          { id: "manage", label: "Manage Stamps…", run: openStamps },
+        ],
         enabled: (c) => hasDoc(c) && c.markup !== null,
       },
     ],

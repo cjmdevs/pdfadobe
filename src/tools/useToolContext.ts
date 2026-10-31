@@ -16,8 +16,15 @@ import {
   usePendingImage,
 } from "../ui/edit/editStore";
 import { pickImageToAdd, removeAllWebLinks } from "../ui/edit/editActions";
-import { TEXT_STAMPS } from "../engine/stamps";
-import { stampPlacement, textStamp } from "../ui/markup/stampPlacement";
+import { platform } from "../platform";
+import {
+  clipboardImage,
+  imageStamp,
+  stampPlacement,
+  textStamp,
+  type PendingStamp,
+} from "../ui/markup/stampPlacement";
+import { allStamps, stampMenu, useStampLibraryVersion } from "../ui/markup/stampLibrary";
 import { importXfdf } from "../ui/markup/importXfdf";
 import { useFlyerCommands } from "../ui/flyer/useFlyer";
 import { useRedactCommands } from "../ui/redact/useRedact";
@@ -52,6 +59,8 @@ export function useDocToolContext(documentId: string): ToolContext {
   const flyer = useFlyerCommands(documentId, !encrypted);
   // Redaction reads the store's bytes too.
   const redact = useRedactCommands(documentId, !encrypted);
+  // Custom stamps load here; the Stamp menu reads them when it opens.
+  useStampLibraryVersion();
   return useMemo(
     () => ({
       wb,
@@ -84,16 +93,44 @@ export function useDocToolContext(documentId: string): ToolContext {
                 .map((u) => annotState.byUid[u]?.object.id)
                 .filter((x): x is string => x !== undefined),
               importXfdf: () => importXfdf(wb, documentId, annots, annotState, docState),
-              pickStamp: (id) => {
-                const def = TEXT_STAMPS.find((d) => d.id === id);
-                if (!def) return;
-                void textStamp(def, wb.author).then((s) => {
+              pickStamp: (ref) => {
+                const arm = (s: PendingStamp) => {
                   annots.setActiveTool(null);
                   stampPlacement.set(s);
                   im?.activate(STAMP_MODE);
+                  wb.updateSettings({ lastStamp: ref.includes(":") ? ref : `b:${ref}` });
                   wb.toast(`Click on the page to place the ${s.subject} stamp (Esc cancels).`);
-                });
+                };
+                const fail = (e: unknown) =>
+                  wb.toast(`Stamp failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+                const entry = allStamps(wb).find((e) => e.ref === ref || e.ref === `b:${ref}`);
+                if (entry?.builtIn) void textStamp(entry.builtIn, wb.author).then(arm, fail);
+                else if (entry?.custom) {
+                  const c = entry.custom;
+                  void platform.stamps
+                    .read(c.id)
+                    .then((b) => imageStamp(entry.name, b, c.mime))
+                    .then(arm, fail);
+                }
               },
+              pasteStamp: () => {
+                void clipboardImage().then(
+                  (img) => {
+                    if (!img) {
+                      wb.toast("There is no picture on the clipboard.", "error");
+                      return;
+                    }
+                    void imageStamp("Pasted image", img.bytes, img.mime).then((s) => {
+                      annots.setActiveTool(null);
+                      stampPlacement.set(s);
+                      im?.activate(STAMP_MODE);
+                      wb.toast("Click on the page to place the pasted picture (Esc cancels).");
+                    });
+                  },
+                  () => wb.toast("The clipboard could not be read.", "error"),
+                );
+              },
+              stampMenu: () => stampMenu(wb, allStamps(wb)),
             }
           : null,
       // Edit PDF reads and writes the store's bytes, which encrypted documents lack.

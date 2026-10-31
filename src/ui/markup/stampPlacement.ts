@@ -2,7 +2,7 @@
 // click on a page (StampLayer). Shared by both through this tiny store.
 import { useSyncExternalStore } from "react";
 import { PdfAnnotationName, type ImageMimeType } from "@embedpdf/models";
-import { drawTextStamp, stampDetail, type TextStampDef } from "../../engine/stamps";
+import { drawTextStamp, dynamicText, stampTitle, type TextStampDef } from "../../engine/stamps";
 
 export interface StampArt {
   data: ArrayBuffer;
@@ -22,26 +22,23 @@ export interface PendingStamp {
   make(author: string): Promise<StampArt>;
 }
 
-/** Stamp /Name per built-in (PDFium writes these names; Reviewed has no standard one). */
-const NAMES: Record<string, PdfAnnotationName> = {
-  approved: PdfAnnotationName.Approved,
-  reviewed: PdfAnnotationName.Custom,
-  draft: PdfAnnotationName.Draft,
-  confidential: PdfAnnotationName.Confidential,
-};
+/** The standard stamp /Name PDFium writes for a built-in, or Custom. */
+const nameOf = (def: TextStampDef): PdfAnnotationName =>
+  (def.pdfName && PdfAnnotationName[def.pdfName as keyof typeof PdfAnnotationName]) ||
+  PdfAnnotationName.Custom;
 
 const exact = (u: Uint8Array) =>
   u.buffer.slice(u.byteOffset, u.byteOffset + u.byteLength) as ArrayBuffer;
 
 export async function textStamp(def: TextStampDef, author: string): Promise<PendingStamp> {
-  const sample = await drawTextStamp(def, stampDetail(author, new Date()));
+  const sample = await drawTextStamp(def, dynamicText(def, author, new Date()));
   return {
-    subject: def.title.charAt(0) + def.title.slice(1).toLowerCase(),
-    name: NAMES[def.id] ?? PdfAnnotationName.Custom,
+    subject: stampTitle(def),
+    name: nameOf(def),
     width: sample.width,
     height: sample.height,
     make: async (who) => {
-      const art = await drawTextStamp(def, stampDetail(who, new Date()));
+      const art = await drawTextStamp(def, dynamicText(def, who, new Date()));
       return {
         data: exact(art.pdf),
         mime: "application/pdf",
@@ -74,6 +71,20 @@ export async function imageStamp(
     height,
     make: async () => ({ data, mime, width, height }),
   };
+}
+
+/** The picture on the clipboard (PNG, or JPEG), or null when there is none. */
+export async function clipboardImage(): Promise<{
+  bytes: Uint8Array;
+  mime: "image/png" | "image/jpeg";
+} | null> {
+  for (const item of await navigator.clipboard.read()) {
+    const type = item.types.find((t) => t === "image/png" || t === "image/jpeg");
+    if (!type) continue;
+    const bytes = new Uint8Array(await (await item.getType(type)).arrayBuffer());
+    return { bytes, mime: type };
+  }
+  return null;
 }
 
 let pending: PendingStamp | null = null;

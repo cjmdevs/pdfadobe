@@ -98,8 +98,8 @@ function MainDialog() {
       );
     case "stamps":
       return (
-        <Modal title="Stamps" onClose={close}>
-          <StampPicker documentId={dialog.documentId} onClose={close} />
+        <Modal title="Custom Stamps" onClose={close}>
+          <StampPicker />
         </Modal>
       );
     case "tickmarks":

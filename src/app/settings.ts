@@ -79,6 +79,16 @@ export interface Settings {
   calcOpen: boolean;
   /** Fill Forms (Phase 6): tint fillable fields, outline required ones (Acrobat's default). */
   formHighlight: boolean;
+  /** Stamp tool (B6): favourite stamps ("b:approved" built-in, "c:<id>" custom). */
+  stampFavorites: string[];
+  /** The stamp placed last (top of the Stamp menu), or null. */
+  lastStamp: string | null;
+  /** Stamp menus list names instead of pictures. */
+  showStampNames: boolean;
+  /** Floating Stamps Palette shown. */
+  stampsPaletteOpen: boolean;
+  /** Custom stamps' category and (renamed) name, by custom stamp id. */
+  customStampInfo: Record<string, { category: string; name?: string }>;
 }
 
 export const MAX_RECENT = 15;
@@ -144,6 +154,11 @@ export const DEFAULT_SETTINGS: Settings = {
   calc: DEFAULT_CALC,
   calcOpen: false,
   formHighlight: true,
+  stampFavorites: [],
+  lastStamp: null,
+  showStampNames: false,
+  stampsPaletteOpen: false,
+  customStampInfo: {},
 };
 
 const oneOf =
@@ -238,7 +253,33 @@ export function sanitizeSettings(raw: unknown): Settings {
     calc: sanitizeCalc(r.calc),
     calcOpen: typeof r.calcOpen === "boolean" ? r.calcOpen : d.calcOpen,
     formHighlight: typeof r.formHighlight === "boolean" ? r.formHighlight : d.formHighlight,
+    stampFavorites: Array.isArray(r.stampFavorites)
+      ? r.stampFavorites.filter(isStampRef).slice(0, 50)
+      : d.stampFavorites,
+    lastStamp: isStampRef(r.lastStamp) ? r.lastStamp : d.lastStamp,
+    showStampNames: typeof r.showStampNames === "boolean" ? r.showStampNames : d.showStampNames,
+    stampsPaletteOpen:
+      typeof r.stampsPaletteOpen === "boolean" ? r.stampsPaletteOpen : d.stampsPaletteOpen,
+    customStampInfo: stampInfo(r.customStampInfo),
   };
+}
+
+const isStampRef = (v: unknown): v is string =>
+  typeof v === "string" && /^[bc]:[A-Za-z0-9._-]{1,80}$/.test(v);
+
+const shortText = (v: unknown): v is string =>
+  typeof v === "string" && v.trim().length > 0 && v.length <= 80;
+
+function stampInfo(v: unknown): Settings["customStampInfo"] {
+  if (!v || typeof v !== "object") return {};
+  const out: Settings["customStampInfo"] = {};
+  for (const [id, info] of Object.entries(v as Record<string, unknown>)) {
+    if (!/^[A-Za-z0-9._-]{1,80}$/.test(id) || !info || typeof info !== "object") continue;
+    const { category, name } = info as Record<string, unknown>;
+    if (!shortText(category)) continue;
+    out[id] = { category: category.trim(), ...(shortText(name) ? { name: name.trim() } : {}) };
+  }
+  return out;
 }
 
 const isColor = (v: unknown): v is string => typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v);

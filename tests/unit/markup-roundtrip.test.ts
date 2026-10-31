@@ -60,7 +60,10 @@ beforeAll(async () => {
     )
     .toPromise();
   // A built-in text stamp: our one-page PDF becomes its appearance.
-  const approved = await drawTextStamp(TEXT_STAMPS[0]!, "Test Reviewer, 10/23/2026 9:00 AM");
+  const approved = await drawTextStamp(
+    TEXT_STAMPS.find((d) => d.id === "approved")!,
+    "Test Reviewer, 10/23/2026 9:00 AM",
+  );
   await engine
     .createPageAnnotation(
       doc,

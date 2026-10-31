@@ -12,6 +12,8 @@ import {
   menuItems,
   resolveAction,
   tool,
+  type MenuItem,
+  type StampPreview,
   type ToolAction,
   type ToolContext,
   type ToolDef,
@@ -329,10 +331,12 @@ function WithMenu({
 }) {
   // Fixed position: the tool toolbar scrolls sideways and would clip the list.
   const [at, setAt] = useState<{ left: number; top: number } | null>(null);
+  const [sub, setSub] = useState<{ id: string; left: number; top: number } | null>(null);
   const open = at !== null;
   const setOpen = (on: boolean) => {
     const r = ref.current?.getBoundingClientRect();
     setAt(on && r ? { left: r.left, top: r.bottom + 2 } : null);
+    setSub(null);
   };
   const ref = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -389,46 +393,134 @@ function WithMenu({
         </>
       )}
       {open && (
-        <ul
-          className={a.grid ? "action-menu grid" : "action-menu"}
-          role="menu"
-          aria-label={a.caption ?? a.label}
-          style={{ left: at.left, top: at.top }}
-        >
-          {items.map((it) => (
-            <li
-              key={it.id}
-              className={
-                [it.separator ? "separator" : "", a.grid && it.label.length > 3 ? "wide" : ""]
-                  .filter(Boolean)
-                  .join(" ") || undefined
+        <MenuList
+          items={items}
+          grid={a.grid ?? false}
+          label={a.caption ?? a.label}
+          at={at}
+          sub={sub}
+          setSub={setSub}
+          choose={(it) => {
+            setOpen(false);
+            it.run(ctx);
+          }}
+        />
+      )}
+    </span>
+  );
+}
+
+/** A dropdown's list; an item with `items` opens its submenu beside it (fixed position,
+ * as the list scrolls and would clip it). */
+function MenuList({
+  items,
+  grid,
+  label,
+  at,
+  sub,
+  setSub,
+  choose,
+}: {
+  items: MenuItem[];
+  grid: boolean;
+  label: string;
+  at: { left: number; top: number };
+  sub: { id: string; left: number; top: number } | null;
+  setSub: (s: { id: string; left: number; top: number } | null) => void;
+  choose: (it: MenuItem) => void;
+}) {
+  const open = sub ? items.find((it) => it.id === sub.id) : undefined;
+  const showSub = (it: MenuItem, el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setSub({ id: it.id, left: r.right - 2, top: r.top - 4 });
+  };
+  return (
+    <>
+      <ul
+        className={grid ? "action-menu grid" : "action-menu"}
+        role="menu"
+        aria-label={label}
+        style={{ left: at.left, top: at.top }}
+      >
+        {items.map((it) => (
+          <li
+            key={it.id}
+            className={
+              [it.separator ? "separator" : "", grid && it.label.length > 3 ? "wide" : ""]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
+            role="none"
+          >
+            <button
+              type="button"
+              role={it.items ? "menuitem" : it.check ? "menuitemcheckbox" : "menuitemradio"}
+              aria-checked={it.items ? undefined : (it.checked ?? false)}
+              aria-haspopup={it.items ? "menu" : undefined}
+              aria-expanded={it.items ? sub?.id === it.id : undefined}
+              aria-label={it.stamp ? it.label : undefined}
+              title={it.title ?? it.label}
+              disabled={it.disabled}
+              onPointerEnter={(e) =>
+                it.items ? showSub(it, e.currentTarget) : sub && !grid && setSub(null)
               }
-              role="none"
+              onClick={(e) => (it.items ? showSub(it, e.currentTarget) : choose(it))}
             >
+              <span className="tick" aria-hidden="true">
+                {it.checked ? "✓" : ""}
+              </span>
+              {it.stamp ? <StampChip preview={it.stamp} /> : it.label}
+              {it.items && (
+                <span className="sub-arrow" aria-hidden="true">
+                  ›
+                </span>
+              )}
+            </button>
+          </li>
+        ))}
+        {items.length === 0 && (
+          <li className="muted" role="none">
+            Nothing here yet
+          </li>
+        )}
+      </ul>
+      {open?.items && sub && (
+        <ul
+          className="action-menu sub"
+          role="menu"
+          aria-label={open.label}
+          style={{ left: sub.left, top: sub.top }}
+        >
+          {open.items.map((it) => (
+            <li key={it.id} role="none">
               <button
                 type="button"
                 role="menuitemradio"
                 aria-checked={it.checked ?? false}
+                aria-label={it.stamp ? it.label : undefined}
                 title={it.title ?? it.label}
-                onClick={() => {
-                  setOpen(false);
-                  it.run(ctx);
-                }}
+                disabled={it.disabled}
+                onClick={() => choose(it)}
               >
-                <span className="tick" aria-hidden="true">
-                  {it.checked ? "✓" : ""}
-                </span>
-                {it.label}
+                {it.stamp ? <StampChip preview={it.stamp} /> : it.label}
               </button>
             </li>
           ))}
-          {items.length === 0 && (
-            <li className="muted" role="none">
-              Nothing here yet
-            </li>
-          )}
         </ul>
       )}
+    </>
+  );
+}
+
+/** A stamp's picture for menus and the Stamps Palette (our own drawing, or the image). */
+export function StampChip({ preview }: { preview: StampPreview }) {
+  if ("url" in preview) return <img className="stamp-chip image" src={preview.url} alt="" />;
+  const detail = preview.detail ? <small>{preview.detail}</small> : null;
+  return (
+    <span className="stamp-chip" style={{ color: preview.color, borderColor: preview.color }}>
+      {preview.above && detail}
+      <b>{preview.title}</b>
+      {!preview.above && detail}
     </span>
   );
 }
