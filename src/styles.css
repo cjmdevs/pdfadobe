@@ -2412,3 +2412,64 @@ button.primary.danger-fill {
   align-items: center;
   gap: 6px;
 }
+
+/* Comments panel header and rows like Acrobat's (B6) */
+.comment-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.comment-tools .pop {
+  position: relative;
+}
+.comment-tools .pop-body {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 2px);
+  z-index: 30;
+}
+.comment-tools .pop-body .action-menu {
+  position: static;
+  min-width: 200px;
+}
+.comment-tools .pop-body .comment-filters {
+  width: 260px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.comment-search {
+  margin: 6px 8px;
+}
+.comment-head .avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #6b6b6b;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+.comment-head .comment-author {
+  font-weight: 600;
+}
+.comment-head > .comment-meta {
+  margin-left: 0;
+}
+.comment-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding-left: 28px;
+}
+.comment-text.placeholder {
+  color: var(--fg-muted, #777);
+  font-style: italic;
+}
+.comment > p.comment-text {
+  padding-left: 28px;
+}

@@ -341,3 +341,24 @@ test("letter tickmarks: pick C, it stays C; matching Cs link across pages; Clear
       .sort(),
   ).toEqual([0, 0, 1]);
 });
+
+test("PDFlyer workpaper: every item renders, is in the Stamp Summary and the comments list", async ({
+  page,
+}) => {
+  await boot(page);
+  await openPaths(page, [P.pdflyer]);
+  await waitForPainted(page, 0);
+  await page.getByRole("button", { name: "Workpaper Tools", exact: true }).click();
+  const summary = page.getByTestId("stamp-summary");
+  // 4 tickmarks, the tape, the sticky note below the page, a text box, an Acrobat stamp.
+  await expect(summary.getByRole("tab", { name: "Stamp Summary (8)" })).toBeVisible();
+  await expect(summary.getByRole("button", { name: /^A \(Letter Connectors\)/ })).toHaveCount(2);
+  await expect(summary.getByRole("button", { name: /^Sticky note.*off page/ })).toHaveCount(1);
+  await expect(summary.getByRole("button", { name: /^Reviewed/ })).toHaveCount(1);
+  await page.getByRole("button", { name: "Close Workpaper Tools" }).click();
+  await page.getByRole("button", { name: "Comment", exact: true }).click();
+  await tb(page, "Comments list").click();
+  const panel = page.getByTestId("comments-panel");
+  await expect(panel.getByRole("heading", { name: "8 comments" })).toBeVisible();
+  await expect(panel.getByText("Applied Stamp")).toHaveCount(4);
+});

@@ -101,6 +101,7 @@ import makeDefault from "@fluentui/svg-icons/icons/star_settings_20_regular.svg?
 import font from "@fluentui/svg-icons/icons/text_font_20_regular.svg?raw";
 import reply from "@fluentui/svg-icons/icons/arrow_reply_20_regular.svg?raw";
 import filter from "@fluentui/svg-icons/icons/filter_20_regular.svg?raw";
+import sort from "@fluentui/svg-icons/icons/text_sort_ascending_20_regular.svg?raw";
 import exportFile from "@fluentui/svg-icons/icons/arrow_export_ltr_20_regular.svg?raw";
 import importFile from "@fluentui/svg-icons/icons/arrow_import_20_regular.svg?raw";
 import flatten from "@fluentui/svg-icons/icons/layer_20_regular.svg?raw";
@@ -210,6 +211,7 @@ const SVG = {
   font,
   reply,
   filter,
+  sort,
   exportFile,
   checkRequired,
   resetForm,

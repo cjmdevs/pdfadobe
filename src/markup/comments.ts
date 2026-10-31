@@ -163,6 +163,52 @@ export function filterThreads(threads: CommentThread[], f: CommentFilter): Comme
   );
 }
 
+/** Comments whose text, replies, author, type or subject contain `query` (any case). */
+export function searchThreads(threads: CommentThread[], query: string): CommentThread[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return threads;
+  const has = (v: string | null | undefined) => !!v && v.toLowerCase().includes(q);
+  return threads.filter((t) => {
+    const a = t.annotation;
+    return (
+      has(a.contents) ||
+      has(a.author) ||
+      has(typeLabel(a)) ||
+      has((a as { subject?: string }).subject) ||
+      t.replies.some((r) => has(r.contents) || has(r.author))
+    );
+  });
+}
+
+/** Acrobat's sort orders for the comments list. */
+export type CommentSort = "page" | "author" | "date" | "type" | "color";
+export const COMMENT_SORTS: readonly { id: CommentSort; label: string }[] = [
+  { id: "page", label: "Page" },
+  { id: "author", label: "Author" },
+  { id: "date", label: "Date" },
+  { id: "type", label: "Type" },
+  { id: "color", label: "Color" },
+];
+
+/** Threads in `by` order; ties stay in reading order (threads come in page order). */
+export function sortThreads(threads: CommentThread[], by: CommentSort): CommentThread[] {
+  if (by === "page") return threads;
+  const key = (t: CommentThread): string | number => {
+    const a = t.annotation;
+    if (by === "author") return (a.author ?? "").toLowerCase();
+    if (by === "date") return -time(a);
+    if (by === "type") return typeLabel(a);
+    return colorOf(a) ?? "~";
+  };
+  return [...threads].sort((p, q) => {
+    const x = key(p);
+    const y = key(q);
+    return typeof x === "number" && typeof y === "number"
+      ? x - y
+      : String(x).localeCompare(String(y));
+  });
+}
+
 /** Choices for the filter menus, from what is in the document. */
 export function filterChoices(threads: CommentThread[]) {
   const uniq = (xs: (string | null | undefined)[]) =>

@@ -7,6 +7,8 @@ import {
   filterThreads,
   newReply,
   newState,
+  searchThreads,
+  sortThreads,
   typeLabel,
 } from "../../src/markup/comments";
 import { SAMPLES } from "../helpers/markup-samples";
@@ -16,6 +18,19 @@ const note = samples.find((a) => a.id === "note")!;
 const t = (iso: string) => new Date(iso);
 
 describe("comments list", () => {
+  it("search finds text, replies and types; sort orders by type and keeps page order", () => {
+    const threads = buildThreads([
+      ...samples,
+      newReply(note, "Tied to TB", "Second Reviewer", t("2026-10-23T10:00:00Z")),
+    ]);
+    expect(searchThreads(threads, "tied to").map((x) => x.annotation.id)).toEqual(["note"]);
+    expect(searchThreads(threads, "STICKY").map((x) => x.annotation.id)).toContain("note");
+    expect(searchThreads(threads, "  ")).toBe(threads);
+    const byType = sortThreads(threads, "type").map((x) => typeLabel(x.annotation));
+    expect(byType).toEqual([...byType].sort((a, b) => a.localeCompare(b)));
+    expect(sortThreads(threads, "page")).toBe(threads);
+  });
+
   it("lists every markup sample once, in page then top-to-bottom order", () => {
     const threads = buildThreads(samples);
     expect(threads).toHaveLength(samples.length);

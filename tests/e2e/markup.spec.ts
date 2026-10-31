@@ -350,9 +350,30 @@ test.describe("markup", () => {
     await expect(items.nth(0)).toContainText("p. 1");
     await expect(items.nth(1)).toContainText("p. 2");
 
+    await expect(panel.getByRole("heading", { name: "2 comments" })).toBeVisible();
+
+    // Filter (a popover), search and sort, as in Acrobat's header.
+    await panel.getByRole("button", { name: "Filter comments" }).click();
     await panel.getByLabel("Filter by type").selectOption("Rectangle");
     await expect(items).toHaveCount(1);
-    await panel.getByLabel("Filter by type").selectOption("");
+    await expect(panel.getByRole("heading", { name: "1 of 2 comments" })).toBeVisible();
+    await panel.getByRole("button", { name: "Clear filters" }).click();
+    await page.keyboard.press("Escape");
+    await expect(items).toHaveCount(2);
+    await panel.getByRole("button", { name: "Search comments" }).click();
+    await panel.getByLabel("Search text").fill("square");
+    await expect(items).toHaveCount(1);
+    await panel.getByLabel("Search text").press("Escape");
+    await expect(items).toHaveCount(2);
+    await panel.getByRole("button", { name: "Sort comments" }).click();
+    await panel.getByRole("menuitemradio", { name: "Type" }).click();
+    await expect(items.nth(0)).toContainText("Rectangle");
+    await panel.getByRole("button", { name: "Sort comments" }).click();
+    await panel.getByRole("menuitemradio", { name: "Page" }).click();
+    await expect(items.nth(0)).toContainText("Sticky note");
+    await panel.getByRole("button", { name: "Options" }).click();
+    await expect(panel.getByRole("menuitem", { name: "Create Comment Summary" })).toBeVisible();
+    await page.keyboard.press("Escape");
 
     // Jump to the square on page 2, which selects it.
     await items
