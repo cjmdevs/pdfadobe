@@ -5,18 +5,18 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 7 (scan, OCR, optimize, document tools, conversions): built 2026-10-31, owner
-  check pending** (`docs/testing/phase-07-test-guide.md`; spec and approved decisions in
-  `docs/phases/phase-07.md`). Tag `phase-07-done` after the check. On the build PC:
-  `npm run check` (579 Vitest + 1 intended skip, 52 Rust, license-check), 184
-  Playwright. Details in "Phase 7" below.
+- **Phase 7 (scan, OCR, optimize, document tools, conversions) done: owner check passed
+  2026-10-31**, tagged `phase-07-done` (`docs/testing/phase-07-test-guide.md`, then
+  `phase-07-fixes-test-guide.md` all 6 steps). Spec and decisions in
+  `docs/phases/phase-07.md`. On the build PC: `npm run check` (580 Vitest + 1 intended
+  skip, 55 Rust, license-check), 184 Playwright. Details in "Phase 7" below.
 - **Phase 7 owner check 2026-10-31:** 5, 6, 7 and 9 passed; 8 passed (background hard to
   see). Every Tesseract step failed in the installed app: Tauri canonicalises the app
   path, so the resource folder is `\\?\C:\...`, and Tesseract cannot open tessdata
   under a verbatim path. Fixed (`plain_path` in `ocr_job.rs`); failures now carry
   Tesseract's setup error line; Turn Upright no longer hides a broken Tesseract as
-  "upright"; background default is pale yellow. Re-check:
-  `docs/testing/phase-07-fixes-test-guide.md`. Lesson: anything that hands a resource
+  "upright"; background default is pale yellow. Re-check
+  passed 2026-10-31. Lesson: anything that hands a resource
   path to an outside program must be tested with a `\\?\` path.
 - **Phase 6 (forms) done 2026-10-28**, tagged `phase-06-done`. Save, Save As and Fill
   from CSV strip a hybrid form's XFA twin and /Perms (`bytesForSave`).
