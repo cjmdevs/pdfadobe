@@ -7,6 +7,7 @@ import { useWorkbench } from "../app/workbench";
 import { ZOOM_PRESETS, parsePercent, percentToScale, scaleToPercent } from "../app/zoom";
 import {
   DEFAULT_QUICK_TOOLBAR,
+  QUICK_DIVIDER,
   actionEnabled,
   cleanQuickToolbar,
   menuItems,
@@ -128,7 +129,7 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
       />
       <ToolButton
         icon="customize"
-        label="Customize quick toolbar…"
+        label="Customize Quick Tools…"
         onClick={() => wb.setDialog({ kind: "customize" })}
       />
       <ToolButton
@@ -270,7 +271,9 @@ function QuickTools({ ctx }: { ctx: ToolContext }) {
   const { settings } = useWorkbench();
   return (
     <span className="quick-tools" role="group" aria-label="Quick tools">
-      {quickToolbarRefs(settings).map((ref) => {
+      {quickToolbarRefs(settings).map((ref, i) => {
+        if (ref === QUICK_DIVIDER)
+          return <span key={`div${i}`} className="sep" aria-hidden="true" />;
         const hit = resolveAction(ref);
         if (!hit || (hit.action.shown && !hit.action.shown())) return null;
         return <QuickAction key={ref} tool={hit.tool} action={hit.action} ctx={ctx} />;

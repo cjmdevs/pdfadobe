@@ -999,38 +999,82 @@ button.primary.danger-fill {
   gap: 1px;
 }
 .customize {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-}
-.pin-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 320px;
-  overflow: auto;
-}
-.pin-list li {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 6px;
-  padding: 3px 4px;
+  min-width: 640px;
+}
+.strip-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+.strip-controls {
+  display: flex;
+  gap: 4px;
+}
+.pin-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0;
+  padding: 6px 4px;
+  list-style: none;
+  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
+}
+.pin-strip li {
+  display: flex;
   cursor: grab;
 }
-.pin-list li.dragging {
+.pin-strip li.dragging {
   opacity: 0.5;
 }
-.pin-list button {
-  padding: 0 6px;
+.pin-strip button[aria-pressed="true"] {
+  outline: 1px dotted var(--fg);
+  background: var(--bg-active);
 }
-.available {
+.pin-strip .caret {
+  font-size: 9px;
+}
+.pin-strip li.divider .bar {
+  display: block;
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+}
+.choose-head {
+  margin-top: 14px;
+}
+.choose {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.tool-tree {
+  flex: 1;
   max-height: 340px;
   overflow: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
 }
-.available-head {
+.tool-tree > li {
+  border-bottom: 1px solid var(--border);
+}
+.tool-tree ul {
+  margin: 0;
+  padding: 0 0 6px 22px;
+  list-style: none;
+}
+.tree-head {
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
   font-weight: 600;
-  margin: 8px 0 4px;
+  text-align: left;
 }
 .available-action {
   display: flex;
@@ -1041,6 +1085,12 @@ button.primary.danger-fill {
   background: transparent;
   text-align: left;
   padding: 3px 4px;
+}
+.available-action[aria-pressed="true"] {
+  background: var(--bg-active);
+}
+.firm-layout {
+  margin-top: 10px;
 }
 .path-input {
   width: 32em;

@@ -66,18 +66,35 @@ test.describe("workspace", () => {
     await openPaths(page, [P.wpA]);
     await waitForPainted(page, 0);
     expect(await quickNames(page)).toContain("Delete pages");
-    await page.getByRole("button", { name: "Customize quick toolbar…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Customize quick toolbar" });
-    await dlg.getByRole("button", { name: "Remove Delete pages" }).click();
+    await page.getByRole("button", { name: "Customize Quick Tools…" }).click();
+    const dlg = page.getByRole("dialog", { name: "Customize Quick Tools" });
+    const save = dlg.getByRole("button", { name: "Save", exact: true });
+    await expect(save).toBeDisabled();
+    const strip = dlg.getByRole("list", { name: "Pinned tools" });
+    await strip.getByRole("button", { name: "Delete pages", exact: true }).click();
+    await dlg.getByRole("button", { name: "Remove from the toolbar" }).click();
+    await expect(strip.getByRole("button", { name: "Delete pages", exact: true })).toHaveCount(0);
+    // The last one is picked now: the new tool goes after it.
+    await dlg.getByRole("button", { name: "Organize Pages" }).click();
+    await dlg.getByRole("button", { name: "Duplicate pages", exact: true }).click();
     await dlg.getByRole("button", { name: "Add Duplicate pages" }).click();
-    // Drag "Duplicate pages" (last) onto the first row.
+    // Drag it onto the first item (it stays picked), move it right and back, then a
+    // divider after it.
     const pinned = dlg.getByTestId("pinned");
-    await pinned.last().dragTo(pinned.first());
-    await expect(pinned.first()).toContainText("Duplicate pages");
-    await dlg.getByRole("button", { name: "Save", exact: true }).click();
+    const dup = strip.getByRole("button", { name: "Duplicate pages" });
+    await dup.dragTo(pinned.first());
+    await expect(pinned.first().getByRole("button")).toHaveAccessibleName("Duplicate pages");
+    await expect(dup).toHaveAttribute("aria-pressed", "true");
+    await dlg.getByRole("button", { name: "Move right" }).click();
+    await expect(pinned.nth(1).getByRole("button")).toHaveAccessibleName("Duplicate pages");
+    await dlg.getByRole("button", { name: "Move left" }).click();
+    await dlg.getByRole("button", { name: "Add divider" }).click();
+    await expect(pinned.nth(1).getByRole("button")).toHaveAccessibleName("Divider");
+    await save.click();
     const names = await quickNames(page);
     expect(names[0]).toBe("Duplicate pages");
     expect(names).not.toContain("Delete pages");
+    await expect(page.getByRole("group", { name: "Quick tools" }).locator(".sep")).toHaveCount(1);
     await page.reload();
     await expect(page.locator("html[data-app-ready=true]")).toBeAttached();
     await openPaths(page, [P.wpA]);
@@ -97,8 +114,9 @@ test.describe("workspace", () => {
     await boot(page);
     await openPaths(page, [P.wpA]);
     await waitForPainted(page, 0);
-    await page.getByRole("button", { name: "Customize quick toolbar…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Customize quick toolbar" });
+    await page.getByRole("button", { name: "Customize Quick Tools…" }).click();
+    const dlg = page.getByRole("dialog", { name: "Customize Quick Tools" });
+    await dlg.getByText("Firm default", { exact: true }).click();
     await dlg.getByLabel("Firm layout file").fill(LAYOUT);
     await dlg.getByRole("button", { name: "Load firm default" }).click();
     await expect(dlg.getByTestId("customize-note")).toContainText("Loaded the firm default (2");
@@ -117,8 +135,9 @@ test.describe("workspace", () => {
 
   test("save the current toolbar as the firm default file", async ({ page, mockfs }) => {
     await boot(page);
-    await page.getByRole("button", { name: "Customize quick toolbar…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Customize quick toolbar" });
+    await page.getByRole("button", { name: "Customize Quick Tools…" }).click();
+    const dlg = page.getByRole("dialog", { name: "Customize Quick Tools" });
+    await dlg.getByText("Firm default", { exact: true }).click();
     await dlg.getByLabel("Firm layout file").fill(LAYOUT);
     await dlg.getByRole("button", { name: "Save this toolbar as the firm default" }).click();
     await expect(dlg.getByTestId("customize-note")).toContainText("Saved");

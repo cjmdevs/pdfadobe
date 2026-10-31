@@ -34,6 +34,7 @@ export function FormModal({
   busy,
   wide,
   danger,
+  submitDisabled,
 }: {
   title: string;
   submit: string;
@@ -43,6 +44,8 @@ export function FormModal({
   busy?: boolean;
   wide?: boolean;
   danger?: boolean;
+  /** Greyed out until there is something to submit. */
+  submitDisabled?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -75,7 +78,7 @@ export function FormModal({
           <button
             type="submit"
             className={danger ? "primary danger-fill" : "primary"}
-            disabled={busy}
+            disabled={busy || submitDisabled}
           >
             {submit}
           </button>

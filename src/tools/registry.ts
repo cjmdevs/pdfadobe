@@ -1074,14 +1074,23 @@ export const DEFAULT_QUICK_TOOLBAR = [
  * Keeps known, built action references, without duplicates. Unknown or unbuilt ones
  * (from an older or newer firm layout file) are dropped, not errors.
  */
+/** A divider between quick tools (Customize Quick Tools: Add divider). */
+export const QUICK_DIVIDER = "|";
+
 export function cleanQuickToolbar(refs: unknown): string[] | null {
   if (!Array.isArray(refs)) return null;
   const out: string[] = [];
   for (const r of refs) {
+    if (r === QUICK_DIVIDER) {
+      // Never first or twice in a row.
+      if (out.length && out.at(-1) !== QUICK_DIVIDER) out.push(r);
+      continue;
+    }
     if (typeof r !== "string" || out.includes(r)) continue;
     const hit = resolveAction(r);
     if (hit && isBuilt(hit.tool)) out.push(r);
   }
+  if (out.at(-1) === QUICK_DIVIDER) out.pop();
   return out;
 }
 

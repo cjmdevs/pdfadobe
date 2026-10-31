@@ -71,6 +71,8 @@ import shape from "@fluentui/svg-icons/icons/rectangle_landscape_20_regular.svg?
 import pin from "@fluentui/svg-icons/icons/pin_20_regular.svg?raw";
 import unpin from "@fluentui/svg-icons/icons/pin_off_20_regular.svg?raw";
 import chevronLeft from "@fluentui/svg-icons/icons/chevron_left_20_regular.svg?raw";
+import divider from "@fluentui/svg-icons/icons/split_vertical_20_regular.svg?raw";
+import addToToolbar from "@fluentui/svg-icons/icons/arrow_upload_20_regular.svg?raw";
 import chevronRight from "@fluentui/svg-icons/icons/chevron_right_20_regular.svg?raw";
 import chevronDown from "@fluentui/svg-icons/icons/chevron_down_20_regular.svg?raw";
 import customize from "@fluentui/svg-icons/icons/toolbox_20_regular.svg?raw";
@@ -178,6 +180,8 @@ const SVG = {
   pin,
   unpin,
   chevronLeft,
+  divider,
+  addToToolbar,
   chevronRight,
   chevronDown,
   customize,
