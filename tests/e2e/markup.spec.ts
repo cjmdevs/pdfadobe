@@ -217,9 +217,14 @@ test.describe("markup", () => {
     await page.mouse.click(...at(0.6, 0.5));
     await page.mouse.dblclick(...at(0.2, 0.5));
     await expect(props(page)).toContainText(/^Cloud(?! tool)/);
+    // The double-click finishes the shape a moment later; save once it is there.
+    await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toBeEnabled();
 
     await page.keyboard.press("Control+s");
-    await idle(page);
+    // The save may not have started yet: wait for the file to hold the cloud.
+    await expect
+      .poll(() => inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).length)
+      .toBeGreaterThan(0);
     const poly = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
       (a) => a.subtype === "/Polygon",
     );
@@ -550,8 +555,12 @@ test.describe("markup", () => {
     await page.mouse.click(...at(0.2, 0.3));
     await page.mouse.click(...at(0.4, 0.3));
     await page.mouse.dblclick(...at(0.3, 0.45));
+    await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toBeEnabled();
     await page.keyboard.press("Control+s");
-    await idle(page);
+    // The save may not have started yet: wait for the file to hold the polygon.
+    await expect
+      .poll(() => inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).length)
+      .toBeGreaterThan(0);
     const polys = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
       (a) => a.subtype === "/Polygon",
     );
