@@ -13,6 +13,7 @@ import { TickmarkLibrary } from "./flyer/TickmarkLibrary";
 import { StampDetails } from "./flyer/StampDetails";
 import { SettingsBody } from "./SettingsDialog";
 import { FlattenBody } from "./markup/FlattenDialog";
+import { BatchOcr } from "./scan/BatchOcr";
 import {
   CombineDialog,
   ConfirmDialog,
@@ -148,6 +149,12 @@ function MainDialog() {
       );
     case "combine":
       return <CombineDialog startWith={dialog.documentId} onClose={close} />;
+    case "batchOcr":
+      return (
+        <Modal title="Recognize Text in a Folder" onClose={close}>
+          <BatchOcr />
+        </Modal>
+      );
   }
 }
 

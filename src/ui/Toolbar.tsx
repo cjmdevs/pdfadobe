@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import type { Theme, ViewMode } from "../app/settings";
@@ -560,12 +560,20 @@ export function ToolToolbar({ documentId }: { documentId: string }) {
             <span aria-hidden="true">{a.caption ?? a.label}</span>
           </button>
         );
-        return a.items ? (
+        const item = a.items ? (
           <WithMenu key={a.id} tool={t} action={a} ctx={ctx}>
             {button}
           </WithMenu>
         ) : (
           button
+        );
+        return a.divider ? (
+          <Fragment key={a.id}>
+            <span className="sep" aria-hidden="true" />
+            {item}
+          </Fragment>
+        ) : (
+          item
         );
       })}
       <span className="grow" />

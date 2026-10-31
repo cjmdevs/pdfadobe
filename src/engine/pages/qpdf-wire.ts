@@ -1,6 +1,7 @@
 // Binary framing for qpdf jobs crossing a process boundary (Tauri IPC, dev server):
 //   u32 big-endian header length | header JSON | files concatenated
-// See src-tauri/src/qpdf_job.rs for the Rust side.
+// See src-tauri/src/qpdf_job.rs for the Rust side. OCR jobs (src-tauri/src/ocr_job.rs)
+// use the same framing, with their job `id` in the header.
 
 import type { QpdfJob, QpdfResult } from "./qpdf";
 
@@ -40,11 +41,12 @@ function slices(entries: Entry[], body: Uint8Array): Record<string, Uint8Array> 
   return out;
 }
 
-export function encodeJob(job: QpdfJob): Uint8Array {
+export function encodeJob(job: QpdfJob & { id?: number }): Uint8Array {
   const names = Object.keys(job.inputs);
   const files = names.map((n) => job.inputs[n] ?? new Uint8Array(0));
   return frame(
     {
+      ...(job.id === undefined ? {} : { id: job.id }),
       args: job.args,
       outputs: job.outputs,
       inputs: names.map((name, i) => ({ name, size: files[i]?.length ?? 0 })),
@@ -53,9 +55,19 @@ export function encodeJob(job: QpdfJob): Uint8Array {
   );
 }
 
-export function decodeJob(bytes: Uint8Array): QpdfJob {
-  const { header, body } = unframe<{ args: string[]; outputs: string[]; inputs: Entry[] }>(bytes);
-  return { args: header.args, outputs: header.outputs, inputs: slices(header.inputs, body) };
+export function decodeJob(bytes: Uint8Array): QpdfJob & { id?: number } {
+  const { header, body } = unframe<{
+    id?: number;
+    args: string[];
+    outputs: string[];
+    inputs: Entry[];
+  }>(bytes);
+  return {
+    ...(header.id === undefined ? {} : { id: header.id }),
+    args: header.args,
+    outputs: header.outputs,
+    inputs: slices(header.inputs, body),
+  };
 }
 
 export function encodeResult(r: QpdfResult): Uint8Array {

@@ -35,6 +35,7 @@ import {
 } from "../platform";
 import { flushFormWrites, takeFieldsDeleted } from "./formWrites";
 import { pageOp } from "./pages";
+import { OcrCancelled } from "../engine/ocr/tesseract";
 import { calcs } from "../ui/forms/calcStore";
 import type { DocInfo } from "./docstore";
 import { FALLBACK_AUTHOR } from "../markup/config";
@@ -110,6 +111,8 @@ export type Dialog =
   | { kind: "tickmarks" }
   /** Workpaper reference and custom fields before a user/status stamp is placed. */
   | { kind: "workpaperStamp"; documentId: string; templateId: string }
+  /** Recognize Text in every PDF of a folder (Phase 7). */
+  | { kind: "batchOcr" }
   | null;
 
 /** Dialog-driven page operations (src/ui/PageOpsDialogs.tsx). */
@@ -156,12 +159,13 @@ export interface WorkbenchApi {
   editState(id: string): EditState;
   /**
    * Runs a page operation on a tab: `fn` gets the current bytes and returns new ones,
-   * which become an undoable step and are shown in the same tab.
+   * which become an undoable step and are shown in the same tab. `fn` returns null when
+   * there was nothing to change (no step is added).
    */
   edit(
     id: string,
     label: string,
-    fn: (bytes: Uint8Array) => Promise<Uint8Array>,
+    fn: (bytes: Uint8Array) => Promise<Uint8Array | null>,
     opts?: EditOptions,
   ): Promise<boolean>;
   undo(id: string): void;
@@ -855,7 +859,7 @@ export function WorkbenchProvider({
     (
       id: string,
       label: string,
-      fn: (bytes: Uint8Array) => Promise<Uint8Array>,
+      fn: (bytes: Uint8Array) => Promise<Uint8Array | null>,
       opts: EditOptions = {},
     ): Promise<boolean> => {
       // Busy from the click on, not only once the work starts: Save, Close and the
@@ -899,6 +903,7 @@ export function WorkbenchProvider({
         try {
           await commitMarkup(id);
           const next = await fn(await storeBytes(sid));
+          if (!next) return false;
           let info = await queued(sid, () => platform.docs.push(sid, next, label));
           if (info.trimmed) {
             toast("Undo history is full; the oldest steps for this document were dropped.");
@@ -908,7 +913,8 @@ export function WorkbenchProvider({
           showRevision(id, next, opts.page ?? null, opts.select ?? null);
           return true;
         } catch (e) {
-          toast(`${label} failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+          if (e instanceof OcrCancelled) toast(`${label} was cancelled. Nothing was changed.`);
+          else toast(`${label} failed: ${e instanceof Error ? e.message : String(e)}`, "error");
           return false;
         }
       };

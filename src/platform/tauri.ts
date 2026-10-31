@@ -7,6 +7,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
 import { QpdfError, type Qpdf } from "../engine/pages/qpdf";
+import { OcrError, type Ocr } from "../engine/ocr/tesseract";
 import type { DocInfo, DocStore } from "../app/docstore";
 import type { FontIndexCache } from "../engine/edit/fonts";
 import {
@@ -65,6 +66,22 @@ const qpdf: Qpdf = {
       );
     }
   },
+};
+
+const ocr: Ocr = {
+  async run(job) {
+    try {
+      const out = await invoke<ArrayBuffer>("ocr_run", encodeJob(job));
+      const { files, stdout } = decodeResult(new Uint8Array(out));
+      return { files, stdout };
+    } catch (e) {
+      const err = toPlatformError(e);
+      throw new OcrError(
+        err.kind === "ocrMissing" ? "Tesseract is missing from this installation." : err.message,
+      );
+    }
+  },
+  cancel: (id) => call("ocr_cancel", { id }),
 };
 
 // Document store in Rust (src-tauri/src/docstore.rs), shared by all windows. Bytes go
@@ -207,6 +224,7 @@ export const tauriPlatform: Platform = {
     call<string>("write_new_file", bytes, headers({ "x-folder": folder, "x-name": name })),
 
   qpdf,
+  ocr,
   docs,
   windows,
   stamps,

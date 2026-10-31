@@ -21,6 +21,8 @@ import {
   renderGray,
   rotateFine,
   rotateQuarter,
+  straightenPages,
+  turnPagesUpright,
   type Gray,
 } from "../../src/engine/ocr";
 
@@ -238,5 +240,35 @@ describe("Recognize Text", { timeout: 120_000 }, () => {
       if (p.page === 0) void control.cancel();
     });
     await expect(run).rejects.toBeInstanceOf(OcrCancelled);
+  });
+});
+
+describe("Enhance", { timeout: 120_000 }, () => {
+  it("Straighten Pages turns a tilted scan level without re-encoding it", async () => {
+    const src = await sourcePdf();
+    const scan = await scanPdf(rotateFine(render(src, 200), 3));
+    expect(Math.abs(estimateSkew(render(scan, 150)))).toBeGreaterThan(2);
+    const r = await straightenPages(m, qpdf, scan, [0]);
+    expect(r.turned).toHaveLength(1);
+    expect(r.turned[0]?.degrees).toBeCloseTo(-3, 0);
+    expect(Math.abs(estimateSkew(render(r.bytes, 150)))).toBeLessThan(0.5);
+    // The same image object, untouched: only two small content streams were added.
+    expect(r.bytes.length - scan.length).toBeLessThan(1500);
+    // A straight page is left alone.
+    const straight = await straightenPages(m, qpdf, await scanPdf(render(src, 200)), [0]);
+    expect(straight.turned).toEqual([]);
+  });
+
+  it("Turn Pages Upright fixes an upside-down page with /Rotate", async () => {
+    const src = await sourcePdf();
+    const scan = await scanPdf(rotateQuarter(render(src, 200), 180));
+    const r = await turnPagesUpright(m, ocr, scan, [0], new OcrControl(ocr));
+    expect(r.turned).toEqual([{ page: 0, degrees: 180 }]);
+    const doc = RawDoc.open(m, r.bytes);
+    try {
+      expect(doc.withPage(0, (p) => m.FPDFPage_GetRotation(p))).toBe(2);
+    } finally {
+      doc.close();
+    }
   });
 });

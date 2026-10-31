@@ -2480,3 +2480,59 @@ button.primary.danger-fill {
   border-radius: 50%;
   box-shadow: 0 0 0 3px rgb(10 102 208 / 25%);
 }
+
+/* Scan & OCR (Phase 7) */
+.scan-panel {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+.scan-panel details {
+  margin-bottom: 10px;
+}
+.scan-panel summary {
+  font-weight: 600;
+  margin-bottom: 6px;
+  cursor: pointer;
+}
+.scan-panel fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.scan-panel label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+}
+.scan-panel .hint,
+.batch-ocr .hint {
+  color: var(--muted, #666);
+  font-size: 12px;
+}
+.scan-progress {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.scan-progress progress,
+.batch-ocr progress {
+  flex: 1 1 100%;
+}
+.batch-ocr .row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+}
+.batch-files {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.batch-files td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border, #ddd);
+  vertical-align: top;
+}

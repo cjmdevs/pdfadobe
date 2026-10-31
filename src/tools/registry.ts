@@ -19,6 +19,7 @@ import { ALL_SANITIZE } from "../engine/redact/sanitize";
 const markupFiles = () => import("../ui/markup/markupFiles");
 const flyerFiles = () => import("../ui/flyer/flyerFiles");
 const formActions = () => import("../ui/forms/formActions");
+const scanActions = () => import("../ui/scan/scanActions");
 const formDataFiles = () => import("../ui/forms/formDataFiles");
 const prepareStore = () => import("../ui/forms/prepareStore");
 const prepareActions = () => import("../ui/forms/prepareActions");
@@ -177,6 +178,8 @@ export interface ToolAction {
   shown?(): boolean;
   /** Short caption under the icon in the tool toolbar (defaults to label). */
   caption?: string;
+  /** A line before this action in the tool toolbar. */
+  divider?: boolean;
 }
 
 /** A stamp's picture in a menu: drawn like the stamp, or a custom stamp's image. */
@@ -261,6 +264,81 @@ async function deletePages(c: ToolContext) {
   if (yes) void c.actions.remove(c.pages);
 }
 
+/** Organize Pages' actions; some also appear in Scan & OCR's toolbar. */
+const ORGANIZE_TOOLBAR: ToolAction[] = [
+  {
+    id: "insert",
+    label: "Insert pages from a file…",
+    caption: "Insert",
+    icon: "insert",
+    run: dialog("insert"),
+  },
+  {
+    id: "extract",
+    label: "Extract to new file",
+    caption: "Extract",
+    icon: "extract",
+    run: (c) => void c.actions?.extract(c.pages),
+  },
+  {
+    id: "replace",
+    label: "Replace pages…",
+    caption: "Replace",
+    icon: "replace",
+    run: dialog("replace"),
+  },
+  {
+    id: "split",
+    label: "Split document…",
+    caption: "Split",
+    icon: "split",
+    run: dialog("split"),
+  },
+  {
+    id: "rotateLeft",
+    label: "Rotate left",
+    caption: "Rotate left",
+    icon: "rotateCcw",
+    run: (c) => void c.actions?.rotate(c.pages, 3),
+  },
+  {
+    id: "rotateRight",
+    label: "Rotate right",
+    caption: "Rotate right",
+    icon: "rotateCw",
+    run: (c) => void c.actions?.rotate(c.pages, 1),
+  },
+  {
+    id: "delete",
+    label: "Delete pages",
+    caption: "Delete",
+    icon: "trash",
+    run: (c) => void deletePages(c),
+  },
+  {
+    id: "duplicate",
+    label: "Duplicate pages",
+    caption: "Duplicate",
+    icon: "duplicate",
+    run: (c) => void c.actions?.duplicate(c.pages),
+  },
+  {
+    id: "blank",
+    label: "Insert blank page…",
+    caption: "Blank page",
+    icon: "blank",
+    run: dialog("blank"),
+  },
+  { id: "crop", label: "Crop pages…", caption: "Crop", icon: "crop", run: dialog("crop") },
+  {
+    id: "pageSize",
+    label: "Page size…",
+    caption: "Page size",
+    icon: "pageSize",
+    run: dialog("pageSize"),
+  },
+];
+
 export const TOOLS: ToolDef[] = [
   {
     id: "organize",
@@ -271,79 +349,7 @@ export const TOOLS: ToolDef[] = [
     comingIn: null,
     open: "toolbar",
     view: "pages",
-    toolbar: [
-      {
-        id: "insert",
-        label: "Insert pages from a file…",
-        caption: "Insert",
-        icon: "insert",
-        run: dialog("insert"),
-      },
-      {
-        id: "extract",
-        label: "Extract to new file",
-        caption: "Extract",
-        icon: "extract",
-        run: (c) => void c.actions?.extract(c.pages),
-      },
-      {
-        id: "replace",
-        label: "Replace pages…",
-        caption: "Replace",
-        icon: "replace",
-        run: dialog("replace"),
-      },
-      {
-        id: "split",
-        label: "Split document…",
-        caption: "Split",
-        icon: "split",
-        run: dialog("split"),
-      },
-      {
-        id: "rotateLeft",
-        label: "Rotate left",
-        caption: "Rotate left",
-        icon: "rotateCcw",
-        run: (c) => void c.actions?.rotate(c.pages, 3),
-      },
-      {
-        id: "rotateRight",
-        label: "Rotate right",
-        caption: "Rotate right",
-        icon: "rotateCw",
-        run: (c) => void c.actions?.rotate(c.pages, 1),
-      },
-      {
-        id: "delete",
-        label: "Delete pages",
-        caption: "Delete",
-        icon: "trash",
-        run: (c) => void deletePages(c),
-      },
-      {
-        id: "duplicate",
-        label: "Duplicate pages",
-        caption: "Duplicate",
-        icon: "duplicate",
-        run: (c) => void c.actions?.duplicate(c.pages),
-      },
-      {
-        id: "blank",
-        label: "Insert blank page…",
-        caption: "Blank page",
-        icon: "blank",
-        run: dialog("blank"),
-      },
-      { id: "crop", label: "Crop pages…", caption: "Crop", icon: "crop", run: dialog("crop") },
-      {
-        id: "pageSize",
-        label: "Page size…",
-        caption: "Page size",
-        icon: "pageSize",
-        run: dialog("pageSize"),
-      },
-    ],
+    toolbar: ORGANIZE_TOOLBAR,
   },
   {
     id: "combine",
@@ -970,7 +976,91 @@ export const TOOLS: ToolDef[] = [
       })),
     ],
   },
-  planned("ocr", "Scan & OCR", "ocr", "#2e9e44", "Make scanned pages searchable", []),
+  {
+    id: "ocr",
+    name: "Scan & OCR",
+    icon: "ocr",
+    color: "#2e9e44",
+    description: "Make scanned pages searchable, straighten scans, Bates numbers",
+    comingIn: null,
+    open: "toolbar",
+    panel: () => import("../ui/scan/ScanPanel"),
+    // Like Acrobat's Scan & OCR toolbar (docs/reference/image_5.png).
+    toolbar: [
+      {
+        id: "insert",
+        label: "Insert pages",
+        caption: "Insert",
+        icon: "insert",
+        menuOnly: true,
+        run: () => undefined,
+        items: [
+          { id: "file", label: "From File (PDF or images)…", run: dialog("insert") },
+          { id: "blank", label: "Blank Page…", run: dialog("blank") },
+        ],
+      },
+      {
+        id: "enhance",
+        label: "Enhance scanned pages",
+        caption: "Enhance",
+        icon: "enhance",
+        menuOnly: true,
+        run: () => undefined,
+        items: (c) => {
+          const go = (how: "straighten" | "upright", pages: number[]) => (ctx: ToolContext) => {
+            const id = ctx.documentId;
+            if (id) void scanActions().then((m) => m.enhance(ctx.wb, id, how, pages));
+          };
+          const all = Array.from({ length: c.pageCount }, (_, i) => i);
+          return [
+            { id: "straighten", label: "Straighten All Pages", run: go("straighten", all) },
+            {
+              id: "straightenPage",
+              label: "Straighten This Page",
+              run: go("straighten", c.pages.slice(0, 1)),
+            },
+            { id: "upright", label: "Turn Pages Upright", run: go("upright", all) },
+          ];
+        },
+      },
+      {
+        id: "recognize",
+        label: "Recognize Text: add a searchable text layer to scanned pages",
+        caption: "Recognize Text",
+        icon: "text",
+        menuOnly: true,
+        run: () => undefined,
+        items: [
+          {
+            id: "file",
+            label: "In This File",
+            run: (c) => {
+              const id = c.documentId;
+              if (id) void scanActions().then((m) => m.recognize(c.wb, id));
+            },
+          },
+          {
+            id: "page",
+            label: "On This Page",
+            run: (c) => {
+              const id = c.documentId;
+              if (id) void scanActions().then((m) => m.recognize(c.wb, id, c.pages.slice(0, 1)));
+            },
+          },
+          {
+            id: "folder",
+            label: "In Multiple Files (a folder)…",
+            run: (c) => c.wb.setDialog({ kind: "batchOcr" }),
+          },
+        ],
+      },
+      phase7Action("bates", "Bates Numbering", "bates"),
+      { ...organizeAction("extract"), divider: true },
+      organizeAction("rotateLeft"),
+      organizeAction("rotateRight"),
+      organizeAction("delete"),
+    ],
+  },
   planned("protect", "Protect", "protect", "#3a6fd8", "Passwords and permissions", []),
 ];
 
@@ -1002,6 +1092,13 @@ function planned(
 }
 
 export const isBuilt = (t: ToolDef) => t.comingIn === null;
+
+/** One of Organize Pages' actions, also shown in another tool's toolbar (Scan & OCR). */
+function organizeAction(id: string): ToolAction {
+  const a = ORGANIZE_TOOLBAR.find((x) => x.id === id);
+  if (!a) throw new Error(`no Organize action ${id}`);
+  return a;
+}
 
 /**
  * An Edit toolbar button for a later phase's tool (`toolId`): hidden until that tool

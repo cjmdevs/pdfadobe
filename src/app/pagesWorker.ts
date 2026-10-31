@@ -1,6 +1,7 @@
 // Web Worker running the page engine (src/engine/pages) off the UI thread. It has its own
-// PDFium instance; qpdf jobs are passed back to the main thread, which owns the platform
-// (Tauri IPC is not available inside workers).
+// PDFium instance; qpdf and Tesseract jobs are passed back to the main thread, which owns
+// the platform (Tauri IPC is not available inside workers). Long operations (OCR) post
+// progress and can be cancelled.
 
 import * as P from "../engine/pages";
 import { createPdfium } from "../engine/pdfium";
@@ -9,6 +10,18 @@ import { summarizeComments } from "../engine/summary";
 import { documentXfdf } from "../engine/xfdf";
 import type { QpdfJob, QpdfResult } from "../engine/pages";
 import { editPageInfo } from "../engine/edit/pageInfo";
+import {
+  OcrCancelled,
+  OcrControl,
+  OcrError,
+  ocrDocument,
+  straightenPages,
+  turnPagesUpright,
+  type Ocr,
+  type OcrJob,
+  type OcrOptions,
+  type OcrResult,
+} from "../engine/ocr";
 import { pageNumbers } from "../engine/flyer/numbers";
 import {
   RedactionLeakError,
@@ -83,7 +96,13 @@ import {
   type XfaPolicy,
 } from "../engine/forms";
 
-type Ctx = P.PagesCtx;
+/** One call's own channel: progress to the main thread, and its cancel switch. */
+interface Call {
+  progress(value: unknown): void;
+  control: OcrControl;
+}
+
+type Ctx = P.PagesCtx & { ocr: Ocr; call: Call };
 
 /** Every operation the app can request. The first argument is always the context. */
 export const OPS = {
@@ -258,6 +277,15 @@ export const OPS = {
   /** Images (JPEG/PNG/TIFF files) -> one PDF, one page per image. */
   imagesToPdf: async (_c: Ctx, files: Uint8Array[]) =>
     P.imagesToPdf(files.flatMap((f) => P.imagePages(f))),
+  /** Recognize Text (Phase 7): progress per page, cancellable. */
+  ocrDocument: (c: Ctx, b: Uint8Array, opts: OcrOptions) =>
+    ocrDocument(c.module, c.ocr, c.qpdf, b, opts, c.call.control, c.call.progress),
+  /** Enhance: turn tilted pages level (lossless). */
+  straightenPages: (c: Ctx, b: Uint8Array, pages: number[]) =>
+    straightenPages(c.module, c.qpdf, b, pages),
+  /** Enhance: /Rotate sideways and upside-down pages upright. */
+  turnPagesUpright: (c: Ctx, b: Uint8Array, pages: number[]) =>
+    turnPagesUpright(c.module, c.ocr, b, pages, c.call.control),
 };
 
 export type Ops = typeof OPS;
@@ -265,18 +293,24 @@ export type Ops = typeof OPS;
 export type WorkerRequest =
   | { type: "init"; wasmUrl: string; subsetWasmUrl: string; shapeWasmUrl: string }
   | { type: "call"; id: number; op: keyof Ops; args: unknown[] }
-  | { type: "qpdfResult"; id: number; result?: QpdfResult; error?: string };
+  | { type: "qpdfResult"; id: number; result?: QpdfResult; error?: string }
+  | { type: "ocrResult"; id: number; result?: OcrResult; error?: string }
+  /** Cancel call `id` (only OCR calls listen). */
+  | { type: "cancel"; id: number };
 
 export type WorkerResponse =
-  | { type: "result"; id: number; value?: unknown; error?: string }
-  | { type: "qpdf"; id: number; job: QpdfJob };
+  | { type: "result"; id: number; value?: unknown; error?: string; cancelled?: boolean }
+  | { type: "progress"; id: number; value: unknown }
+  | { type: "qpdf"; id: number; job: QpdfJob }
+  | { type: "ocr"; id: number; job: OcrJob }
+  | { type: "ocrCancel"; id: number };
 
 const scope = self as unknown as {
   postMessage(m: WorkerResponse, transfer?: Transferable[]): void;
   onmessage: ((e: MessageEvent<WorkerRequest>) => void) | null;
 };
 
-let ctx: Promise<Ctx> | null = null;
+let ctx: Promise<Omit<Ctx, "call">> | null = null;
 /** HarfBuzz's shaper (kerning for fonts from files), loaded on first use. */
 let shapeWasmUrl = "";
 let kern: Promise<Kerner> | null = null;
@@ -311,6 +345,22 @@ const qpdf: P.Qpdf = {
   },
 };
 
+const ocrWaiting = new Map<number, { resolve(r: OcrResult): void; reject(e: Error): void }>();
+/** Tesseract on the main thread; `id` is the job id the engine picked. */
+const ocr: Ocr = {
+  run(job) {
+    return new Promise((resolve, reject) => {
+      ocrWaiting.set(job.id, { resolve, reject });
+      scope.postMessage({ type: "ocr", id: job.id, job });
+    });
+  },
+  async cancel(id) {
+    scope.postMessage({ type: "ocrCancel", id });
+  },
+};
+/** Running calls' cancel switches, by call id. */
+const controls = new Map<number, OcrControl>();
+
 /** ArrayBuffers in a result, so they move to the main thread instead of being copied. */
 function buffersIn(v: unknown, out: Set<ArrayBuffer> = new Set()): Set<ArrayBuffer> {
   if (v instanceof Uint8Array && v.buffer instanceof ArrayBuffer) out.add(v.buffer);
@@ -327,7 +377,7 @@ scope.onmessage = (e) => {
     ctx = fetch(msg.wasmUrl)
       .then((r) => r.arrayBuffer())
       .then(createPdfium)
-      .then(({ engine, module }) => ({ engine, module, qpdf }));
+      .then(({ engine, module }) => ({ engine, module, qpdf, ocr }));
     return;
   }
   if (msg.type === "qpdfResult") {
@@ -337,19 +387,39 @@ scope.onmessage = (e) => {
     else w?.reject(new P.QpdfError(msg.error ?? "qpdf failed"));
     return;
   }
+  if (msg.type === "ocrResult") {
+    const w = ocrWaiting.get(msg.id);
+    ocrWaiting.delete(msg.id);
+    if (msg.result) w?.resolve(msg.result);
+    else w?.reject(new OcrError(msg.error ?? "OCR failed"));
+    return;
+  }
+  if (msg.type === "cancel") {
+    void controls.get(msg.id)?.cancel();
+    return;
+  }
   const { id, op, args } = msg;
+  const control = new OcrControl(ocr);
+  controls.set(id, control);
+  const call: Call = {
+    progress: (value) => scope.postMessage({ type: "progress", id, value }),
+    control,
+  };
   void (async () => {
     try {
       if (!ctx) throw new Error("page engine not initialised");
       const fn = OPS[op] as (c: Ctx, ...a: unknown[]) => Promise<unknown>;
-      const value = await fn(await ctx, ...args);
+      const value = await fn({ ...(await ctx), call }, ...args);
       scope.postMessage({ type: "result", id, value }, [...buffersIn(value)]);
     } catch (err) {
       scope.postMessage({
         type: "result",
         id,
         error: err instanceof Error ? err.message : String(err),
+        cancelled: err instanceof OcrCancelled,
       });
+    } finally {
+      controls.delete(id);
     }
   })();
 };

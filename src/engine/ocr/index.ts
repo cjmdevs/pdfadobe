@@ -19,6 +19,7 @@ import { OcrCancelled, type Ocr } from "./tesseract";
 
 export * from "./tesseract";
 export * from "./image";
+export * from "./straighten";
 
 export interface OcrOptions {
   /** 0-based pages to read; all pages when left out. */
@@ -184,7 +185,7 @@ async function readPage(
   let fine = 0;
   let img: Gray = render;
   if (straighten) {
-    quarter = await orientation(ocr, render, dpi, control);
+    quarter = await orientationOf(ocr, render, dpi, control);
     img = rotateQuarter(render, quarter);
     fine = estimateSkew(img);
     if (Math.abs(fine) < 0.2) fine = 0;
@@ -222,7 +223,13 @@ async function readPage(
   return { index, size, img: { w: render.width, h: render.height }, quarter, fine, pdf };
 }
 
-async function orientation(ocr: Ocr, g: Gray, dpi: number, control: OcrControl) {
+/** The clockwise quarter turn that makes `g` upright (0 when unsure). */
+export async function orientationOf(
+  ocr: Ocr,
+  g: Gray,
+  dpi: number,
+  control: OcrControl,
+): Promise<0 | 90 | 180 | 270> {
   control.check();
   try {
     const r = await ocr.run({

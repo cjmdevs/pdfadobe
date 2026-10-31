@@ -8,6 +8,7 @@ import type { FontIndexCache } from "../engine/edit/fonts";
 import { MemoryDocStore } from "../app/docstore";
 import { decodeResult, encodeJob } from "../engine/pages/qpdf-wire";
 import { QpdfError } from "../engine/pages/qpdf";
+import { OcrError } from "../engine/ocr/tesseract";
 import {
   PlatformError,
   baseName,
@@ -278,6 +279,19 @@ export const browserPlatform: Platform = {
       if (res.status === 404) throw new QpdfError("Page operations need the Windows app (qpdf).");
       if (!res.ok) throw new QpdfError(await res.text());
       return decodeResult(new Uint8Array(await res.arrayBuffer()));
+    },
+  },
+  ocr: {
+    // Playwright runs the bundled Tesseract for /__ocr (tests/e2e/fixtures.ts).
+    async run(job) {
+      const res = await fetch("/__ocr", { method: "POST", body: encodeJob(job).slice() });
+      if (res.status === 404) throw new OcrError("Recognize Text needs the Windows app.");
+      if (!res.ok) throw new OcrError(await res.text());
+      const { files, stdout } = decodeResult(new Uint8Array(await res.arrayBuffer()));
+      return { files, stdout };
+    },
+    async cancel(id) {
+      await fetch(`/__ocr-cancel?id=${id}`, { method: "POST" });
     },
   },
 

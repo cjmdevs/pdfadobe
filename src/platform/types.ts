@@ -5,6 +5,7 @@
 
 import type { FontFileEntry, FontIndexCache } from "../engine/edit/fonts";
 import type { Qpdf } from "../engine/pages/qpdf";
+import type { Ocr } from "../engine/ocr/tesseract";
 import type { DocInfo, DocStore } from "../app/docstore";
 
 /** Where an open document came from. Only `path` sources go in Recent Files. */
@@ -25,6 +26,8 @@ export type FileErrorKind =
   | "isDirectory"
   | "qpdfMissing"
   | "qpdfFailed"
+  | "ocrMissing"
+  | "ocrFailed"
   | "unrepairable"
   | "unsupported"
   /** Open in Acrobat: neither Acrobat nor Acrobat Reader is installed. */
@@ -100,6 +103,8 @@ export interface Platform {
   writeNewFile(folder: string, name: string, bytes: Uint8Array): Promise<string>;
   /** qpdf for page operations (src/engine/pages). */
   qpdf: Qpdf;
+  /** Tesseract for Recognize Text (src/engine/ocr). */
+  ocr: Ocr;
   /** Per-document state shared by all windows (backlog B1). */
   docs: DocStore;
   /** Several windows; null where there is only one (browser). */

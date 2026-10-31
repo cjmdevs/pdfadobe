@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { test as base, expect, type Page } from "@playwright/test";
 import { decodeJob, encodeResult } from "../../src/engine/pages/qpdf-wire";
 import { nodeQpdf } from "../helpers/qpdf-node";
+import { nodeOcr } from "../helpers/ocr-node";
 export type { Page };
 
 export const CORPUS = join(import.meta.dirname, "..", "corpus", "generated");
@@ -148,6 +149,26 @@ export const test = base.extend<{ mockfs: MockFs; external: string[] }>({
         } catch (e) {
           return route.fulfill({ status: 500, body: e instanceof Error ? e.message : String(e) });
         }
+      });
+      // The bundled Tesseract runs here too (like the Tauri command ocr_run).
+      const ocr = nodeOcr();
+      await page.route("**/__ocr", async (route) => {
+        try {
+          const job = decodeJob(
+            new Uint8Array(route.request().postDataBuffer() ?? Buffer.alloc(0)),
+          );
+          const result = await ocr.run({ ...job, id: job.id ?? 0 });
+          return route.fulfill({
+            status: 200,
+            body: Buffer.from(encodeResult({ ...result, warnings: false })),
+          });
+        } catch (e) {
+          return route.fulfill({ status: 500, body: e instanceof Error ? e.message : String(e) });
+        }
+      });
+      await page.route("**/__ocr-cancel?*", async (route) => {
+        await ocr.cancel(Number(new URL(route.request().url()).searchParams.get("id")));
+        return route.fulfill({ status: 200, body: "" });
       });
       // Simulated qpdf repair: "repairs" damaged-xref.pdf by serving text-1p.pdf at the target.
       await page.route("**/__mockfs-repair", async (route) => {

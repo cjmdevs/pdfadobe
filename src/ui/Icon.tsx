@@ -58,6 +58,8 @@ import stamp from "@fluentui/svg-icons/icons/stamp_32_light.svg?raw";
 import redact from "@fluentui/svg-icons/icons/eraser_20_regular.svg?raw";
 import form from "@fluentui/svg-icons/icons/form_20_regular.svg?raw";
 import ocr from "@fluentui/svg-icons/icons/scan_text_20_regular.svg?raw";
+import bates from "@fluentui/svg-icons/icons/number_symbol_20_regular.svg?raw";
+import enhance from "@fluentui/svg-icons/icons/wand_20_regular.svg?raw";
 import protect from "@fluentui/svg-icons/icons/document_lock_20_regular.svg?raw";
 import tickmark from "@fluentui/svg-icons/icons/checkmark_circle_20_regular.svg?raw";
 import calculator from "@fluentui/svg-icons/icons/calculator_20_regular.svg?raw";
@@ -168,6 +170,8 @@ const SVG = {
   redact,
   form,
   ocr,
+  bates,
+  enhance,
   protect,
   tickmark,
   calculator,
