@@ -21,11 +21,11 @@ Keep it under 2 pages; summarize older phases.
 - **Phase 6 (forms) done 2026-10-28**, tagged `phase-06-done`. Save, Save As and Fill
   from CSV strip a hybrid form's XFA twin and /Perms (`bytesForSave`).
 - **Phase 5 (redaction) done 2026-10-28**, tagged `phase-05-done`.
-- **Phase 4 stages 1-3 + fixes done 2026-10-27.** Stage 4 (PDFlyer marks in old
-  workpapers) was built in B6; tag `phase-04-done` after B6's re-check.
+- **Phase 4 done 2026-10-31**, tagged `phase-04-done`. Stages 1-3 + fixes passed
+  2026-10-27; stage 4 (PDFlyer marks in old workpapers) was built in B6.
 - **B3 Edit PDF stage 1 done 2026-10-27** (`docs/testing/b3-stage1-test-guide.md`).
-- **B6 parity pass: owner check 2026-10-31 passed steps 2-9; re-check of the letter
-  tickmark fixes pending** (`docs/testing/b6-fixes-test-guide.md`). PDFlyer format
+- **B6 parity pass done: owner check 2026-10-31 passed, letter-tickmark re-check passed
+  2026-10-31** (`docs/testing/b6-fixes-test-guide.md`). PDFlyer format
   (decoded from the owner's sample): tickmarks are /Stamp, Subject `Category:Item`
   ("Letter Connectors:A"), /Name `#V3JpdHRlbiBCeSBOYW4u`, closed /Popup, 100x100 AP;
   tape is /FreeText `Calculator Tape:PDFlyer` with /TapeData rows `[section, note,
