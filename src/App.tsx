@@ -46,6 +46,7 @@ import { EditBridge } from "./ui/edit/EditBridge";
 import { LinkNavigator } from "./ui/LinkNavigator";
 import { CommentsPanel } from "./ui/markup/CommentsPanel";
 import { FormRenderers } from "./ui/forms/FormRenderers";
+import { TickLinkRenderer } from "./ui/flyer/TickLinkRenderer";
 
 import { markupConfig } from "./markup/config";
 import { readFirmTickmarks } from "./ui/flyer/flyerFiles";
@@ -282,6 +283,7 @@ function Shell({ ready }: { ready: boolean }) {
       <Commands />
       {ready && <MarkupBridge author={wb.author} />}
       {ready && <FormRenderers />}
+      {ready && <TickLinkRenderer />}
       <Dialogs />
       <Toasts />
       {/* EmbedPDF auto-mounts its PrintFrame and CopyToClipboard utilities; mounting them

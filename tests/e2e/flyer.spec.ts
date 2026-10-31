@@ -384,3 +384,49 @@ test("PDFlyer workpaper: every item renders, is in the Stamp Summary and the com
   await expect(panel.getByRole("heading", { name: "8 comments" })).toBeVisible();
   await expect(panel.getByText("Applied Stamp")).toHaveCount(4);
 });
+
+test("placed letter tickmarks can be clicked, moved and walked through", async ({
+  page,
+  mockfs,
+}) => {
+  await boot(page);
+  await openPaths(page, [P.wpA]);
+  await waitForPainted(page, 0);
+  await page.getByRole("button", { name: "Workpaper Tools", exact: true }).click();
+  await page.getByRole("button", { name: "Letters: choose" }).click();
+  await page.getByRole("menuitemradio", { name: "C", exact: true }).click();
+  const p1 = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
+  const at = (fy: number) => [p1.x + p1.width * 0.3, p1.y + p1.height * fy] as const;
+  for (const fy of [0.3, 0.4]) {
+    await page.mouse.move(...at(fy));
+    await page.mouse.click(...at(fy));
+  }
+  await page.keyboard.press("Escape");
+
+  // A click on a C picks it (its link to the next C used to take the click).
+  await page.mouse.click(...at(0.4));
+  await expect(page.getByTestId("props-bar")).toBeVisible();
+  await expect(page.getByTestId("match-rings").locator(".match-ring")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /^Go to the next C/ })).toBeVisible();
+
+  // It can be dragged (the props bar pushed the page down; measure again).
+  const p2 = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
+  const from = [p2.x + p2.width * 0.3, p2.y + p2.height * 0.4] as const;
+  await page.mouse.move(...from);
+  await page.mouse.down();
+  await page.mouse.move(from[0] + 120, from[1] + 60, { steps: 6 });
+  await page.mouse.up();
+  await page.keyboard.press("Control+s");
+  await expect
+    .poll(
+      () =>
+        inspectAnnots(new Uint8Array(bytesAt(mockfs, P.wpA))).filter(
+          (a) => a.subject === "Letter Connectors:C",
+        ).length,
+    )
+    .toBe(2);
+  const xs = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.wpA)))
+    .filter((a) => a.subject === "Letter Connectors:C")
+    .map((a) => Math.round(a.rect[0] ?? 0));
+  expect(new Set(xs).size).toBe(2);
+});
