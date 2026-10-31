@@ -12,12 +12,12 @@ Keep it under 2 pages; summarize older phases.
   Playwright. Details in "Phase 7" below.
 - **Phase 7 owner check 2026-10-31:** 5, 6, 7 and 9 passed; 8 passed (background hard to
   see). Every Tesseract step failed in the installed app: Tauri canonicalises the app
-  path, so the resource folder is `\?\C:\...`, and Tesseract cannot open tessdata
+  path, so the resource folder is `\\?\C:\...`, and Tesseract cannot open tessdata
   under a verbatim path. Fixed (`plain_path` in `ocr_job.rs`); failures now carry
   Tesseract's setup error line; Turn Upright no longer hides a broken Tesseract as
   "upright"; background default is pale yellow. Re-check:
   `docs/testing/phase-07-fixes-test-guide.md`. Lesson: anything that hands a resource
-  path to an outside program must be tested with a `\?\` path.
+  path to an outside program must be tested with a `\\?\` path.
 - **Phase 6 (forms) done 2026-10-28**, tagged `phase-06-done`. Save, Save As and Fill
   from CSV strip a hybrid form's XFA twin and /Perms (`bytesForSave`).
 - **Phase 5 (redaction) done 2026-10-28**, tagged `phase-05-done`.
