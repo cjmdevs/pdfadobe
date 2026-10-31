@@ -17,8 +17,11 @@ import {
   type TickmarkDef,
 } from "../../src/engine/flyer/tickmarks";
 import { nextSequence, summaryCsv, summaryRows, tickmarkSubject } from "../../src/flyer/items";
+import { PDFLYER_NAME, addPdflyerKeys } from "../../src/engine/flyer/pdflyer";
+import { nodeQpdf } from "../helpers/qpdf-node";
 import { makeWorkpaperFile, mergeLibrary, parseWorkpaperFile } from "../../src/flyer/library";
 
+const qpdf = nodeQpdf();
 let engine: Engine;
 let reopened: PdfDocumentObject;
 let raw: RawAnnot[];
@@ -118,7 +121,7 @@ describe("tickmarks after save and reopen", () => {
     expect(rows.filter((r) => r.type === "Tickmark")).toHaveLength(placed.length);
     expect(rows.filter((r) => r.type === "Legend")).toHaveLength(1);
     expect(rows.map((r) => r.name)).toContain("Footed");
-    expect(rows.map((r) => r.name)).toContain("Letters counting up (A, B, C...) (B)");
+    expect(rows.map((r) => r.name)).toContain("B (Letter Connectors)");
     // Counting goes on where the last session stopped.
     expect(nextSequence(letters, annots)).toBe(3);
     const csv = summaryCsv(rows, (d) => d.toISOString());
@@ -131,9 +134,27 @@ describe("tickmarks after save and reopen", () => {
     for (const a of raw) {
       expect(a.subtype).toBe("/Stamp");
       expect(a.hasAppearance).toBe(true);
-      expect(a.subject).toMatch(/^Tickmark/);
+      expect(a.subject).toMatch(/^(Engagement|Letter Connectors|Connectors):|^Tickmark legend$/);
       expect(JSON.stringify(a.dict["/EPDFCustom"])).toMatch(/pwType/);
     }
+  });
+});
+
+describe("PDFlyer keys on save (B6)", () => {
+  it("adds PDFlyer's /Name and a popup to each tickmark, once", async () => {
+    const bytes = readFileSync(join(OUT_DIR, "..", "out", "tickmarks-all.pdf"));
+    const once = await addPdflyerKeys(qpdf, bytes);
+    const ticks = inspectAnnots(once).filter((a) =>
+      String(a.dict["/EPDFCustom"]).includes('"pwType":"Tickmark"'),
+    );
+    expect(ticks.length).toBeGreaterThan(0);
+    for (const a of ticks) {
+      expect(a.dict["/Name"]).toBe(PDFLYER_NAME);
+      expect(a.dict["/Popup"]).toBeTruthy();
+    }
+    expect(inspectAnnots(once).filter((a) => a.subtype === "/Popup")).toHaveLength(ticks.length);
+    // A second save changes nothing.
+    expect(await addPdflyerKeys(qpdf, once)).toBe(once);
   });
 });
 

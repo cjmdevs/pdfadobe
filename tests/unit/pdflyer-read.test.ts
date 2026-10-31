@@ -35,7 +35,7 @@ describe("PDFlyer-marked workpaper", () => {
       expect.arrayContaining([
         ["PdflyerTickmark", "A (Letter Connectors)"],
         ["PdflyerTickmark", "2 (Connectors)"],
-        ["PdflyerTickmark", "Agrees to General Ledger (Engagement)"],
+        ["PdflyerTickmark", "Agrees to General Ledger"],
         ["PdflyerTape", "Calculator tape"],
         ["PdflyerNote", "Sticky note"],
         ["TextBox", "Text box"],

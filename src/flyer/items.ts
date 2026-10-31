@@ -1,10 +1,10 @@
 // Workpaper items on the page (Phase 4): how they are tagged and found again, and the
 // Stamp Summary rows and CSV. Every item is a standard annotation; our data rides in
 // EmbedPDF's annotation custom data (stored in the PDF as the /EPDFCustom JSON string)
-// under `pwType`, and its Subject reads "Tickmark: Footed". Node-safe, no React.
+// under `pwType`, and its Subject is PDFlyer's ("Engagement:Footed"; B6). Node-safe.
 
 import { PdfAnnotationSubtype, type PdfAnnotationObject } from "@embedpdf/models";
-import { sequenceNumber, type TickmarkDef } from "../engine/flyer/tickmarks";
+import { labelKind, sequenceNumber, type TickmarkDef } from "../engine/flyer/tickmarks";
 
 export type PwType =
   | "Tickmark"
@@ -78,8 +78,21 @@ export function pwData(a: PdfAnnotationObject): PwData | null {
   return PW_TYPES.includes(t as PwType) ? (c as PwData) : null;
 }
 
+/** The subject PDFlyer would give it ("Category:Item", owner's sample): letters are
+ * "Letter Connectors:B", numbers "Connectors:2", the rest "Engagement:Footed". */
 export function tickmarkSubject(def: TickmarkDef, label?: string): string {
-  return `Tickmark: ${def.name}${label ? ` (${label})` : ""}`;
+  const kind = labelKind(def);
+  if (kind && label) return `${kind === "letters" ? "Letter Connectors" : "Connectors"}:${label}`;
+  return `Engagement:${def.name}${label ? ` (${label})` : ""}`;
+}
+
+/** Stamp Summary name from a tickmark subject: ours before B6 ("Tickmark: Footed") or
+ * PDFlyer's ("Engagement:Footed", "Letter Connectors:B" -> "B (Letter Connectors)"). */
+function tickmarkName(subject: string): string {
+  if (subject.startsWith("Tickmark: ")) return subject.slice(10);
+  const [, category, item] = /^([^:]+):(.+)$/.exec(subject) ?? [];
+  if (!category || !item) return subject;
+  return category === "Engagement" ? item.trim() : `${item.trim()} (${category.trim()})`;
 }
 
 /** Next value of a counting tickmark on this document: one past the highest placed. */
@@ -147,8 +160,7 @@ export function foreignItem(a: PdfAnnotationObject): { type: ForeignType; name: 
   }
   if (a.type !== PdfAnnotationSubtype.STAMP) return null;
   const [, category, item] = /^([^:]+):(.+)$/.exec(subject) ?? [];
-  if (category && item)
-    return { type: "PdflyerTickmark", name: `${item.trim()} (${category.trim()})` };
+  if (category && item) return { type: "PdflyerTickmark", name: tickmarkName(subject) };
   return { type: "Stamp", name: subject || "Stamp" };
 }
 
@@ -172,7 +184,7 @@ export interface SummaryRow {
 function rowName(d: PwData, subject: string): string {
   switch (d.pwType) {
     case "Tickmark":
-      return subject.replace(/^Tickmark: /, "");
+      return tickmarkName(subject);
     case "Legend":
       return "Tickmark legend";
     case "Tape":

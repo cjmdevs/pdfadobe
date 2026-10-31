@@ -70,9 +70,9 @@ test("place tickmarks until Esc, see them in the Stamp Summary, save and reopen"
   );
   expect(stamps.map((s) => s.subject).sort()).toEqual([
     "Tickmark legend",
-    "Tickmark: Agrees to",
-    "Tickmark: Footed",
-    "Tickmark: Footed",
+    "Engagement:Agrees to",
+    "Engagement:Footed",
+    "Engagement:Footed",
   ]);
   expect(stamps.every((s) => s.hasAppearance)).toBe(true);
 
@@ -142,7 +142,7 @@ test("sign-off stamp, connector that follows a moved tickmark, note", async ({ p
   // Move the lower tickmark (the connector's end): the connector follows. Its centre on
   // screen comes from the saved rect (PDF space, Letter page).
   const tick = raw
-    .filter((a) => a.subject === "Tickmark: Footed")
+    .filter((a) => a.subject === "Engagement:Footed")
     .sort((p, q) => (p.rect[1] ?? 0) - (q.rect[1] ?? 0))[0]!;
   const now = (await page.locator('[data-testid=viewport] [data-page-index="0"]').boundingBox())!;
   const k = now.width / 612;
@@ -328,7 +328,7 @@ test("letter tickmarks: pick C, it stays C; matching Cs link across pages; Clear
   await page.keyboard.press("Control+s");
   await idle(page);
   const raw = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.wpA)));
-  expect(raw.filter((a) => a.subject === "Tickmark: Letter (C)")).toHaveLength(3);
+  expect(raw.filter((a) => a.subject === "Letter Connectors:C")).toHaveLength(3);
   expect(
     raw
       .filter((a) => a.subtype === "/Link")

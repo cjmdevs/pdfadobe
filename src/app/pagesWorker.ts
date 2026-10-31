@@ -47,6 +47,7 @@ import type { Placement } from "../engine/edit/images";
 import { createSubsetter, type Subsetter } from "../engine/edit/fonts/subset";
 import { createKerner, type Kerner } from "../engine/edit/fonts/kern";
 import { applySpacing } from "../engine/edit/spacing";
+import { addPdflyerKeys } from "../engine/flyer/pdflyer";
 import type { Arrange } from "../engine/edit/arrange";
 import {
   listLinks,
@@ -195,7 +196,7 @@ export const OPS = {
   flattenForm: (c: Ctx, b: Uint8Array) => flattenForm(c, b),
   formKind: async (c: Ctx, b: Uint8Array) => formKind(c.module, b),
   // Save / Save As: a hybrid form is written without its XFA twin and /Perms.
-  bytesForSave: (c: Ctx, b: Uint8Array) => bytesForSave(c, b),
+  bytesForSave: async (c: Ctx, b: Uint8Array) => addPdflyerKeys(c.qpdf, await bytesForSave(c, b)),
   // Prepare Form.
   addField: (c: Ctx, b: Uint8Array, spec: NewField) => addField(c, b, spec),
   readFieldProps: (c: Ctx, b: Uint8Array, name: string) => readFieldProps(c, b, name),
