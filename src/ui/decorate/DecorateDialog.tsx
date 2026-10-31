@@ -569,7 +569,7 @@ function WatermarkForm({ documentId, onClose }: { documentId: string; onClose():
 function BackgroundForm({ documentId, onClose }: { documentId: string; onClose(): void }) {
   const wb = useWorkbench();
   const [useImage, setUseImage] = useState(false);
-  const [color, setColor] = useState("#fff8dc");
+  const [color, setColor] = useState("#fff2a8");
   const [image, setImage] = useState<{ name: string; bytes: Uint8Array } | null>(null);
   const [scale, setScale] = useState(100);
   const [opacity, setOpacity] = useState(100);

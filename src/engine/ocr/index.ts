@@ -239,9 +239,11 @@ export async function orientationOf(
       outputs: ["osd.osd"],
     });
     return parseOsd(new TextDecoder().decode(r.files["osd.osd"] ?? new Uint8Array()) + r.stdout);
-  } catch {
-    // Too little text to tell (Tesseract fails OSD then), or cancelled.
+  } catch (e) {
+    // Too little text to tell (Tesseract fails OSD then), or cancelled. A Tesseract
+    // that cannot start or load its data is a real error, not "upright".
     control.check();
+    if (e instanceof Error && /load|missing|could not run|initiali[sz]e/i.test(e.message)) throw e;
     return 0;
   }
 }

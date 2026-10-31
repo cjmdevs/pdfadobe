@@ -3,7 +3,8 @@
 //! Same framing and job-folder rules as `qpdf_job`: one IPC call per job, a fresh temp
 //! folder per job, always deleted afterwards, plain file names only. The header also
 //! carries the job `id`, so `ocr_cancel` can kill a job that is still running.
-//! Recognised text never reaches a log: stderr is reduced to a fixed message.
+//! Recognised text never reaches a log or a message: only Tesseract's first setup error
+//! line (stderr, which never holds page text) is passed on, without folder paths.
 
 use std::collections::HashMap;
 use std::fs;
@@ -27,8 +28,45 @@ pub fn tesseract_dir(app: &AppHandle) -> Option<PathBuf> {
     app.path()
         .resource_dir()
         .ok()
-        .map(|d| d.join("tesseract"))
+        .map(|d| plain_path(&d.join("tesseract")))
         .filter(|d| d.join("tesseract.exe").is_file())
+}
+
+/// `\\?\C:\x` -> `C:\x` and `\\?\UNC\server\share` -> `\\server\share`. Tesseract and
+/// Leptonica cannot open files under a verbatim path (it fails with exit 1), and the
+/// installed app's resource folder can come back in that form.
+pub fn plain_path(p: &Path) -> PathBuf {
+    let s = p.to_string_lossy();
+    if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        PathBuf::from(format!(r"\\{rest}"))
+    } else if let Some(rest) = s.strip_prefix(r"\\?\") {
+        PathBuf::from(rest)
+    } else {
+        p.to_path_buf()
+    }
+}
+
+/// Tesseract's first real error line ("Failed loading language 'eng'"), without folder
+/// paths. Its stderr carries setup errors only, never recognised text. Leptonica's
+/// notes about image formats this build leaves out are skipped.
+fn reason(stderr: &str, dir: &Path) -> Option<String> {
+    stderr
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .find(|l| {
+            !l.contains("function not present")
+                && !l.contains("no pix returned")
+                && !l.contains("pixa")
+                && !l.starts_with("Warning")
+                && !l.starts_with("Estimating resolution")
+        })
+        .map(|l| {
+            l.replace(&*dir.to_string_lossy(), "")
+                .chars()
+                .take(200)
+                .collect()
+        })
 }
 
 #[tauri::command]
@@ -161,7 +199,7 @@ fn run_job(
             .current_dir(&dir)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null());
+            .stderr(Stdio::piped());
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -172,14 +210,27 @@ fn run_job(
             kind: "ocrMissing",
             message: format!("could not run Tesseract: {e}"),
         })?;
-        let mut pipe = child.stdout.take();
-        let reader = std::thread::spawn(move || {
-            let mut s = String::new();
-            if let Some(p) = pipe.as_mut() {
-                let _ = p.read_to_string(&mut s);
-            }
-            s
-        });
+        let read_all = |mut pipe: Option<Box<dyn Read + Send>>| {
+            std::thread::spawn(move || {
+                let mut s = String::new();
+                if let Some(p) = pipe.as_mut() {
+                    let _ = p.read_to_string(&mut s);
+                }
+                s
+            })
+        };
+        let reader = read_all(
+            child
+                .stdout
+                .take()
+                .map(|p| Box::new(p) as Box<dyn Read + Send>),
+        );
+        let errors = read_all(
+            child
+                .stderr
+                .take()
+                .map(|p| Box::new(p) as Box<dyn Read + Send>),
+        );
         running.lock().unwrap().insert(header.id, child);
         // Poll, so ocr_cancel can take the lock and kill the child meanwhile.
         let status = loop {
@@ -202,13 +253,20 @@ fn run_job(
             std::thread::sleep(Duration::from_millis(20));
         };
         let stdout = reader.join().unwrap_or_default();
+        let stderr = errors.join().unwrap_or_default();
         let status = status.ok_or("OCR failed")?;
         if !status.success() {
             // Killed by ocr_cancel (exit code 1 on Windows) or a real failure; the
             // frontend knows which, since it asked for the cancel.
+            let why = reason(&stderr, tess_dir)
+                .map(|r| format!(": {}", r.replace(&*dir.to_string_lossy(), "")))
+                .unwrap_or_default();
             return Err(FileError {
                 kind: "ocrFailed",
-                message: format!("Tesseract stopped (exit {})", status.code().unwrap_or(-1)),
+                message: format!(
+                    "Tesseract stopped (exit {}){why}",
+                    status.code().unwrap_or(-1)
+                ),
             });
         }
         let mut files = Vec::new();
@@ -314,6 +372,70 @@ mod tests {
         let (_, files) = run_job(&dir, &running, &h, &[("page.pgm", &pgm)]).unwrap();
         assert_eq!(files[0].0, "out.txt");
         assert!(running.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn verbatim_paths_are_made_plain() {
+        assert_eq!(
+            plain_path(Path::new(
+                r"\\?\C:\Users\x\AppData\Local\PDF Workbench\tesseract"
+            )),
+            PathBuf::from(r"C:\Users\x\AppData\Local\PDF Workbench\tesseract")
+        );
+        assert_eq!(
+            plain_path(Path::new(r"\\?\UNC\server\share\t")),
+            PathBuf::from(r"\\server\share\t")
+        );
+        assert_eq!(plain_path(Path::new(r"C:\a b")), PathBuf::from(r"C:\a b"));
+    }
+
+    #[test]
+    fn a_failure_says_why_without_paths() {
+        let Some(dir) = tess() else {
+            eprintln!("skipped: needs `node scripts/build-tesseract.mjs`");
+            return;
+        };
+        // A copy with no language data: Tesseract cannot load "eng".
+        let empty = std::env::temp_dir().join(format!("pdfwb-notess-{}", std::process::id()));
+        fs::create_dir_all(empty.join("tessdata")).unwrap();
+        fs::copy(dir.join("tesseract.exe"), empty.join("tesseract.exe")).unwrap();
+        let h = header(3, &["page.pgm", "out", "-l", "eng"], &["page.pgm"], &[]);
+        let running = Mutex::new(HashMap::new());
+        let err = run_job(&empty, &running, &h, &[("page.pgm", &blank_pgm())]).unwrap_err();
+        let _ = fs::remove_dir_all(&empty);
+        assert!(err.message.contains("eng"), "{}", err.message);
+        assert!(!err.message.contains("pdfwb-notess"), "{}", err.message);
+    }
+
+    /// The installed app's folder can come back as \\?\C:\...: still runs.
+    #[test]
+    fn runs_from_a_verbatim_folder() {
+        let Some(dir) = tess() else {
+            eprintln!("skipped: needs `node scripts/build-tesseract.mjs`");
+            return;
+        };
+        let verbatim = PathBuf::from(format!(r"\\?\{}", dir.display()));
+        let h = header(
+            4,
+            &[
+                "page.pgm",
+                "out",
+                "-l",
+                "eng",
+                "-c",
+                "tessedit_create_txt=1",
+            ],
+            &["page.pgm"],
+            &["out.txt"],
+        );
+        let running = Mutex::new(HashMap::new());
+        let r = run_job(
+            &plain_path(&verbatim),
+            &running,
+            &h,
+            &[("page.pgm", &blank_pgm())],
+        );
+        assert!(r.is_ok(), "{:?}", r.err().map(|e| e.message));
     }
 
     #[test]

@@ -287,6 +287,18 @@ describe("Enhance", { timeout: 120_000 }, () => {
     expect(straight.turned).toEqual([]);
   });
 
+  it("Turn Pages Upright reports a Tesseract that cannot load, not 'upright'", async () => {
+    const broken = {
+      run: () =>
+        Promise.reject(new Error("Tesseract stopped (exit 1): Failed loading language 'osd'")),
+      cancel: async () => undefined,
+    };
+    const scan = await scanPdf(render(await sourcePdf(), 100));
+    await expect(turnPagesUpright(m, broken, scan, [0], new OcrControl(broken))).rejects.toThrow(
+      /Failed loading/,
+    );
+  });
+
   it("Turn Pages Upright fixes an upside-down page with /Rotate", async () => {
     const src = await sourcePdf();
     const scan = await scanPdf(rotateQuarter(render(src, 200), 180));
