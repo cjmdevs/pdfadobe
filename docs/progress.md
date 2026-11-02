@@ -5,13 +5,14 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 8 (signatures, certificates, security) done: owner check passed 2026-10-31**,
-  tagged `phase-08-done`. Step 5 first picked a `localhost` server certificate; fixed
-  (only certificates whose extended key usage allows document signing are listed, the
-  last one is remembered) and the re-check passed (`phase-08-fixes-test-guide.md`)
-  (`docs/testing/phase-08-test-guide.md`). Spec and decisions in `docs/phases/phase-08.md`.
-  On the build PC: `npm run check` (595 Vitest + 1 intended skip, 61 Rust,
-  license-check), 190 Playwright. Details in "Phase 8" below.
+- **Phase 9 (MCP server) built 2026-11-02; owner check pending**
+  (`docs/testing/phase-09-test-guide.md`; spec and decisions in `docs/phases/phase-09.md`).
+  On the build PC: `npm run check` (627 Vitest + 1 intended skip, 62 Rust,
+  license-check), Playwright 186-189 of 190 per full run: a different few fail each run and
+  pass alone; `phase-08-done` code fails the same way (4 per run), so these are old load flakes. `npm run mcp:inspect`: all 15 Tier A
+  calls pass on the bundle. Details in "Phase 9" below.
+- **Phase 8 (signatures, certificates, security) done 2026-10-31**, tagged
+  `phase-08-done` (owner re-check passed, `phase-08-fixes-test-guide.md`).
 - **Phase 7 (scan, OCR, optimize, document tools, conversions) done 2026-10-31**, tagged
   `phase-07-done`. Lesson: anything that hands a resource path to an outside program
   must be tested with a `\\?\` path (Tauri canonicalises the app path).
@@ -79,52 +80,65 @@ Keep it under 2 pages; summarize older phases.
   (by design); recalculation is one undo step per field; date formats not validated;
   keystroke filters not enforced; Detect knows blanks, lines and boxes only.
 
-## Phase 8: signatures, certificates, security (2026-10-31)
+## Phase 9: MCP server (2026-11-02)
 
-Plan approved 2026-10-31 with the recommended answers (`docs/phases/phase-08.md`).
+Plan approved 2026-11-02 with the recommended answers (`docs/phases/phase-09.md`).
 
-- **Certificate signing** (`src/engine/sign/`, Node-safe): no @signpdf. Own incremental
-  update writer (`incremental.ts`: objects from qpdf JSON v2 written back as PDF syntax;
-  xref table or uncompressed xref stream, matching the original). An unsigned file is
-  first rewritten by qpdf (repairs damage); a signed one is only appended to, so earlier
-  signatures stay valid. CMS by pkijs (`cms.ts`): detached, SHA-256, signed attributes
-  contentType, messageDigest, signing-certificate-v2; no signing-time (PAdES puts it in
-  /M). /SubFilter /ETSI.CAdES.detached; 24 KB reserved for /Contents. Visible signature:
-  a form XObject in the page's displayed orientation (`/Matrix` from the page frame;
-  `frameOf` is the qpdf-object twin of `pageFrames`), Helvetica details plus the name or
-  a saved signature image. Empty signature fields can be signed. Output `<name>_Signed.pdf`.
-- **Keys** (`src-tauri/src/certsign.rs`): the private key never leaves Windows. CNG signs
-  (BCryptHash + NCryptSignHash; RSA PKCS#1 v1.5 or ECDSA r||s). Store: Personal,
-  certificates with a key, valid today, key usage allowing signing. .pfx:
-  PFXImportCertStore with PKCS12_NO_PERSIST_KEY (memory only); that key is found only
-  with CRYPT_ACQUIRE_CACHE_FLAG. The frontend passes the .pfx and password per call.
-- **Signatures panel** (Certificates tool): scans /ByteRange, checks digest and
-  signature with pkijs, says "changed after this signature" when bytes follow the signed
-  revision, and opens the signed version. No trust check (v1).
-- **Saved signatures** (`signatures.rs`): PNG, DPAPI (current user, own entropy) in
-  `<config>\signatures\<id>.sig`. Typed (Dancing Script, Great Vibes, Allura, Caveat),
-  drawn (pen pressure), or an image (paper made see-through, cropped).
-- **Fill & Sign tool**: Text (borderless free text, tool `fillText`), Check, X, Dot,
-  Date, Sign (saved signature or initials, optional date under it). Marks are stamps with
-  a one-page PDF appearance (`engine/sign/marks.ts`), movable and resizable.
-- **Protect tool** (`src/engine/security.ts`): AES-256 (R6) only; open and/or
-  permissions password; print, changes, copy. Remove Security with either password.
-  Output `<name>_Protected.pdf` / `_Unprotected.pdf`. Passwords reach qpdf in a job file
-  (`--job-json-file`), never its command line; both runners allow only the job-file keys
-  inputFile, outputFile, password, decrypt, encrypt, showEncryption, with plain job names.
-- Signature fields: empty ones say "Click to sign" (opens Sign with a Certificate);
-  fields with an appearance (signed) now show it, with a see-through click box on top.
+- **Server** (`mcp-server/src/`): `@modelcontextprotocol/server` 2.4.0 (SDK v2:
+  `registerTool` with zod v4 `z.object`, `serveStdio`), stdio only. Imports `src/engine`
+  directly. `runtime/` loads PDFium and HarfBuzz from local WASM bytes (`createPdfium` keeps
+  fontFallback: null) and runs qpdf/Tesseract; the Node runners moved here from
+  `tests/helpers` (tests re-export them) and take a job-folder base.
+- **Safety** (`safety/`): `roots.ts` resolves every path with `fs.realpath.native`
+  (junctions, subst, 8.3 names) and requires it inside a configured folder
+  (case-insensitive); relative, `\?\`/`\.\` and `file:stream` paths refused.
+  `writer.ts` is the only writer: copies into `<folder>\_workspace\<date>_<task>\`,
+  publishes to `<folder>\Outputs\` with exclusive create (`name (2).pdf`), creates each
+  folder level and refuses if it resolves elsewhere (junction), masks SSN/EIN/7+ digit
+  runs in every name it creates. qpdf/OCR job folders live inside the task folder, so
+  nothing goes to %TEMP%. `audit.ts`: JSONL per call in `<folder>\_workspace\_audit\`
+  (tool, tier, paths, pages, outputs, time, Windows user, ok/error name; never text or
+  error messages); a call whose audit line cannot be written is refused.
+- **Tools**: 16 Tier A (list_pdfs, get_info, open_in_app, merge, split, rotate, reorder,
+  extract_pages, insert_pages, add_bookmarks, ocr, optimize, add_bates, add_header_footer,
+  add_watermark, redact_patterns); 4 Tier B registered only when
+  `HKLM\Software\Policies\PDF Workbench\MCP` `AllowContentToClaude` = DWORD 1 (read via
+  `reg.exe`). Calls run one at a time (PDFium is single-threaded). Password-protected
+  files are refused for changes; signed inputs get a warning. Errors shown to Claude are
+  fixed texts or engine messages that hold no document data.
+- **redact_patterns**: page-text hits (padded 1 pt) plus form-field values matching the
+  patterns (whole widget marked), then `redactDocument` (leak scan must pass). Counts per
+  page only.
+- **open_in_app**: starts PDF Workbench with `<file> --page=N`; `launch.rs` appends
+  `|page=N` to the path, `openPaths` splits it (`src/app/launchPage.ts`) and uses the
+  restore-page hook.
+- **Packaging**: `npm run mcp:build` (esbuild bundle + wasm + sidecars +
+  THIRD-PARTY-LICENSES.txt, manifest 0.3, `mcpb validate` + `pack`):
+  `mcp-server/dist/pdf-workbench.mcpb`, 23 MB packed / 54 MB unpacked. Settings: shared
+  folders (directory, multiple) and optional app path.
+- **Tests**: `mcp-tools` (every tool via in-memory client), `mcp-safety` (path attacks,
+  junctions, output/task names, before/after snapshot of the whole sandbox, Tier B absent
+  when off and headed/audited B when on), `mcp-network` (all Node network APIs trapped in
+  process), `mcp-stdio` (built bundle in plain Node with `--import block-net.mjs`),
+  `npm run mcp:inspect` (MCP Inspector CLI, every Tier A tool but open_in_app, on the bundle).
 
-**Deviations:** no @signpdf (decision 1). No timestamp server, so PAdES B-B only, no
-LTV. Signing a password-protected file is refused (remove security first). Protect
-writes a new file instead of changing the open one. Remove Security also accepts the
-open password (qpdf needs only that; Acrobat asks for the permissions password). The
-Signatures panel cannot check a password-protected file. The browser build signs with a
-throwaway WebCrypto certificate ("Browser Test Signer") for e2e; .pfx only in the
-Windows app. Every tool is built now, so "Show tools that are coming later" adds nothing.
-**Not verified yet:** Acrobat calling our signatures valid (owner check); signing with a
-Windows store certificate in the installed app (Rust tests cover .pfx signing via CNG,
-checked by OpenSSL, and listing the store); smart-card PIN prompts.
+**Deviations:** manifest 0.3 (mcpb 2.1.2 also knows 0.4; the spec page calls 0.3 current).
+`list_pdfs` skips `_workspace` unless asked and never follows links. `split` by bookmarks
+names files after bookmark titles (masked). Tier B `read_text` is capped at 20 pages per
+call. `get_info` also reports `needs_password` and `has_signatures`. Inspector skips
+open_in_app (it would launch the app); Vitest covers it with a stub launcher.
+**Not verified yet:** installing the .mcpb in Claude Desktop and Claude Desktop's own
+Node (owner test); a real UNC share (Phase 10); open_in_app on an already-open tab or a
+tab in another window (activates it, does not jump to the page).
+
+## Earlier detail: Phase 8 (summary)
+
+Own PAdES signing (`src/engine/sign/`: incremental update writer, CMS by pkijs,
+/ETSI.CAdES.detached, 24 KB /Contents); keys stay in Windows (CNG, `certsign.rs`; .pfx in
+memory only, found only with CRYPT_ACQUIRE_CACHE_FLAG); Signatures
+panel checks digest and signature (no trust check); DPAPI saved signatures; Fill & Sign
+marks as stamps; Protect = AES-256 via qpdf job file. Deviations: no @signpdf, no
+timestamp/LTV, signing a protected file refused, Protect writes a new file.
 
 ## Earlier detail: Phase 7 (summary)
 
@@ -157,6 +171,12 @@ is used by a test only. No new crates.
 bundled unmodified).** No new crates: the `windows` crate gains `Win32_Security_Cryptography`
 and `Win32_System_Time`. Test only: OpenSSL from Git for Windows (Apache-2.0) checks
 signatures when present.
+**Phase 9: @modelcontextprotocol/server 2.4.0 (Apache-2.0; pulls @modelcontextprotocol/core
+2.4.0 Apache-2.0, ext-apps 2.0.4 MIT, ext-tasks 0.2.2 Apache-2.0), zod 4.6.7 (MIT), bundled
+into the .mcpb.** Dev only: @modelcontextprotocol/client 2.4.0 (Apache-2.0),
+@anthropic-ai/mcpb 2.1.2 (MIT), esbuild 0.28.2 (MIT), @modelcontextprotocol/inspector
+2.13.0 (Apache-2.0 + MIT for older code; package.json says "SEE LICENSE IN LICENSE", so
+`license-policy.json` records the LICENSE file). No new crates.
 
 ## Known gaps / notes for later phases
 
@@ -185,5 +205,12 @@ signatures when present.
   sign again. The signature's text is Helvetica (WinAnsi; other characters print as "?").
   24 KB is reserved for the CMS: very long certificate chains are refused. The signature
   box assumes the crop box starts at 0,0, like the rest of the app.
+- **Phase 9:** redact_patterns finds only text-layer and form-field matches (scans need
+  ocr first; numbers inside images are missed) and refuses when the leak scan fails, so
+  the person redacts in the app. The audit log can grow without limit (one file a
+  month). Tier B is per PC (HKLM): Phase 10 must decide how the firm rolls the policy
+  out. The .mcpb must be rebuilt after engine changes (`npm run mcp:build`). Anything
+  in `src/engine` used by the server must stay Node-safe and network-free (the network
+  test runs every tool).
 - e2e flakes seen in Phase 7 and 8, all passing alone (Edit PDF list spacing too): Edit PDF "Shift+arrow pressed while
   the last move is saving" (also fails without Phase 7) and the Stamp menu save check.
