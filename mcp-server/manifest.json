@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "description": "PDF page tools, OCR, Bates and pattern redaction on the firm's shared folders. Works on copies only; nothing leaves this computer.",
   "long_description": "Runs PDF Workbench's own PDF engine on this computer. Only the folders you choose are reachable. Original files are never changed: every change works on a copy in <folder>\\_workspace\\<date>_<task>\\ and finished files go to <folder>\\Outputs\\. Tools return file facts (page counts, paths, match counts), not document text. Every call is written to <folder>\\_workspace\\_audit\\. Tools that would return document content to Claude exist only when the firm turns them on by machine policy.",
-  "author": { "name": "MGR CPAs" },
+  "author": { "name": "Carson" },
   "license": "UNLICENSED",
   "keywords": ["pdf", "ocr", "bates", "redaction", "cpa"],
   "server": {
