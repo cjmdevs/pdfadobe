@@ -159,6 +159,7 @@ fn convert(
         )));
     }
     let _turn = ONE_AT_A_TIME.lock().unwrap_or_else(|p| p.into_inner());
+    let _prompt = matches!(job, Job::PdfToDocx).then(|| PdfPromptOff::new(WORD_OPTIONS));
     let dir = job_dir("office")?;
     let result = (|| {
         let src = dir.join(format!("input.{ext}"));
@@ -234,7 +235,10 @@ fn installed(_app: App) -> bool {
 
 #[cfg(windows)]
 mod registry {
-    use windows::Win32::System::Registry::{HKEY_CLASSES_ROOT, RRF_RT_REG_SZ, RegGetValueW};
+    use windows::Win32::System::Registry::{
+        HKEY_CLASSES_ROOT, HKEY_CURRENT_USER, REG_DWORD, RRF_RT_REG_DWORD, RRF_RT_REG_SZ,
+        RegDeleteKeyValueW, RegGetValueW, RegSetKeyValueW,
+    };
     use windows::core::HSTRING;
 
     fn default_value(key: &str) -> Option<String> {
@@ -264,6 +268,89 @@ mod registry {
     pub fn local_server(prog_id: &str) -> Option<String> {
         let clsid = default_value(&format!(r"{prog_id}\CLSID"))?;
         default_value(&format!(r"CLSID\{}\LocalServer32", clsid.trim()))
+    }
+
+    /// A per-user DWORD value, if it is there.
+    pub fn user_dword(key: &str, name: &str) -> Option<u32> {
+        let mut v = 0u32;
+        let mut size = 4u32;
+        // SAFETY: v and size describe a valid 4-byte buffer.
+        let ok = unsafe {
+            RegGetValueW(
+                HKEY_CURRENT_USER,
+                &HSTRING::from(key),
+                &HSTRING::from(name),
+                RRF_RT_REG_DWORD,
+                None,
+                Some((&mut v as *mut u32).cast()),
+                Some(&mut size),
+            )
+        };
+        ok.is_ok().then_some(v)
+    }
+
+    /// Sets a per-user DWORD value, creating the key if needed.
+    pub fn set_user_dword(key: &str, name: &str, v: u32) -> bool {
+        // SAFETY: the data pointer and length describe `v`.
+        unsafe {
+            RegSetKeyValueW(
+                HKEY_CURRENT_USER,
+                &HSTRING::from(key),
+                &HSTRING::from(name),
+                REG_DWORD.0,
+                Some((&v as *const u32).cast()),
+                4,
+            )
+        }
+        .is_ok()
+    }
+
+    pub fn delete_user_value(key: &str, name: &str) {
+        // SAFETY: plain strings in; a missing value is not an error we care about.
+        let _ = unsafe {
+            RegDeleteKeyValueW(HKEY_CURRENT_USER, &HSTRING::from(key), &HSTRING::from(name))
+        };
+    }
+}
+
+/// Word asks "Word will now convert your PDF..." before opening a PDF, even with alerts
+/// off, and a hidden Word waits on that message until the time limit. The per-user Word
+/// option behind its "Don't show this message again" box is turned on for the export and
+/// put back as it was when this is dropped (also after a timeout).
+struct PdfPromptOff {
+    key: &'static str,
+    /// The value before, when this changed it: `Some(None)` means there was none.
+    was: Option<Option<u32>>,
+}
+
+const WORD_OPTIONS: &str = r"Software\Microsoft\Office\16.0\Word\Options";
+const PDF_WARNING: &str = "DisableConvertPdfWarning";
+
+impl PdfPromptOff {
+    #[cfg(windows)]
+    fn new(key: &'static str) -> Self {
+        let before = registry::user_dword(key, PDF_WARNING);
+        let was =
+            (before != Some(1) && registry::set_user_dword(key, PDF_WARNING, 1)).then_some(before);
+        Self { key, was }
+    }
+
+    #[cfg(not(windows))]
+    fn new(key: &'static str) -> Self {
+        Self { key, was: None }
+    }
+}
+
+impl Drop for PdfPromptOff {
+    fn drop(&mut self) {
+        #[cfg(windows)]
+        match self.was {
+            None => {}
+            Some(None) => registry::delete_user_value(self.key, PDF_WARNING),
+            Some(Some(v)) => {
+                registry::set_user_dword(self.key, PDF_WARNING, v);
+            }
+        }
     }
 }
 
@@ -729,6 +816,31 @@ mod tests {
     }
 
     #[cfg(windows)]
+    #[cfg(windows)]
+    #[test]
+    fn word_pdf_prompt_is_turned_off_then_put_back() {
+        // A throwaway key stands in for Word's options.
+        const KEY: &str = r"Software\PDFWorkbenchTest\Word\Options";
+        let get = || registry::user_dword(KEY, PDF_WARNING);
+        registry::delete_user_value(KEY, PDF_WARNING);
+        {
+            let _off = PdfPromptOff::new(KEY);
+            assert_eq!(get(), Some(1));
+        }
+        assert_eq!(get(), None, "a value that was not there is removed again");
+
+        registry::set_user_dword(KEY, PDF_WARNING, 0);
+        drop(PdfPromptOff::new(KEY));
+        assert_eq!(get(), Some(0), "the user's own value comes back");
+
+        registry::set_user_dword(KEY, PDF_WARNING, 1);
+        drop(PdfPromptOff::new(KEY));
+        assert_eq!(get(), Some(1), "already off: left alone");
+        let _ = std::process::Command::new("reg")
+            .args(["delete", r"HKCU\Software\PDFWorkbenchTest", "/f"])
+            .output();
+    }
+
     #[test]
     fn lists_and_kills_processes_by_program_name() {
         let mut child = std::process::Command::new("ping")
