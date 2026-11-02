@@ -50,6 +50,21 @@ export default tseslint.config(
     },
   },
   {
+    // MCP server (Phase 9): Node only. Text must come through engine/text.ts pageText,
+    // which keeps the getPageGlyphs guard (EmbedPDF returns stale WASM memory otherwise).
+    files: ["mcp-server/**/*.{ts,mjs}"],
+    languageOptions: { globals: globals.node },
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.property.name='extractText']",
+          message: "Use pageText() from src/engine/text.ts (getPageGlyphs guard).",
+        },
+      ],
+    },
+  },
+  {
     files: ["scripts/**/*.mjs", "tests/**/*.{ts,mjs}", "*.config.{ts,js}"],
     languageOptions: { globals: globals.node },
     rules: { "@typescript-eslint/no-non-null-assertion": "off" },

@@ -20,6 +20,10 @@
     "@embedpdf/plugin-form": {
       "license": "MIT",
       "reason": "2.15.1 package.json has no license field; its bundled LICENSE file is the MIT License (Copyright 2025 CloudPDF), same as the other @embedpdf packages. Checked 2026-10-27."
+    },
+    "@modelcontextprotocol/inspector": {
+      "license": "Apache-2.0 AND MIT",
+      "reason": "2.13.0 package.json says \"SEE LICENSE IN LICENSE\"; the LICENSE file is Apache-2.0 for new code, MIT for not-yet-relicensed older code (the MCP project licensing transition). Dev only: Phase 9 Inspector smoke test, never bundled. Checked 2026-11-02."
     }
   },
   "bundledBinaries": {
