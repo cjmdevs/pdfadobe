@@ -37,6 +37,7 @@ import { flushFormWrites, takeFieldsDeleted } from "./formWrites";
 import { pageOp } from "./pages";
 import { OcrCancelled } from "../engine/ocr/tesseract";
 import { calcs } from "../ui/forms/calcStore";
+import { splitLaunchPage } from "./launchPage";
 import type { DocInfo } from "./docstore";
 import { FALLBACK_AUTHOR } from "../markup/config";
 import {
@@ -476,7 +477,13 @@ export function WorkbenchProvider({
   );
 
   const openFiles = useCallback(
-    (files: OpenedFile[], { activate = true }: { activate?: boolean } = {}) => {
+    (
+      files: OpenedFile[],
+      {
+        activate = true,
+        page,
+      }: { activate?: boolean; /** 0-based page to show */ page?: number } = {},
+    ) => {
       if (!docs) return;
       for (const f of files) {
         if (f.source.kind === "path") {
@@ -497,6 +504,7 @@ export function WorkbenchProvider({
           platform.docs.create(storeId, copy, { name: f.name, path, saved: true }).then(setInfo),
         );
         const documentId = addTab(storeId, f.source, f.name, f.bytes, activate);
+        if (documentId && page !== undefined) restorePages.current.set(documentId, page);
         if (documentId && f.source.kind === "path")
           pendingBackups.current.set(documentId, f.source.path);
       }
@@ -518,11 +526,15 @@ export function WorkbenchProvider({
   const openPaths = useCallback(
     async (paths: string[], opts: { quiet?: boolean } = {}) => {
       const seq = ++openSeq.current;
-      for (const path of paths) {
+      for (const raw of paths) {
+        const { path, page } = splitLaunchPage(raw);
         try {
           if (await openElsewhere(path)) continue;
           const file = await platform.readPath(path);
-          openFiles([file], { activate: seq === openSeq.current });
+          openFiles([file], {
+            activate: seq === openSeq.current,
+            ...(page !== null ? { page: page - 1 } : {}),
+          });
           updateSettings({ recent: addRecent(settingsRef.current.recent, path) });
         } catch (e) {
           const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));

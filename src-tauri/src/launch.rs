@@ -19,19 +19,32 @@ pub fn take_launch_paths(pending: State<'_, PendingPaths>) -> Vec<String> {
     std::mem::take(&mut *pending.0.lock().expect("pending paths lock"))
 }
 
+/// Separates a path from the page to show (`--page=N`, from the MCP server's
+/// open_in_app). `|` cannot appear in a Windows path, so the frontend can split on it.
+pub const PAGE_MARK: &str = "|page=";
+
 /// argv → PDF paths. Skips argv[0] and flags; resolves relative paths against `cwd`
 /// (Explorer passes absolute paths, a terminal may not). Accepts any extension so a
-/// mis-named PDF still opens; the frontend reports non-PDFs clearly.
+/// mis-named PDF still opens; the frontend reports non-PDFs clearly. `--page=N` (1-based)
+/// is attached to every path as `<path>|page=N`.
 pub fn paths_from_args<I: IntoIterator<Item = String>>(args: I, cwd: &Path) -> Vec<String> {
+    let args: Vec<String> = args.into_iter().skip(1).collect();
+    let page = args
+        .iter()
+        .find_map(|a| a.strip_prefix("--page=")?.parse::<u32>().ok())
+        .filter(|p| *p >= 1);
     args.into_iter()
-        .skip(1)
         .filter(|a| !a.is_empty() && !a.starts_with('-'))
         .map(|a| {
             let p = PathBuf::from(&a);
-            if p.is_absolute() || is_unc(&a) {
+            let path = if p.is_absolute() || is_unc(&a) {
                 a
             } else {
                 cwd.join(p).to_string_lossy().into_owned()
+            };
+            match page {
+                Some(n) => format!("{path}{PAGE_MARK}{n}"),
+                None => path,
             }
         })
         .collect()
@@ -87,6 +100,24 @@ mod tests {
         let unc = r"\\server\share\Clients\Return 2025.pdf";
         assert_eq!(
             paths_from_args(args(&["app.exe", unc]), &cwd),
+            vec![unc.to_string()]
+        );
+    }
+
+    #[test]
+    fn page_flag_is_attached_to_the_path() {
+        let cwd = std::env::temp_dir();
+        let unc = r"\\server\share\Clients\Return 2025.pdf";
+        assert_eq!(
+            paths_from_args(args(&["app.exe", unc, "--page=3"]), &cwd),
+            vec![format!("{unc}|page=3")]
+        );
+        assert_eq!(
+            paths_from_args(args(&["app.exe", "--page=0", unc]), &cwd),
+            vec![unc.to_string()]
+        );
+        assert_eq!(
+            paths_from_args(args(&["app.exe", "--page=x", unc]), &cwd),
             vec![unc.to_string()]
         );
     }
