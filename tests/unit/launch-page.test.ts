@@ -4,14 +4,17 @@ import { splitLaunchPage } from "../../src/app/launchPage";
 
 describe("splitLaunchPage", () => {
   it("splits the page off a launch path", () => {
-    expect(splitLaunchPage("\\srv\share\JD\Return.pdf|page=3")).toEqual({
-      path: "\\srv\share\JD\Return.pdf",
+    expect(splitLaunchPage("\\\\srv\\share\\JD\\Return.pdf|page=3")).toEqual({
+      path: "\\\\srv\\share\\JD\\Return.pdf",
       page: 3,
     });
   });
 
   it("leaves plain paths alone", () => {
-    expect(splitLaunchPage("C:\a\b.pdf")).toEqual({ path: "C:\a\b.pdf", page: null });
-    expect(splitLaunchPage("C:\a\b.pdf|page=0")).toEqual({ path: "C:\a\b.pdf", page: null });
+    expect(splitLaunchPage("C:\\a\\b.pdf")).toEqual({ path: "C:\\a\\b.pdf", page: null });
+    expect(splitLaunchPage("C:\\a\\b.pdf|page=0")).toEqual({
+      path: "C:\\a\\b.pdf",
+      page: null,
+    });
   });
 });
