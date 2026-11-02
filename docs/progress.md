@@ -5,6 +5,23 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
+- **B5 (Create PDF / Export PDF) built 2026-11-02, owner check on a work PC pending**
+  (`docs/testing/b5-test-guide.md`; spec and decisions in `docs/phases/b5.md`).
+  `office.rs` drives desktop Office by COM (late-bound IDispatch, named args): source
+  copied to a job folder, opened read-only/hidden, macros forced off (AutomationSecurity
+  3), wrong dummy password so protected files fail fast, one at a time, 3 min limit
+  (5 for PDF to Word) that kills only an Office process this conversion started; Quit
+  only if we started it (PowerPoint attaches to an open one). Create PDF: one PDF per
+  file beside it, or `Combined.pdf` beside the first (order editable, bookmark per
+  file, OCR only on pages without text). Export: Word via Word's own PDF conversion;
+  Excel via `engine/convert/tables.ts` (lines = rows, shared gaps = columns, report
+  amounts to numbers) + `xlsx.ts` (fflate, inline strings, one sheet per page).
+  No new dependencies; `windows` crate gains Ole, Variant, ToolHelp, Threading.
+  Not verified: any real Office conversion (build PC has no desktop Office; the Rust
+  test skips); Word's "will now convert your PDF" message is suppressed only by
+  DisplayAlerts (undocumented). `mcp-stdio` fails on this PC because the Tier B policy
+  (HKLM `AllowContentToClaude` = 1) is still on from the Phase 9 test; not a B5 change.
+
 - **Phase 9 (MCP server) done: owner check passed 2026-11-02**, tagged `phase-09-done`.
   Steps 7-8 were redone after the extension folder was first set to `C:\PWTest` instead
   of `C:\PWTest\Shared` (code behaved as designed). Manifest author is "Carson".
@@ -207,6 +224,10 @@ into the .mcpb.** Dev only: @modelcontextprotocol/client 2.4.0 (Apache-2.0),
   sign again. The signature's text is Helvetica (WinAnsi; other characters print as "?").
   24 KB is reserved for the CMS: very long certificate chains are refused. The signature
   box assumes the crop box starts at 0,0, like the rest of the app.
+- **B5:** Excel export has no lattice (ruled-grid) mode, no merged cells, no dates
+  (left as text), and leading-zero codes / 8+ digit runs stay text. Excel's Power Query
+  PDF import (option B) was not built. Office conversions cannot be cancelled. Users
+  must have desktop Office; web-only Office shows "needs Microsoft Word".
 - **Phase 9:** redact_patterns finds only text-layer and form-field matches (scans need
   ocr first; numbers inside images are missed) and refuses when the leak scan fails, so
   the person redacts in the app. The audit log can grow without limit (one file a
