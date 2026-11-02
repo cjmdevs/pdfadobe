@@ -19,7 +19,13 @@ export function parseArgs(argv: string[]): Config {
   const folders: string[] = [];
   let appPath: string | null = null;
   for (const a of argv) {
-    if (a.startsWith("--app=")) appPath = a.slice(6).trim() || null;
+    // An unset optional setting may arrive empty or as the raw "${user_config...}".
+    if (a.startsWith("--app="))
+      appPath =
+        a
+          .slice(6)
+          .trim()
+          .replace(/^\$\{.*\}$/, "") || null;
     else if (a.startsWith("--")) throw new Error(`unknown option ${a}`);
     else if (a.trim()) folders.push(a);
   }

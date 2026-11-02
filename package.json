@@ -25,7 +25,9 @@
     "fetch-win-binaries": "node scripts/fetch-win-binaries.mjs",
     "build-tesseract": "node scripts/build-tesseract.mjs",
     "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
-    "check:windows-target": "cargo check --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc"
+    "check:windows-target": "cargo check --manifest-path src-tauri/Cargo.toml --target x86_64-pc-windows-msvc",
+    "mcp:build": "node mcp-server/build.mjs",
+    "mcp:inspect": "node scripts/mcp-inspect.mjs"
   },
   "dependencies": {
     "@embedpdf/core": "^2.15.1",

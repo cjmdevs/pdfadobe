@@ -1,0 +1,65 @@
+{
+  "manifest_version": "0.3",
+  "name": "pdf-workbench",
+  "display_name": "PDF Workbench",
+  "version": "0.1.0",
+  "description": "PDF page tools, OCR, Bates and pattern redaction on the firm's shared folders. Works on copies only; nothing leaves this computer.",
+  "long_description": "Runs PDF Workbench's own PDF engine on this computer. Only the folders you choose are reachable. Original files are never changed: every change works on a copy in <folder>\\_workspace\\<date>_<task>\\ and finished files go to <folder>\\Outputs\\. Tools return file facts (page counts, paths, match counts), not document text. Every call is written to <folder>\\_workspace\\_audit\\. Tools that would return document content to Claude exist only when the firm turns them on by machine policy.",
+  "author": { "name": "MGR CPAs" },
+  "license": "UNLICENSED",
+  "keywords": ["pdf", "ocr", "bates", "redaction", "cpa"],
+  "server": {
+    "type": "node",
+    "entry_point": "server/server.mjs",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/server/server.mjs",
+        "--app=${user_config.app_path}",
+        "${user_config.folders}"
+      ]
+    }
+  },
+  "user_config": {
+    "folders": {
+      "type": "directory",
+      "title": "Shared folders",
+      "description": "The only folders Claude may use. Results go to each folder's Outputs subfolder; working copies and the audit log go to its _workspace subfolder.",
+      "multiple": true,
+      "required": true
+    },
+    "app_path": {
+      "type": "file",
+      "title": "PDF Workbench program (optional)",
+      "description": "PDF Workbench.exe, used by open_in_app. Leave empty to find it in the usual install folders.",
+      "required": false,
+      "default": ""
+    }
+  },
+  "compatibility": {
+    "platforms": ["win32"],
+    "runtimes": { "node": ">=20.0.0" }
+  },
+  "tools": [
+    { "name": "list_pdfs", "description": "List PDF files in the configured folders" },
+    { "name": "get_info", "description": "Page count, size, text/forms/password/signature facts" },
+    { "name": "merge", "description": "Combine PDFs into a new file" },
+    { "name": "split", "description": "Split a PDF into new files" },
+    { "name": "rotate", "description": "Rotate pages" },
+    { "name": "reorder", "description": "Put pages in a new order" },
+    { "name": "extract_pages", "description": "Copy pages into a new file" },
+    { "name": "insert_pages", "description": "Insert pages from another PDF" },
+    { "name": "add_bookmarks", "description": "Add bookmarks" },
+    { "name": "ocr", "description": "Make scanned pages searchable" },
+    { "name": "optimize", "description": "Reduce file size" },
+    { "name": "add_bates", "description": "Add Bates numbers" },
+    { "name": "add_header_footer", "description": "Add headers and footers" },
+    { "name": "add_watermark", "description": "Add a text watermark" },
+    {
+      "name": "redact_patterns",
+      "description": "Redact SSNs, EINs and account numbers; returns counts only"
+    },
+    { "name": "open_in_app", "description": "Open a file at a page in PDF Workbench" }
+  ],
+  "tools_generated": true
+}
