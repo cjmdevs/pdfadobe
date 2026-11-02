@@ -5,7 +5,7 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **B5 (Create PDF / Export PDF) built 2026-11-02, owner check on a work PC pending**
+- **B5 (Create PDF / Export PDF) done 2026-11-02, owner check on a work PC passed**
   (`docs/testing/b5-test-guide.md`; spec and decisions in `docs/phases/b5.md`).
   `office.rs` drives desktop Office by COM (late-bound IDispatch, named args): source
   copied to a job folder, opened read-only/hidden, macros forced off (AutomationSecurity
@@ -17,12 +17,12 @@ Keep it under 2 pages; summarize older phases.
   Excel via `engine/convert/tables.ts` (lines = rows, shared gaps = columns, report
   amounts to numbers) + `xlsx.ts` (fflate, inline strings, one sheet per page).
   No new dependencies; `windows` crate gains Ole, Variant, ToolHelp, Threading.
-  Owner work-PC check: steps 1-7, 9, 10 pass; step 8 (PDF to Word) hung on Word's
+  Owner work-PC check: all 10 steps pass. Step 8 (PDF to Word) first hung on Word's
   hidden "will now convert your PDF" message, which DisplayAlerts does not stop. Fix:
   HKCU `Office\16.0\Word\Options\DisableConvertPdfWarning` is set to 1 for the export
   and restored after (removed if it wasn't there); the value name comes from community
-  posts, not Microsoft docs; an app crash mid-export leaves it at 1. Step 8 retest
-  pending. `mcp-stdio` fails on this PC because the Tier B policy
+  posts, not Microsoft docs; an app crash mid-export leaves it at 1. Retest passed,
+  and Word's own setting came back afterwards. `mcp-stdio` fails on this PC because the Tier B policy
   (HKLM `AllowContentToClaude` = 1) is still on from the Phase 9 test; not a B5 change.
 
 - **Phase 9 (MCP server) done: owner check passed 2026-11-02**, tagged `phase-09-done`.
