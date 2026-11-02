@@ -1,7 +1,7 @@
 // Node runner for the engine's OCR jobs in tests: the MCP server's runner, with the
-// bundled sidecar and job folders in the system temp folder. Missing sidecar is a test
+// bundled sidecar and job folders in <temp>/pdfwb-test-jobs. Missing sidecar is a test
 // failure.
-import { tmpdir } from "node:os";
+import { testJobs } from "./job-dir";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { nodeOcr as runner } from "../../mcp-server/src/runtime/ocr";
@@ -13,5 +13,5 @@ export const TESSERACT_DIR = join(
 );
 
 export function nodeOcr(dir = TESSERACT_DIR): Ocr {
-  return runner(dir, tmpdir);
+  return runner(dir, testJobs);
 }

@@ -167,7 +167,7 @@ describe("no tool can write outside _workspace and Outputs", () => {
       ).toBe(true);
     }
     const newTemp = readdirSync(tmpdir()).filter(
-      (n) => !tempBefore.includes(n) && /^pdfwb-(qpdf|ocr)-/.test(n),
+      (n) => !tempBefore.includes(n) && /^(qpdf|ocr)-/.test(n),
     );
     expect(newTemp).toEqual([]);
   });
