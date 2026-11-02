@@ -7,6 +7,7 @@ mod fileio;
 mod fonts;
 mod launch;
 mod ocr_job;
+mod office;
 mod print;
 mod qpdf_job;
 mod repair;
@@ -75,6 +76,9 @@ pub fn run() {
             qpdf_job::qpdf_run,
             ocr_job::ocr_run,
             ocr_job::ocr_cancel,
+            office::office_apps,
+            office::office_to_pdf,
+            office::pdf_to_word,
             launch::take_launch_paths,
             settings::get_settings,
             settings::set_settings,
