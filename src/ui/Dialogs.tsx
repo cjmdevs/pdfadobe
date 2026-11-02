@@ -217,7 +217,7 @@ function MainDialog() {
       );
     case "createPdf":
       return (
-        <Modal title="Create PDF from Images" onClose={close}>
+        <Modal title="Create PDF" onClose={close}>
           <CreatePdfDialog onClose={close} />
         </Modal>
       );

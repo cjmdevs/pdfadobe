@@ -2,9 +2,11 @@
 // become numbers. The .xlsx is checked by unzipping it (Excel itself is the owner check).
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { join } from "node:path";
 import { unzipSync, strFromU8 } from "fflate";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { beforeAll, describe, expect, it } from "vitest";
+import { OUT_DIR } from "../corpus/generate.mjs";
 import { createPdfium, type PdfiumModule } from "../../src/engine/pdfium";
 import { documentXlsx } from "../../src/engine/convert";
 import { pageTable, parseAmount, type TableChar } from "../../src/engine/convert/tables";
@@ -84,7 +86,13 @@ describe("workbook", () => {
 
   it("writes a valid package with numbers, styles and escaped text", () => {
     const xlsx = writeXlsx([
-      { name: "Page 1", rows: [["A & B <c>", { n: -12.5, decimals: 2 }], [null, "x"]] },
+      {
+        name: "Page 1",
+        rows: [
+          ["A & B <c>", { n: -12.5, decimals: 2 }],
+          [null, "x"],
+        ],
+      },
       { name: "Page 1", rows: [] },
     ]);
     const files = unzipSync(xlsx);
@@ -103,6 +111,18 @@ describe("workbook", () => {
     expect(sheet).toContain('<c r="B2" t="inlineStr">');
     // Duplicate sheet names are made unique.
     expect(strFromU8(files["xl/workbook.xml"]!)).toContain('name="Page 1 2"');
+  });
+
+  it("lays out the corpus footing schedule with every amount in its column", () => {
+    const bytes = new Uint8Array(readFileSync(join(OUT_DIR, "footing.pdf")));
+    const sheet = strFromU8(unzipSync(documentXlsx(m, bytes))["xl/worksheets/sheet1.xml"]!);
+    expect(sheet).toContain(
+      '<c r="B2" t="inlineStr"><is><t>Q1</t></is></c><c r="C2" t="inlineStr"><is><t>Q2</t></is></c><c r="D2" t="inlineStr"><is><t>Total</t></is></c>',
+    );
+    expect(sheet).toContain(
+      '<c r="A4" t="inlineStr"><is><t>Receivables</t></is></c><c r="B4" s="2"><v>4100.5</v></c><c r="C4" s="2"><v>-200.5</v></c><c r="D4" s="2"><v>3900</v></c>',
+    );
+    expect(sheet).toContain('<c r="D7" s="2"><v>8700.25</v></c>');
   });
 
   it("exports a real PDF page by page", async () => {
@@ -124,7 +144,9 @@ describe("workbook", () => {
     const files = unzipSync(documentXlsx(m, await pdf.save()));
     const s1 = strFromU8(files["xl/worksheets/sheet1.xml"]!);
     expect(s1).toContain("<t>Synthetic Co. trial balance</t>");
-    expect(s1).toContain('<c r="A2" t="inlineStr"><is><t>Cash in bank</t></is></c><c r="B2" s="2"><v>12500</v></c>');
+    expect(s1).toContain(
+      '<c r="A2" t="inlineStr"><is><t>Cash in bank</t></is></c><c r="B2" s="2"><v>12500</v></c>',
+    );
     expect(s1).toContain('<c r="B4" s="2"><v>-3450.25</v></c>');
     expect(strFromU8(files["xl/worksheets/sheet2.xml"]!)).toContain("<sheetData></sheetData>");
     expect(strFromU8(files["xl/workbook.xml"]!)).toContain('name="Page 2"');

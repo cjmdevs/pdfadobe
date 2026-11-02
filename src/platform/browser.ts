@@ -280,8 +280,15 @@ export const browserPlatform: Platform = {
     return w.__PDFWB_NEXT_FOLDERS__?.shift() ?? null;
   },
 
-  async listFolder(path) {
-    const res = await fetch(`/__mockfs-list/${encodeURIComponent(path)}`);
+  async pickPaths() {
+    // Tests queue path lists in window.__PDFWB_NEXT_PATHS__.
+    const w = window as unknown as { __PDFWB_NEXT_PATHS__?: string[][] };
+    return w.__PDFWB_NEXT_PATHS__?.shift() ?? [];
+  },
+
+  async listFolder(path, opts) {
+    const office = opts?.office ? "?office=1" : "";
+    const res = await fetch(`/__mockfs-list/${encodeURIComponent(path)}${office}`);
     await mockError(res);
     return (await res.json()) as string[];
   },
@@ -307,6 +314,24 @@ export const browserPlatform: Platform = {
     return res.text();
   },
 
+  office: {
+    // Playwright stands in for Office (tests/e2e/fixtures.ts); plain `npm run dev` has none.
+    async apps() {
+      const res = await fetch("/__office-apps");
+      if (!res.ok) return { word: false, excel: false, powerpoint: false };
+      return (await res.json()) as { word: boolean; excel: boolean; powerpoint: boolean };
+    },
+    async toPdf(path) {
+      const res = await fetch(`/__office-pdf/${encodeURIComponent(path)}`, { method: "POST" });
+      await mockError(res);
+      return new Uint8Array(await res.arrayBuffer());
+    },
+    async pdfToWord(bytes) {
+      const res = await fetch("/__office-docx", { method: "POST", body: bytes.slice() });
+      await mockError(res);
+      return new Uint8Array(await res.arrayBuffer());
+    },
+  },
   docs,
   stamps,
   signatures,

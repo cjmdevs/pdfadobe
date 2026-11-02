@@ -85,7 +85,11 @@ function sheetXml(rows: SheetCell[][]): string {
 function sheetNames(names: string[]): string[] {
   const used = new Set<string>();
   return names.map((n, i) => {
-    const base = n.replace(/[[\]:*?/\\]/g, " ").trim().slice(0, 31) || `Sheet${i + 1}`;
+    const base =
+      n
+        .replace(/[[\]:*?/\\]/g, " ")
+        .trim()
+        .slice(0, 31) || `Sheet${i + 1}`;
     let name = base;
     for (let k = 2; used.has(name.toLowerCase()); k++) {
       name = `${base.slice(0, 31 - String(k).length - 1)} ${k}`;

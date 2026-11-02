@@ -12,7 +12,9 @@ import type { DocInfo, DocStore } from "../app/docstore";
 import type { FontIndexCache } from "../engine/edit/fonts";
 import {
   PlatformError,
+  OFFICE_EXTENSIONS,
   baseName,
+  type OfficeApps,
   type AppWindows,
   type CertInfo,
   type CertProvider,
@@ -250,7 +252,27 @@ export const tauriPlatform: Platform = {
     return typeof picked === "string" ? picked : null;
   },
 
-  listFolder: (path) => call<string[]>("list_folder", { path }),
+  async pickPaths() {
+    const office = Object.values(OFFICE_EXTENSIONS).flat();
+    const picked = await open({
+      multiple: true,
+      directory: false,
+      filters: [
+        {
+          name: "Office, PDF and image files",
+          extensions: [...office, "pdf", ...IMAGE_EXTENSIONS],
+        },
+        { name: "Word, Excel and PowerPoint", extensions: office },
+        { name: "PDF files", extensions: ["pdf"] },
+        { name: "Images", extensions: IMAGE_EXTENSIONS },
+      ],
+    });
+    if (!picked) return [];
+    return Array.isArray(picked) ? picked : [picked];
+  },
+
+  listFolder: (path, opts) =>
+    call<string[]>("list_folder", { path, office: opts?.office ?? false }),
 
   async save(path, bytes) {
     await call("save_pdf", bytes, headers({ "x-target": path }));
@@ -271,6 +293,11 @@ export const tauriPlatform: Platform = {
   writeNewFile: (folder, name, bytes) =>
     call<string>("write_new_file", bytes, headers({ "x-folder": folder, "x-name": name })),
 
+  office: {
+    apps: () => call<OfficeApps>("office_apps"),
+    toPdf: async (path) => new Uint8Array(await call<ArrayBuffer>("office_to_pdf", { path })),
+    pdfToWord: async (bytes) => new Uint8Array(await call<ArrayBuffer>("pdf_to_word", bytes)),
+  },
   qpdf,
   ocr,
   docs,

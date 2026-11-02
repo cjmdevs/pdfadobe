@@ -73,6 +73,9 @@ export interface MockFs {
   repaired: Map<string, string>;
   /** Every write the app made, in order: Save, Save As, new files (Split). */
   writes: { path: string; mode: string }[];
+  /** Stand-in desktop Office (B5): which apps are "installed", and the paths converted.
+   * An Office file's entry holds the PDF its conversion gives. */
+  office: { apps: { word: boolean; excel: boolean; powerpoint: boolean }; converted: string[] };
 }
 
 export const FIXTURES = join(import.meta.dirname, "..", "corpus", "fixtures");
@@ -85,12 +88,18 @@ export function bytesAt(fs: MockFs, path: string): Buffer {
 }
 
 const COMBINABLE = /\.(pdf|jpe?g|png|tiff?)$/i;
+const OFFICE = /\.(docx?|docm|dotx?|rtf|odt|xlsx?|xlsm|xlsb|csv|ods|pptx?|pptm|ppsx?|odp)$/i;
 
 export const test = base.extend<{ mockfs: MockFs; external: string[] }>({
   // Auto fixtures: every test gets the mock file system and the network guard.
   mockfs: [
     async ({ page }, use) => {
-      const fs: MockFs = { entries: { ...DEFAULT_FS }, repaired: new Map(), writes: [] };
+      const fs: MockFs = {
+        entries: { ...DEFAULT_FS },
+        repaired: new Map(),
+        writes: [],
+        office: { apps: { word: false, excel: false, powerpoint: false }, converted: [] },
+      };
       await page.route("**/__mockfs/**", async (route) => {
         const url = new URL(route.request().url());
         let path = decodeURIComponent(url.pathname.slice("/__mockfs/".length));
@@ -129,13 +138,45 @@ export const test = base.extend<{ mockfs: MockFs; external: string[] }>({
         const prefix = dir.endsWith("\\") ? dir : `${dir}\\`;
         const files = Object.keys(fs.entries)
           .filter((p) => p.startsWith(prefix) && !p.slice(prefix.length).includes("\\"))
-          .filter((p) => COMBINABLE.test(p))
+          .filter(
+            (p) =>
+              COMBINABLE.test(p) ||
+              (url.searchParams.has("office") && OFFICE.test(p) && !p.includes("\\~$")),
+          )
           .sort((a, b) => a.localeCompare(b, "en", { numeric: true, sensitivity: "base" }));
         return route.fulfill({
           status: 200,
           contentType: "application/json",
           body: JSON.stringify(files),
         });
+      });
+      // Desktop Office (office.rs): an Office file "converts" to the PDF stored at its path.
+      await page.route("**/__office-apps", (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(fs.office.apps),
+        }),
+      );
+      await page.route("**/__office-pdf/**", async (route) => {
+        const url = new URL(route.request().url());
+        const path = decodeURIComponent(url.pathname.slice("/__office-pdf/".length));
+        const entry = fs.entries[path];
+        if (!entry) return route.fulfill({ status: 404, body: "not found" });
+        if ("error" in entry)
+          return route.fulfill({
+            status: 500,
+            headers: { "x-mockfs-error": "other" },
+            body: entry.message,
+          });
+        fs.office.converted.push(path);
+        return route.fulfill({ status: 200, body: bytesAt(fs, path) });
+      });
+      await page.route("**/__office-docx", (route) => {
+        const pdf = route.request().postDataBuffer() ?? Buffer.alloc(0);
+        if (pdf.subarray(0, 4).toString() !== "%PDF")
+          return route.fulfill({ status: 500, body: "not a PDF" });
+        return route.fulfill({ status: 200, body: Buffer.from([0x50, 0x4b, 3, 4, 0x20]) });
       });
       // qpdf for page operations runs here, in the test process (like the Tauri command).
       const qpdf = nodeQpdf();
@@ -259,14 +300,19 @@ export async function currentPageNumber(page: Page): Promise<number> {
 }
 
 /** Answers for the next Save As dialogs and folder pickers (browser platform hooks). */
-export async function queueChoices(page: Page, opts: { savePaths?: string[]; folders?: string[] }) {
+export async function queueChoices(
+  page: Page,
+  opts: { savePaths?: string[]; folders?: string[]; paths?: string[][] },
+) {
   await page.evaluate((o) => {
     const w = window as unknown as {
       __PDFWB_NEXT_SAVE_PATHS__?: string[];
       __PDFWB_NEXT_FOLDERS__?: string[];
+      __PDFWB_NEXT_PATHS__?: string[][];
     };
     w.__PDFWB_NEXT_SAVE_PATHS__ = [...(w.__PDFWB_NEXT_SAVE_PATHS__ ?? []), ...(o.savePaths ?? [])];
     w.__PDFWB_NEXT_FOLDERS__ = [...(w.__PDFWB_NEXT_FOLDERS__ ?? []), ...(o.folders ?? [])];
+    w.__PDFWB_NEXT_PATHS__ = [...(w.__PDFWB_NEXT_PATHS__ ?? []), ...(o.paths ?? [])];
   }, opts);
 }
 

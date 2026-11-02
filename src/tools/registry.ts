@@ -1313,15 +1313,16 @@ export const TOOLS: ToolDef[] = [
     name: "Create PDF",
     icon: "createPdf",
     color: "#d0336c",
-    description: "A PDF from scanned images (JPEG, PNG, TIFF), searchable if you like",
+    description:
+      "PDFs from Word, Excel, PowerPoint or scanned images; a whole folder, or several files combined into one",
     comingIn: null,
     needsDocument: false,
     open: (c) => c.wb.setDialog({ kind: "createPdf" }),
     toolbar: [
       {
         id: "fromImages",
-        label: "Create PDF from images…",
-        caption: "From Images",
+        label: "Create PDF from files…",
+        caption: "From Files",
         icon: "createPdf",
         run: (c) => c.wb.setDialog({ kind: "createPdf" }),
         enabled: () => true,
@@ -1333,7 +1334,7 @@ export const TOOLS: ToolDef[] = [
     name: "Export PDF",
     icon: "exportFile",
     color: "#3a6fd8",
-    description: "Pages as PNG or JPEG images, or the text as a .txt file",
+    description: "To Word, Excel, PNG or JPEG images, or a .txt file",
     comingIn: null,
     open: (c) => {
       if (c.documentId) c.wb.setDialog({ kind: "exportPdf", documentId: c.documentId });
@@ -1341,7 +1342,7 @@ export const TOOLS: ToolDef[] = [
     toolbar: [
       {
         id: "export",
-        label: "Export pages as images or text…",
+        label: "Export to Word, Excel, images or text…",
         caption: "Export",
         icon: "exportFile",
         run: (c) => {

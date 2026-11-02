@@ -76,8 +76,11 @@ export interface Platform {
   }): Promise<OpenedFile[]>;
   /** Folder picker; null when cancelled. */
   pickFolder(): Promise<string | null>;
-  /** PDFs and images directly in a folder (not subfolders), in natural name order. */
-  listFolder(path: string): Promise<string[]>;
+  /** Open dialog that returns paths only (Create PDF: PDFs, images and Office files). */
+  pickPaths(kind: "create"): Promise<string[]>;
+  /** PDFs and images directly in a folder (not subfolders), in natural name order.
+   * `office` also lists Word, Excel and PowerPoint files (Create PDF, B5). */
+  listFolder(path: string, opts?: { office?: boolean }): Promise<string[]>;
   readPath(path: string): Promise<OpenedFile>;
   /** Paths passed on the command line at first launch (Explorer "Open with"). */
   takeLaunchPaths(): Promise<string[]>;
@@ -103,6 +106,8 @@ export interface Platform {
   discardBackup(path: string): Promise<void>;
   /** Writes `name` into `folder`, adding " (2)", " (3)"... instead of overwriting. Returns the path. */
   writeNewFile(folder: string, name: string, bytes: Uint8Array): Promise<string>;
+  /** Desktop Word, Excel and PowerPoint, driven in the background (B5). */
+  office: Office;
   /** qpdf for page operations (src/engine/pages). */
   qpdf: Qpdf;
   /** Tesseract for Recognize Text (src/engine/ocr). */
@@ -135,6 +140,37 @@ export interface Platform {
 }
 
 /** Programs Edit Using can open an image in. */
+export interface OfficeApps {
+  word: boolean;
+  excel: boolean;
+  powerpoint: boolean;
+}
+
+export interface Office {
+  /** Which desktop Office apps are installed (web-only Office does not count). */
+  apps(): Promise<OfficeApps>;
+  /** A Word, Excel or PowerPoint file as PDF bytes (the app runs hidden, read-only). */
+  toPdf(path: string): Promise<Uint8Array>;
+  /** PDF bytes as a .docx, through Word's own PDF conversion. */
+  pdfToWord(bytes: Uint8Array): Promise<Uint8Array>;
+}
+
+/** Extensions each Office app converts (matches `app_for` in src-tauri/src/office.rs). */
+export const OFFICE_EXTENSIONS: Record<keyof OfficeApps, string[]> = {
+  word: ["doc", "docx", "docm", "dot", "dotx", "rtf", "odt"],
+  excel: ["xls", "xlsx", "xlsm", "xlsb", "csv", "ods"],
+  powerpoint: ["ppt", "pptx", "pptm", "pps", "ppsx", "odp"],
+};
+
+/** The Office app that converts a file, by extension; null for anything else. */
+export function officeAppFor(name: string): keyof OfficeApps | null {
+  const ext = /\.([^.\\/]+)$/.exec(name)?.[1]?.toLowerCase() ?? "";
+  for (const [app, exts] of Object.entries(OFFICE_EXTENSIONS)) {
+    if (exts.includes(ext)) return app as keyof OfficeApps;
+  }
+  return null;
+}
+
 export type ExternalApp = "paint" | "choose" | "default";
 
 export interface ExternalEdit {

@@ -12,10 +12,7 @@ export interface TableChar {
 }
 
 /** A sheet cell: text, or an amount with the number of decimals it was printed with. */
-export type SheetCell =
-  | string
-  | { n: number; decimals: number; percent?: boolean }
-  | null;
+export type SheetCell = string | { n: number; decimals: number; percent?: boolean } | null;
 
 interface Cell {
   text: string;

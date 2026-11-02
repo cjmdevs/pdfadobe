@@ -258,13 +258,14 @@ pub fn discard_backup(path: String) -> Result<(), FileError> {
 /// Files in a folder that Combine Files accepts (PDF and images), in natural name order.
 /// Not recursive.
 #[tauri::command]
-pub async fn list_folder(path: String) -> Result<Vec<String>, FileError> {
+pub async fn list_folder(path: String, office: Option<bool>) -> Result<Vec<String>, FileError> {
+    let office = office.unwrap_or(false);
     let dir = PathBuf::from(&path);
     let mut out: Vec<PathBuf> = fs::read_dir(&dir)
         .map_err(|e| classify("open the folder", &e))?
         .filter_map(|e| e.ok())
         .map(|e| e.path())
-        .filter(|p| p.is_file() && is_combinable(p))
+        .filter(|p| p.is_file() && (is_combinable(p) || (office && is_office(p))))
         .collect();
     out.sort_by(|a, b| natural_cmp(&file_name(a), &file_name(b)));
     Ok(out
@@ -289,6 +290,12 @@ pub fn is_combinable(p: &Path) -> bool {
         ext.as_str(),
         "pdf" | "jpg" | "jpeg" | "png" | "tif" | "tiff"
     )
+}
+
+/// A Word, Excel or PowerPoint file (Create PDF, backlog B5). Office's "~$" lock files
+/// are left out.
+pub fn is_office(p: &Path) -> bool {
+    !file_name(p).starts_with("~$") && crate::office::app_for(p).is_some()
 }
 
 /// "Page 2" before "Page 10": digit runs compare as numbers.
@@ -562,13 +569,31 @@ mod tests {
     #[test]
     fn lists_combinable_files_in_natural_order() {
         let d = tmpdir("list");
-        for n in ["Scan 10.pdf", "Scan 2.PDF", "notes.txt", "a.tif", "b.JPG"] {
+        for n in [
+            "Scan 10.pdf",
+            "Scan 2.PDF",
+            "notes.txt",
+            "a.tif",
+            "b.JPG",
+            "TB.xlsx",
+            "~$TB.xlsx",
+        ] {
             fs::write(d.join(n), b"x").unwrap();
         }
         fs::create_dir_all(d.join("sub.pdf")).unwrap();
-        let got = tauri::async_runtime::block_on(list_folder(d.to_string_lossy().into())).unwrap();
+        let got =
+            tauri::async_runtime::block_on(list_folder(d.to_string_lossy().into(), None)).unwrap();
         let names: Vec<_> = got.iter().map(|p| file_name(Path::new(p))).collect();
         assert_eq!(names, ["a.tif", "b.jpg", "scan 2.pdf", "scan 10.pdf"]);
+        // Create PDF also lists Office files, but never Office's "~$" lock files.
+        let got =
+            tauri::async_runtime::block_on(list_folder(d.to_string_lossy().into(), Some(true)))
+                .unwrap();
+        let names: Vec<_> = got.iter().map(|p| file_name(Path::new(p))).collect();
+        assert_eq!(
+            names,
+            ["a.tif", "b.jpg", "scan 2.pdf", "scan 10.pdf", "tb.xlsx"]
+        );
         fs::remove_dir_all(d).unwrap();
     }
 
