@@ -6,7 +6,7 @@ Keep it under 2 pages; summarize older phases.
 ## Current status
 
 - **Phase 9 (MCP server) built 2026-11-02; owner check 2026-11-02: steps 1-6, 9, 10 pass;
-  7-8 to redo** (the extension folder was set to C:PWTest, not C:PWTestShared, so
+  7-8 to redo** (the extension folder was set to `C:\PWTest`, not `C:\PWTest\Shared`, so
   Outside was allowed; code behaved as designed). Manifest author is "Carson".
   (`docs/testing/phase-09-test-guide.md`; spec and decisions in `docs/phases/phase-09.md`).
   On the build PC: `npm run check` (627 Vitest + 1 intended skip, 62 Rust,
