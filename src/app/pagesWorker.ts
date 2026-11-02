@@ -77,7 +77,7 @@ import {
   type WatermarkSpec,
 } from "../engine/decorate";
 import { graftKinds } from "../engine/pages/graft";
-import { documentText, pageImage, type ImageFormat } from "../engine/convert";
+import { documentText, documentXlsx, pageImage, type ImageFormat } from "../engine/convert";
 import { createKerner, type Kerner } from "../engine/edit/fonts/kern";
 import { applySpacing } from "../engine/edit/spacing";
 import { addPdflyerKeys } from "../engine/flyer/pdflyer";
@@ -330,6 +330,8 @@ export const OPS = {
   ) => pageImage(c.module, b, page, dpi, format, quality),
   /** Export: the document as plain text. */
   documentText: async (c: Ctx, b: Uint8Array, pages?: number[]) => documentText(c.module, b, pages),
+  /** Export to Excel (B5): one sheet per page, amounts as numbers. */
+  documentXlsx: async (c: Ctx, b: Uint8Array, pages?: number[]) => documentXlsx(c.module, b, pages),
   /** Enhance: turn tilted pages level (lossless). */
   straightenPages: (c: Ctx, b: Uint8Array, pages: number[]) =>
     straightenPages(c.module, c.qpdf, b, pages),

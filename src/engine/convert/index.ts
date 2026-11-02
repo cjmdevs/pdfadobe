@@ -1,7 +1,12 @@
-// Conversions (Phase 7, no Office formats in v1): PDF pages to PNG or JPEG at a chosen
-// resolution, and PDF to plain text. Images to PDF is pages/images.ts (imagesToPdf).
+// Conversions (Phase 7): PDF pages to PNG or JPEG at a chosen resolution, and PDF to
+// plain text. Images to PDF is pages/images.ts (imagesToPdf). B5 adds PDF to Excel
+// (tables.ts lays the text out, xlsx.ts writes the file); Office formats go through the
+// host (src-tauri/src/office.rs).
 import type { PdfiumModule } from "../pdfium";
+import { pageChars } from "../edit/chars";
 import { heap, RawDoc } from "../pages/raw";
+import { pageTable } from "./tables";
+import { writeXlsx } from "./xlsx";
 import { encodePng } from "../pages/png";
 import { encodeJpeg } from "../optimize/jpeg";
 
@@ -110,6 +115,34 @@ export function documentText(m: PdfiumModule, bytes: Uint8Array, pages?: number[
           .trimEnd(),
       )
       .join("\r\n\f");
+  } finally {
+    doc.close();
+  }
+}
+
+/**
+ * The document as an Excel workbook: one sheet per page ("Page 3"), each text line a
+ * row, amounts as numbers. Pages with no text (scans without OCR) give empty sheets.
+ */
+export function documentXlsx(m: PdfiumModule, bytes: Uint8Array, pages?: number[]): Uint8Array {
+  const doc = RawDoc.open(m, bytes);
+  try {
+    const list = pages ?? Array.from({ length: doc.pageCount }, (_, i) => i);
+    const sheets = list.map((i) => ({
+      name: `Page ${i + 1}`,
+      rows: doc.withPage(i, (page) => {
+        const tp = m.FPDFText_LoadPage(page);
+        if (!tp) return [];
+        try {
+          // Count first: an empty text page must not be read (stale WASM memory).
+          if (m.FPDFText_CountChars(tp) <= 0) return [];
+          return pageTable(pageChars(m, tp).filter((c) => !c.generated));
+        } finally {
+          m.FPDFText_ClosePage(tp);
+        }
+      }),
+    }));
+    return writeXlsx(sheets);
   } finally {
     doc.close();
   }
