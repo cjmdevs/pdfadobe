@@ -355,7 +355,7 @@ details.panel-section[open] > summary::before {
   margin: 0;
   padding: 0;
 }
-.rows > li > button,
+.rows > li:not(.row) > button,
 .rows > li.row {
   width: 100%;
   display: flex;
@@ -368,8 +368,8 @@ details.panel-section[open] > summary::before {
   background: transparent;
   padding: var(--space-2) var(--space-3);
 }
-.rows > li > button.active,
-.rows > li > button[aria-selected="true"] {
+.rows > li:not(.row) > button.active,
+.rows > li:not(.row) > button[aria-selected="true"] {
   background: var(--bg-active);
   color: var(--accent-ink);
 }

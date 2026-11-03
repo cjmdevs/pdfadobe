@@ -228,7 +228,7 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
             return (
               <li key={m.id} className="row" data-accepted={ok}>
                 <button type="button" className="link grow" onClick={() => jump(m)}>
-                  <span className="muted num">Page {m.pageIndex + 1}</span>{" "}
+                  <span className="muted num">Page {m.pageIndex + 1} ·</span>{" "}
                   {SOURCE_LABELS[info?.source ?? "manual"]}
                   {info?.text ? (
                     <>

@@ -2616,7 +2616,7 @@ body.pointer-dragging * {
 .redact-panel code,
 .stamp-summary code {
   font: var(--text-sm) var(--font-mono);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .redact-panel .rows {
   max-height: 240px;
@@ -2624,16 +2624,27 @@ body.pointer-dragging * {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
+/* Each mark: what and where on the first line (full width), Accept / Reject below. */
 .redact-panel .rows > li.row {
-  padding: var(--space-1) var(--space-2);
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  gap: var(--space-2) var(--space-3);
+}
+.redact-panel .rows > li.row > .link,
+.redact-panel .rows > li.row > .grow {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+.redact-panel .review > li.row {
+  justify-content: flex-end;
 }
 .redact-panel .rows > li.row:last-child {
   border-bottom: 0;
 }
 .redact-panel .review .tool.small {
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-3);
   font-size: var(--text-sm);
+  line-height: var(--leading);
   border-color: var(--border-strong);
 }
 .redact-panel .review [data-accepted="true"] .link {
