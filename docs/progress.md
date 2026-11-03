@@ -38,6 +38,17 @@ Keep it under 2 pages; summarize older phases.
     125/150 % checked by emulating the smaller CSS viewport; the real Windows Scale
     setting is owner step 9. Toolbars keep every control as a Tab stop (arrow keys are
     extra), not a single roving stop.
+  - **Owner check 2026-11-03:** steps 1-2, 5, 7-11 passed; 4 and 6 re-explained. Step 3
+    found two problems, both fixed: the review rows were cramped (a shared `.rows` rule
+    stretched their buttons), and Find + Mark all + Apply on `ssn-redaction.pdf` was
+    refused because the SSN is also a form field's value, which Find did not search, and
+    the message pointed at Sanitize, which cannot help. Now Find also searches form-field
+    values (`engine/redact/fieldSearch.ts`, whole widget marked, label "Form field
+    (SSN)"; the MCP redact_patterns tool uses the same code) and a refusal says where the
+    text still is with the one fix for it (`places.ts`: form field + page, comment +
+    page, bookmark, properties, elsewhere; `RedactionLeakError.places`). Tests:
+    `tests/unit/redact-fields.test.ts`, two new cases in `redact.spec.ts`.
+    `.mcpb` rebuilt. This changes Redact behaviour (owner approved 2026-11-03).
   - **Known gaps:** at small zoom a connector's end covers its tickmark, so dragging the
     tickmark can grab the connector (seen when the pane grew to 280 px; 260 px passes).
     The capture script misses the Header & Footer/Watermark/More menus, error and loading
