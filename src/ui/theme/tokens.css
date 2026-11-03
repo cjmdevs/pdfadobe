@@ -1,0 +1,160 @@
+/* PDF Workbench design tokens (B7, "Ledger" direction). Every colour, size, radius and
+   shadow in the UI comes from here; components never use raw values. Light on :root,
+   dark on [data-theme="dark"] (set from settings: system / light / dark).
+   Contrast (WCAG AA) is checked by tests/unit/contrast.test.ts against these values. */
+
+:root {
+  /* Surfaces */
+  --bg: #f1efe9; /* app background behind panels */
+  --bg-chrome: #f8f7f3; /* tab bar, toolbars, rail */
+  --bg-panel: #fbfaf7; /* side panels, dialogs, menus */
+  --bg-field: #ffffff; /* inputs, selects, secondary buttons */
+  --bg-sunken: #ebe8df; /* tab strip, segmented control track, code */
+  --bg-hover: rgb(29 35 33 / 0.06);
+  --bg-active: #d5e8e0; /* selected row, pressed tool */
+  --bg-doc: #d9d5ca; /* behind PDF pages */
+  --bg-page: #ffffff; /* paper: thumbnails, previews (always light) */
+  --bg-overlay: rgb(20 22 20 / 0.4); /* dialog backdrop */
+
+  /* Text */
+  --fg: #1d2321;
+  --fg-muted: #545b57;
+  --fg-subtle: #6b706a; /* placeholders, disabled labels (4.5:1 on panel) */
+  --fg-on-page: #1d2321; /* text drawn on --bg-page */
+
+  /* Lines */
+  --border: #d8d4c8; /* dividers between areas (decorative) */
+  --border-strong: #8a8578; /* input and button outlines (3:1 on panel) */
+
+  /* Accent and status */
+  --accent: #1f6f5c;
+  --accent-hover: #185a4a;
+  --accent-fg: #ffffff;
+  --accent-ink: #164f42; /* accent text on --bg-active */
+  --danger: #b3261e;
+  --danger-bg: #fbe9e7;
+  --warning: #8a5300;
+  --warning-bg: #fdf3dc;
+  --success: #1f6f5c;
+  --success-bg: #e3f1ea;
+  --mark: #ffe066; /* search hits */
+  --focus: #1f6f5c;
+  --tickmark: #c00000; /* red pen glyphs in menus (on chrome) */
+
+  /* Drawn on the PDF page itself (paper stays white in both themes, so these do not
+     change with the theme): edit outlines, field placement, signature boxes, hits. */
+  --page-accent: #1f6f5c;
+  --page-accent-tint: rgb(31 111 92 / 0.1);
+  --page-danger: #c5221f;
+  --page-line: rgb(110 110 110 / 0.55);
+  --page-field: rgb(204 215 255 / 0.55);
+  --page-scrim: rgb(0 0 0 / 0.25);
+  --page-placeholder-bg: rgb(255 248 225 / 0.6);
+  --page-placeholder-fg: #6b5a00;
+  --page-placeholder-line: #888888;
+
+  /* Tool tints (Tools pane icons) */
+  --tint-green: #2e7d3e;
+  --tint-violet: #6a4cc2;
+  --tint-slate: #5a615d;
+  --tint-rose: #b52a5f;
+  --tint-amber: #946200;
+  --tint-orange: #b23c0a;
+  --tint-teal: #0f6b64;
+  --tint-blue: #2f5fbf;
+
+  /* Type */
+  --font: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: Consolas, "Cascadia Mono", monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 16px;
+  --text-xl: 20px;
+  --weight-normal: 400;
+  --weight-strong: 600;
+  --leading: 1.4;
+
+  /* Spacing (4 px grid; 2 px for hairline nudges only) */
+  --space-1: 2px;
+  --space-2: 4px;
+  --space-3: 8px;
+  --space-4: 12px;
+  --space-5: 16px;
+  --space-6: 24px;
+  --space-7: 32px;
+
+  /* Sizes */
+  --control-h: 28px;
+  --control-h-sm: 24px;
+  --icon-button: 32px;
+  --toolbar-h: 40px;
+  --tool-toolbar-h: 44px;
+  --panel-head-h: 40px;
+  --rail-w: 44px;
+
+  /* Radius: Ledger is square-ish */
+  --radius-sm: 2px; /* controls, chips */
+  --radius: 3px; /* menus, cards, toasts */
+  --radius-lg: 4px; /* dialogs */
+
+  /* Elevation */
+  --elev-1: 0 2px 6px rgb(29 35 33 / 0.16); /* menus, popovers, toasts */
+  --elev-2: 0 8px 28px rgb(29 35 33 / 0.24); /* dialogs */
+  --elev-page: 0 1px 4px rgb(0 0 0 / 0.22); /* PDF pages and thumbnails */
+  --shadow: var(--elev-1); /* older name */
+
+  color-scheme: light;
+  font: var(--text-base) / var(--leading) var(--font);
+  color: var(--fg);
+  background: var(--bg);
+}
+
+:root[data-theme="dark"] {
+  --bg: #1a1b19;
+  --bg-chrome: #22231f;
+  --bg-panel: #1f201d;
+  --bg-field: #2a2b26;
+  --bg-sunken: #161714;
+  --bg-hover: rgb(255 255 255 / 0.06);
+  --bg-active: #23443a;
+  --bg-doc: #121310;
+  --bg-overlay: rgb(0 0 0 / 0.55);
+
+  --fg: #ecebe5;
+  --fg-muted: #b1b0a6;
+  --fg-subtle: #94938a;
+
+  --border: #33342f;
+  --border-strong: #7f8077;
+
+  --accent: #5bbf9f;
+  --accent-hover: #74cdb0;
+  --accent-fg: #0d1512;
+  --accent-ink: #9fe3cc;
+  --danger: #f2948a;
+  --danger-bg: #3a1f1c;
+  --warning: #e9b35a;
+  --warning-bg: #352a17;
+  --success: #6fcca9;
+  --success-bg: #1b3128;
+  --mark: #6b5400;
+  --focus: #8fdcc2;
+  --tickmark: #ff7b72;
+
+  --tint-green: #6cc489;
+  --tint-violet: #a993f2;
+  --tint-slate: #a9aea6;
+  --tint-rose: #f07ca8;
+  --tint-amber: #e0b04f;
+  --tint-orange: #f2925c;
+  --tint-teal: #5cc7bd;
+  --tint-blue: #7fa6f2;
+
+  --elev-1: 0 2px 8px rgb(0 0 0 / 0.5);
+  --elev-2: 0 10px 32px rgb(0 0 0 / 0.6);
+  --elev-page: 0 1px 6px rgb(0 0 0 / 0.6);
+
+  color-scheme: dark;
+}

@@ -1,0 +1,509 @@
+/* PDF Workbench base styles and shared kit classes (B7). Tokens: tokens.css.
+   Feature styles (styles.css) build on these and use tokens only. */
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  overflow: hidden;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+h1,
+h2,
+h3,
+h4 {
+  font-weight: var(--weight-strong);
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+}
+.muted {
+  color: var(--fg-muted);
+}
+.small {
+  font-size: var(--text-sm);
+}
+.pad {
+  padding: var(--space-4);
+}
+.grow {
+  flex: 1;
+}
+.error-text {
+  color: var(--danger);
+}
+.hint {
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+  margin: var(--space-2) 0;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Buttons ----
+   button          secondary (default): outlined, for Cancel, Close and most actions
+   .primary        one per dialog or panel: the action the screen is for
+   .danger-fill    primary that destroys or removes (Apply redactions, Delete)
+   .subtle         borderless text button (links inside panels, "Clear")
+   .tool           icon button in toolbars (32 x 32)
+   .tool.labeled   icon over a short label (tool toolbars) */
+button {
+  min-height: var(--control-h);
+  padding: 0 var(--space-4);
+  background: var(--bg-field);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+  font-weight: var(--weight-strong);
+}
+button.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+button.primary.danger-fill {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--bg-field);
+}
+button.subtle {
+  border-color: transparent;
+  background: transparent;
+  color: var(--accent);
+  padding: 0 var(--space-2);
+}
+button.big {
+  display: inline-flex;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-5);
+}
+.button-row {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-top: var(--space-3);
+}
+.button-row.end,
+.modal footer.button-row {
+  justify-content: flex-end;
+}
+.button-row.inline {
+  display: inline-flex;
+  margin: 0 0 0 var(--space-3);
+}
+
+/* ---- Fields ---- */
+input,
+select,
+textarea {
+  min-height: var(--control-h);
+  background: var(--bg-field);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-3);
+}
+textarea {
+  padding: var(--space-2) var(--space-3);
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--fg-subtle);
+}
+input[type="checkbox"],
+input[type="radio"] {
+  min-height: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+  flex: none;
+}
+input[type="color"] {
+  width: 40px;
+  padding: var(--space-1);
+}
+input[type="range"] {
+  accent-color: var(--accent);
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+.check {
+  display: inline-flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+/* One option per line (checkbox or radio lists in panels and dialogs). */
+.checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.checks > label {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+/* Label column + control column; labels never run into their control. */
+.form-grid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: var(--space-3) var(--space-4);
+  align-items: center;
+}
+.form-grid > label {
+  color: var(--fg);
+}
+.form-grid > .full {
+  grid-column: 1 / -1;
+}
+fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+legend {
+  padding: 0 var(--space-2);
+  font-weight: var(--weight-strong);
+}
+
+/* ---- Section headings (Ledger: small caps) ---- */
+.section-title,
+.panel-head h2,
+.panel-head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+  font-variant: all-small-caps;
+  letter-spacing: 0.04em;
+  color: var(--fg);
+}
+.section-title.muted {
+  color: var(--fg-muted);
+}
+
+/* ---- Notices (info, warning, danger, success) ---- */
+.notice {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-field);
+  margin: var(--space-3) 0;
+}
+.notice.warning {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
+}
+.notice.danger {
+  border-left-color: var(--danger);
+  background: var(--danger-bg);
+}
+.notice.success {
+  border-left-color: var(--success);
+  background: var(--success-bg);
+}
+
+/* ---- Segmented control (tabs inside a panel or dialog) ---- */
+.seg {
+  display: flex;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.seg > button {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.seg > button + button {
+  border-left: 1px solid var(--border);
+}
+.seg > button[aria-selected="true"],
+.seg > button[aria-pressed="true"],
+.seg > button.active {
+  background: var(--bg-active);
+  color: var(--accent-ink);
+  font-weight: var(--weight-strong);
+}
+
+/* ---- Panels (side panels and the Tools pane) ---- */
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-panel);
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--panel-head-h);
+  padding: 0 var(--space-3) 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+  flex: none;
+}
+.panel-head > :first-child:is(h2, h3) {
+  flex: 1;
+}
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+}
+.panel-section:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+/* Collapsible section: <details class="panel-section"><summary>…</summary> */
+details.panel-section > summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+details.panel-section > summary::-webkit-details-marker {
+  display: none;
+}
+details.panel-section > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  margin: 0 var(--space-2) 0 var(--space-1);
+  transition: transform 0.1s;
+}
+details.panel-section[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+/* ---- Lists (rows in panels: comments, results, recent files) ---- */
+.rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.rows > li > button,
+.rows > li.row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-align: left;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  padding: var(--space-2) var(--space-3);
+}
+.rows > li > button.active,
+.rows > li > button[aria-selected="true"] {
+  background: var(--bg-active);
+  color: var(--accent-ink);
+}
+
+/* ---- Menus (dropdowns from toolbars) ---- */
+.action-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 220px;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-2) 0;
+  list-style: none;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--elev-1);
+}
+.action-menu li.separator {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+}
+.action-menu li.heading {
+  padding: var(--space-2) var(--space-4) 0;
+  font-size: var(--text-sm);
+  font-variant: all-small-caps;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+}
+.action-menu li.muted {
+  padding: var(--space-2) var(--space-4);
+  color: var(--fg-muted);
+}
+.action-menu button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0 var(--space-4) 0 var(--space-3);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+}
+.action-menu button:hover:not(:disabled),
+.action-menu button:focus-visible {
+  background: var(--bg-hover);
+}
+.action-menu button:focus-visible {
+  outline-offset: -2px;
+}
+.action-menu .tick {
+  width: 16px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+}
+
+/* ---- Dialogs ---- */
+.modal {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  padding: 0;
+  background: var(--bg-panel);
+  color: var(--fg);
+  box-shadow: var(--elev-2);
+  width: min(560px, 92vw);
+  max-height: 88vh;
+}
+.modal.wide {
+  width: min(820px, 94vw);
+}
+.modal > form,
+.modal {
+  display: flex;
+  flex-direction: column;
+}
+.modal:not([open]) {
+  display: none;
+}
+.modal::backdrop {
+  background: var(--bg-overlay);
+}
+.modal header {
+  padding: var(--space-5) var(--space-6) var(--space-3);
+}
+.modal h2 {
+  margin: 0;
+  font-size: var(--text-lg);
+}
+.modal h3 {
+  font-size: var(--text-base);
+  margin: var(--space-4) 0 var(--space-3);
+}
+.modal-body {
+  padding: var(--space-2) var(--space-6) var(--space-4);
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+  max-height: calc(88vh - 120px);
+}
+.modal footer {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-6);
+  margin: 0;
+  border-top: 1px solid var(--border);
+  background: var(--bg-chrome);
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+.modal footer .footer-start {
+  margin-right: auto;
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* ---- Toasts ---- */
+.toasts {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  z-index: 60;
+}
+.toast {
+  max-width: 420px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-left: 3px solid var(--success);
+  box-shadow: var(--elev-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius);
+}
+.toast.error {
+  border-left-color: var(--danger);
+}
+
+kbd {
+  display: inline-block;
+  font: var(--text-xs) var(--font-mono);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  margin: 0 var(--space-2) var(--space-1) 0;
+  background: var(--bg-sunken);
+}

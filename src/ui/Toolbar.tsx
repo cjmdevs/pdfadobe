@@ -1,4 +1,12 @@
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import type { Theme, ViewMode } from "../app/settings";
@@ -21,6 +29,7 @@ import {
 } from "../tools/registry";
 import { useDocToolContext, useNoDocToolContext } from "../tools/useToolContext";
 import { Icon, type IconName } from "./Icon";
+import { onMenuKeys, onToolbarKeys, useFocusFirst } from "./kit/keyboard";
 
 /** An action's icon, or its symbol (tickmark sections) drawn in red. */
 function ActionIcon({ icon, glyph }: { icon: IconName; glyph?: string | undefined }) {
@@ -74,7 +83,7 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
   const wb = useWorkbench();
   const { settings, updateSettings } = wb;
   return (
-    <div className="toolbar" role="toolbar" aria-label="Main toolbar">
+    <div className="toolbar" role="toolbar" aria-label="Main toolbar" onKeyDown={onToolbarKeys}>
       <ToolButton icon="open" label="Open (Ctrl+O)" onClick={() => void wb.pickAndOpen()} />
       <ToolButton
         icon="save"
@@ -351,6 +360,7 @@ function WithMenu({
       if (e.key === "Escape") {
         e.stopPropagation();
         setAt(null);
+        ref.current?.querySelector<HTMLElement>("[aria-haspopup]")?.focus();
       }
     };
     document.addEventListener("pointerdown", away);
@@ -376,7 +386,10 @@ function WithMenu({
           onClick={() => setOpen(!open)}
         >
           <ActionIcon icon={a.icon} glyph={a.glyph} />
-          <span aria-hidden="true">{a.caption ?? a.label} ▾</span>
+          <span className="tool-label" aria-hidden="true">
+            {a.caption ?? a.label}
+            <Icon name="chevronDown" size={12} />
+          </span>
         </button>
       ) : (
         <>
@@ -433,6 +446,8 @@ function MenuList({
   choose: (it: MenuItem) => void;
 }) {
   const open = sub ? items.find((it) => it.id === sub.id) : undefined;
+  const list = useRef<HTMLUListElement>(null);
+  useFocusFirst(list, true);
   const showSub = (it: MenuItem, el: HTMLElement) => {
     const r = el.getBoundingClientRect();
     setSub({ id: it.id, left: r.right - 2, top: r.top - 4 });
@@ -440,8 +455,10 @@ function MenuList({
   return (
     <>
       <ul
+        ref={list}
         className={grid ? "action-menu grid" : "action-menu"}
         role="menu"
+        onKeyDown={onMenuKeys}
         aria-label={label}
         style={{ left: at.left, top: at.top }}
       >
@@ -475,7 +492,7 @@ function MenuList({
               {it.stamp ? <StampChip preview={it.stamp} /> : it.label}
               {it.items && (
                 <span className="sub-arrow" aria-hidden="true">
-                  ›
+                  <Icon name="chevronRight" size={12} />
                 </span>
               )}
             </button>
@@ -491,6 +508,7 @@ function MenuList({
         <ul
           className="action-menu sub"
           role="menu"
+          onKeyDown={onMenuKeys}
           aria-label={open.label}
           style={{ left: sub.left, top: sub.top }}
         >
@@ -533,9 +551,18 @@ export function ToolToolbar({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
   const ctx = useDocToolContext(documentId);
   const t = tool(wb.meta[documentId]?.activeTool ?? "");
+  const bar = useRef<HTMLDivElement>(null);
+  const compact = useCompact(bar, t?.id ?? "");
   if (!t || t.open !== "toolbar") return null;
   return (
-    <div className="tool-toolbar" role="toolbar" aria-label={t.name} data-testid="tool-toolbar">
+    <div
+      ref={bar}
+      className={compact ? "tool-toolbar compact" : "tool-toolbar"}
+      role="toolbar"
+      aria-label={t.name}
+      data-testid="tool-toolbar"
+      onKeyDown={onToolbarKeys}
+    >
       <span className="tool-title">
         <span className="tool-icon" style={{ color: t.color }}>
           <Icon name={t.icon} />
@@ -557,7 +584,9 @@ export function ToolToolbar({ documentId }: { documentId: string }) {
             onClick={() => a.run(ctx)}
           >
             <ActionIcon icon={a.icon} glyph={a.glyph} />
-            <span aria-hidden="true">{a.caption ?? a.label}</span>
+            <span className="tool-label" aria-hidden="true">
+              {a.caption ?? a.label}
+            </span>
           </button>
         );
         const item = a.items ? (
@@ -577,11 +606,45 @@ export function ToolToolbar({ documentId }: { documentId: string }) {
         );
       })}
       <span className="grow" />
-      <button type="button" onClick={() => wb.setActiveTool(documentId, null, ctx.pages[0])}>
-        Close {t.name}
+      <button
+        type="button"
+        className="tool-close"
+        aria-label={`Close ${t.name}`}
+        title={`Close ${t.name} (Esc)`}
+        onClick={() => wb.setActiveTool(documentId, null, ctx.pages[0])}
+      >
+        <Icon name="close" size={16} />
+        <span className="tool-label">Close</span>
       </button>
     </div>
   );
+}
+
+/**
+ * True while the toolbar's labelled buttons do not fit (1366 px screens, 150 % text):
+ * the toolbar then shows icons only (each keeps its tooltip and accessible name).
+ */
+function useCompact(ref: RefObject<HTMLDivElement | null>, key: string): boolean {
+  // Per tool: a new tool starts with labels and measures itself again.
+  const [state, setState] = useState({ key, compact: false, natural: 0 });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // ResizeObserver also calls back once right after observe().
+    const ro = new ResizeObserver(() =>
+      setState((st) => {
+        const cur = st.key === key ? st : { key, compact: false, natural: 0 };
+        if (!el.classList.contains("compact"))
+          return el.scrollWidth > el.clientWidth + 1
+            ? { key, compact: true, natural: el.scrollWidth }
+            : cur;
+        return el.clientWidth >= cur.natural ? { key, compact: false, natural: 0 } : cur;
+      }),
+    );
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, key]);
+  return state.key === key && state.compact;
 }
 
 function PageBox({

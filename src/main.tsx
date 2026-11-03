@@ -4,6 +4,8 @@ import App from "./App";
 import { getEngine } from "./app/engine";
 import { sanitizeSettings } from "./app/settings";
 import { platform } from "./platform";
+import "./ui/theme/tokens.css";
+import "./ui/theme/base.css";
 import "./styles.css";
 
 // No native (HTML5) drag-and-drop inside the app: in the Windows app Tauri takes over

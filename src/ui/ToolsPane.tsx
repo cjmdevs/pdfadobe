@@ -68,7 +68,11 @@ function Pane({ ctx }: { ctx: ToolContext }) {
           <Icon name="chevronRight" size={16} />
         </button>
       </header>
-      {panel && <Suspense fallback={null}>{panel}</Suspense>}
+      {panel && (
+        <div className="tool-panel-host">
+          <Suspense fallback={null}>{panel}</Suspense>
+        </div>
+      )}
       <ul className="tool-list">
         {shown.map((t) => {
           const built = isBuilt(t);
