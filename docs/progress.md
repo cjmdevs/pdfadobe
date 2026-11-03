@@ -5,7 +5,7 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **B2 (Home screen) built 2026-11-03; owner check pending** (`docs/testing/b2-test-guide.md`).
+- **B2 (Home screen) done 2026-11-03, owner check passed (all 10 steps)** (`docs/testing/b2-test-guide.md`).
   Plan approved with the recommended answers (Home tab, quick tools Combine + Organize
   only, no thumbnail for password-protected files, missing local files greyed).
   - **Home** (`src/ui/StartPage.tsx`): at launch, after the last tab closes, and from the
