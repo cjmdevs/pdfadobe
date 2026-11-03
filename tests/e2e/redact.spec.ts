@@ -28,9 +28,11 @@ async function openRedact(page: Page) {
 test("find, mark, review and apply: the new file holds no SSN", async ({ page, mockfs }) => {
   const panel = await openRedact(page);
   await panel.getByRole("button", { name: "Find", exact: true }).click();
-  await expect(panel.getByTestId("redact-found")).toContainText("3 found");
-  await panel.getByRole("button", { name: "Mark all 3" }).click();
-  await expect(panel.getByTestId("redact-review").locator("li")).toHaveCount(3);
+  // Three in the page text, one in the form field's value (B7).
+  await expect(panel.getByTestId("redact-found")).toContainText("4 found");
+  await expect(panel.getByTestId("redact-found")).toContainText("Form field (SSN)");
+  await panel.getByRole("button", { name: "Mark all 4" }).click();
+  await expect(panel.getByTestId("redact-review").locator("li")).toHaveCount(4);
 
   // Boxes over the form field (200,560 160x22) and the image zone (60,400 200x70).
   await tb(page, "Mark an area: drag a box over what to remove").click();
@@ -38,12 +40,12 @@ test("find, mark, review and apply: the new file holds no SSN", async ({ page, m
   await drag(page, 0.09, 0.4, 0.43, 0.5);
   await page.keyboard.press("Escape");
   const review = panel.getByTestId("redact-review").locator("li");
-  await expect(review).toHaveCount(5);
-  await expect(page.getByTestId("redact-mark")).toHaveCount(5);
+  await expect(review).toHaveCount(6);
+  await expect(page.getByTestId("redact-mark")).toHaveCount(6);
 
   await panel.getByRole("button", { name: "Accept all" }).click();
   await panel.getByTestId("redact-apply").click();
-  await expect(page.locator(".toast", { hasText: "Redacted 5 marks" })).toContainText(
+  await expect(page.locator(".toast", { hasText: "Redacted 6 marks" })).toContainText(
     "into a new file",
   );
   const written = mockfs.writes.map((w) => w.path);
@@ -53,10 +55,44 @@ test("find, mark, review and apply: the new file holds no SSN", async ({ page, m
   await expect(page.getByRole("tab", { name: /ssn-redaction_Redacted\.pdf/ })).toBeVisible();
 });
 
+test("owner's steps: Find, Mark all, Accept all, Apply saves a clean file", async ({
+  page,
+  mockfs,
+}) => {
+  const panel = await openRedact(page);
+  await panel.getByRole("button", { name: "Find", exact: true }).click();
+  await panel.getByRole("button", { name: /^Mark all/ }).click();
+  await panel.getByRole("button", { name: "Accept all" }).click();
+  await panel.getByTestId("redact-apply").click();
+  await expect(page.locator(".toast", { hasText: "Redacted 4 marks" })).toBeVisible();
+  const written = mockfs.writes.map((w) => w.path);
+  expect(written).toEqual(["C:\\Corpus\\ssn-redaction_Redacted.pdf"]);
+  expect(rawHits(bytesAt(mockfs, written[0]!), FAKE_SSN)).toEqual([]);
+});
+
+test("a form field left unmarked: the refusal says which field and how to fix it", async ({
+  page,
+  mockfs,
+}) => {
+  const panel = await openRedact(page);
+  await panel.getByRole("button", { name: "Find", exact: true }).click();
+  await panel.getByRole("button", { name: /^Mark all/ }).click();
+  const review = panel.getByTestId("redact-review").locator("li");
+  await review.filter({ hasText: "Form field" }).getByRole("button", { name: "Reject" }).click();
+  await panel.getByRole("button", { name: "Accept all" }).click();
+  await panel.getByTestId("redact-apply").click();
+  const toast = page.locator(".toast.error");
+  await expect(toast).toContainText("It is in a form field on page 1");
+  await expect(toast).toContainText("Draw box");
+  await expect(toast).not.toContainText("Sanitize");
+  await expect(toast).not.toContainText(FAKE_SSN);
+  expect(mockfs.writes).toEqual([]);
+});
+
 test("an SSN left unmarked: nothing is written", async ({ page, mockfs }) => {
   const panel = await openRedact(page);
   await panel.getByRole("button", { name: "Find", exact: true }).click();
-  await panel.getByRole("button", { name: "Mark all 3" }).click();
+  await panel.getByRole("button", { name: "Mark all 4" }).click();
   // Reject the page-2 hit: the leak check must find that SSN and refuse.
   const review = panel.getByTestId("redact-review").locator("li");
   await review.filter({ hasText: "Page 2" }).getByRole("button", { name: "Reject" }).click();

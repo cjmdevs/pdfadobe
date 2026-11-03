@@ -18,6 +18,8 @@ export interface MarkCandidate {
   source: MarkSource;
   /** The text found (search hits only), for the review list. Never logged. */
   text?: string;
+  /** Found in a form field's value (the mark covers the whole field). */
+  inField?: boolean;
 }
 
 /** Page text as one string plus, per code unit, the char it came from. */

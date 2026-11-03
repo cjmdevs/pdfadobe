@@ -12,6 +12,8 @@ export interface MarkInfo {
   source: MarkSource | "selection" | "page";
   /** Text the search found (never logged, never saved). */
   text?: string;
+  /** Found in a form field's value: the mark covers the whole field. */
+  inField?: boolean;
 }
 
 interface DocMarks {

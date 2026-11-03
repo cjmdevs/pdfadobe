@@ -29,7 +29,9 @@ import {
   redactDocument,
   sanitizeDocument,
   searchDocument,
+  searchFields,
   type LeakHit,
+  type LeakPlace,
   type RedactRequest,
   type SanitizeOptions,
   type SanitizeReport,
@@ -255,8 +257,11 @@ export const OPS = {
     parseFormData(file, format),
   // Redaction (Phase 5). A leak is a result, not an error: errors cross the worker
   // boundary as text only, and the UI needs the hits to say where.
-  redactSearch: async (c: Ctx, b: Uint8Array, spec: SearchSpec) =>
-    searchDocument(c.module, b, spec),
+  // Page text, then form-field values (a field's value is not page text).
+  redactSearch: async (c: Ctx, b: Uint8Array, spec: SearchSpec) => [
+    ...searchDocument(c.module, b, spec),
+    ...(await searchFields(c.engine, b, spec)),
+  ],
   redactPageMarks: async (c: Ctx, b: Uint8Array, pages: number[]) => pageMarks(c.module, b, pages),
   redactApply: async (
     c: Ctx,
@@ -273,7 +278,7 @@ export const OPS = {
         fieldsRemoved: number;
         sanitize: SanitizeReport;
       }
-    | { ok: false; hits: LeakHit[] }
+    | { ok: false; hits: LeakHit[]; places: LeakPlace[] }
   > => {
     try {
       const r = await redactDocument(c.module, c.qpdf, b, req);
@@ -288,7 +293,7 @@ export const OPS = {
         sanitize: r.sanitize,
       };
     } catch (e) {
-      if (e instanceof RedactionLeakError) return { ok: false, hits: e.hits };
+      if (e instanceof RedactionLeakError) return { ok: false, hits: e.hits, places: e.places };
       throw e;
     }
   },

@@ -29,9 +29,12 @@ import {
   type SanitizeReport,
 } from "./sanitize";
 import { leakScan, RedactionLeakError } from "./leak";
+import { leakPlaces } from "./places";
 
 export * from "./patterns";
 export * from "./search";
+export { searchFields } from "./fieldSearch";
+export { type LeakPlace } from "./places";
 export { DEFAULT_OVERLAY, type OverlayOptions, type PageRedaction } from "./apply";
 export { ALL_SANITIZE, type SanitizeOptions, type SanitizeReport } from "./sanitize";
 export { RedactionLeakError, type LeakHit } from "./leak";
@@ -96,7 +99,11 @@ export async function redactDocument(
     });
   const out = await rewrite(qpdf, bytes, objs);
   const hits = await leakScan(m, qpdf, out, secrets, req.marks, overlay);
-  if (hits.length) throw new RedactionLeakError(hits);
+  if (hits.length)
+    throw new RedactionLeakError(
+      hits,
+      hits.some((h) => h.where === "file-bytes") ? leakPlaces(objs, secrets) : [],
+    );
   return { bytes: out, content, objects, sanitize, secrets };
 }
 

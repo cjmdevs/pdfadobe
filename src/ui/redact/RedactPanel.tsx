@@ -16,7 +16,7 @@ import {
   type PatternId,
   type SanitizeOptions,
 } from "../../engine/redact";
-import { SOURCE_LABELS, addCandidates, marksOf, type Mark } from "./marks";
+import { addCandidates, marksOf, sourceLabel, type Mark } from "./marks";
 import { redactMarks, useRedactVersion } from "./redactStore";
 import { useRedactCommands } from "./useRedact";
 
@@ -170,7 +170,10 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
             {searching ? "Searching…" : "Find"}
           </button>
         </div>
-        <p className="hint">Scanned pages need OCR first, or mark them with Draw box.</p>
+        <p className="hint">
+          Searches the page text and form-field values. Scanned pages need OCR first, or mark them
+          with Draw box.
+        </p>
         {found && (
           <div className="found" data-testid="redact-found">
             <p>{found.length === 0 ? "Nothing found." : `${found.length} found:`}</p>
@@ -179,7 +182,7 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
                 <li key={i} className="row">
                   <span className="muted num">Page {f.pageIndex + 1}</span>
                   <span className="grow">
-                    {SOURCE_LABELS[f.source]}: <code>{f.text}</code>
+                    {sourceLabel(f)}: <code>{f.text}</code>
                   </span>
                 </li>
               ))}
@@ -229,7 +232,7 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
               <li key={m.id} className="row" data-accepted={ok}>
                 <button type="button" className="link grow" onClick={() => jump(m)}>
                   <span className="muted num">Page {m.pageIndex + 1} ·</span>{" "}
-                  {SOURCE_LABELS[info?.source ?? "manual"]}
+                  {sourceLabel(info ?? { source: "manual" })}
                   {info?.text ? (
                     <>
                       : <code>{info.text}</code>

@@ -5,7 +5,7 @@
 import type { WorkbenchApi } from "../../app/workbench";
 import { plural } from "../kit/text";
 import { pageOp } from "../../app/pages";
-import type { LeakHit, OverlayOptions, SanitizeOptions } from "../../engine/redact";
+import type { LeakHit, LeakPlace, OverlayOptions, SanitizeOptions } from "../../engine/redact";
 import { dirName, platform, safeFileName } from "../../platform";
 import { toRequestMarks, type Mark } from "./marks";
 import { redactMarks } from "./redactStore";
@@ -29,16 +29,42 @@ async function writeNew(
   return target;
 }
 
-/** Where a leak was found, in words (no redacted text). */
-export function describeHits(hits: LeakHit[]): string {
-  const parts = new Set<string>();
+/**
+ * Why a save was refused, in words, each with the one fix that works there (no
+ * redacted text). `places` says where the file still stores it (form field, comment...).
+ */
+export function describeHits(hits: LeakHit[], places: LeakPlace[] = []): string[] {
+  const out = new Set<string>();
+  const page = (i?: number) => (i === undefined ? "" : ` on page ${i + 1}`);
   for (const h of hits) {
-    if (h.where === "page-text") parts.add(`text on page ${(h.pageIndex ?? 0) + 1}`);
+    if (h.where === "page-text")
+      out.add(
+        `It is still in the text on page ${(h.pageIndex ?? 0) + 1}: run Find again and mark every match.`,
+      );
     else if (h.where === "box-render")
-      parts.add(`something still shows inside a box on page ${(h.pageIndex ?? 0) + 1}`);
-    else parts.add("the file's hidden data (properties, bookmarks, comments or form data)");
+      out.add(
+        `Something still shows inside a box${page(h.pageIndex)}: make the box cover it fully.`,
+      );
   }
-  return [...parts].join("; ");
+  for (const p of places) {
+    if (p.kind === "field")
+      out.add(
+        `It is in a form field${page(p.pageIndex)}: mark the field with Draw box (the whole field is removed).`,
+      );
+    else if (p.kind === "comment")
+      out.add(
+        `It is in a comment${page(p.pageIndex)}: delete the comment, or cover its icon with Draw box.`,
+      );
+    else if (p.kind === "bookmark")
+      out.add("It is in a bookmark title: rename or delete that bookmark in the Bookmarks panel.");
+    else if (p.kind === "properties")
+      out.add('It is in the document properties: tick "Also sanitize the document".');
+    else
+      out.add(
+        'It is stored elsewhere in the file (an image, attachment or hidden layer): cover it with Draw box, or tick "Also sanitize the document".',
+      );
+  }
+  return [...out];
 }
 
 export async function applyRedactions(
@@ -70,8 +96,11 @@ export async function applyRedactions(
     });
     if (!r.ok) {
       wb.toast(
-        `Not saved: the redaction check still found redacted content in ${describeHits(r.hits)}. ` +
-          "Mark it too (Search & Redact finds repeats), or run Sanitize, then Apply again.",
+        [
+          "Not saved: the redacted text is still in the file.",
+          ...describeHits(r.hits, r.places),
+          "Then apply again.",
+        ].join(" "),
         "error",
       );
       return false;

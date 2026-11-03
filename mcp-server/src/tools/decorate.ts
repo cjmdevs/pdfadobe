@@ -13,10 +13,8 @@ import {
 } from "../../../src/engine/decorate";
 import { OcrControl, ocrDocument } from "../../../src/engine/ocr";
 import { optimizeDocument } from "../../../src/engine/optimize";
-import { pageWidgets } from "../../../src/engine/forms/fields";
-import { withEngineDoc } from "../../../src/engine/pages/outline-io";
 import {
-  findMatches,
+  searchFields,
   redactDocument,
   searchDocument,
   type PageRedaction,
@@ -88,29 +86,9 @@ async function findHits(
     rects: h.rects.map((r) => ({ l: r.l - 1, b: r.b - 1, r: r.r + 1, t: r.t + 1 })),
     text: h.text ?? "",
   }));
-  await withEngineDoc(rt.engine, bytes, async (doc) => {
-    for (const i of pages) {
-      const height = doc.pages[i]?.size.height ?? 0;
-      for (const w of await pageWidgets(rt.engine, doc, i)) {
-        const value = w.field.value ?? "";
-        for (const m of findMatches(value, { patterns })) {
-          const r = w.rect;
-          hits.push({
-            pageIndex: i,
-            rects: [
-              {
-                l: r.origin.x,
-                r: r.origin.x + r.size.width,
-                t: height - r.origin.y,
-                b: height - r.origin.y - r.size.height,
-              },
-            ],
-            text: value.slice(m.start, m.end),
-          });
-        }
-      }
-    }
-  });
+  // Form-field values (whole widget), shared with the app's Search & Redact.
+  for (const h of await searchFields(rt.engine, bytes, { patterns }, pages))
+    hits.push({ pageIndex: h.pageIndex, rects: h.rects, text: h.text ?? "" });
   return hits;
 }
 

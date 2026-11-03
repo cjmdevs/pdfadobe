@@ -92,7 +92,7 @@ export function addCandidates(
       documentId,
       c.pageIndex,
       rects,
-      c.text ? { source, text: c.text } : { source },
+      { source, ...(c.text ? { text: c.text } : {}), ...(c.inField ? { inField: true } : {}) },
       author,
     );
   });
@@ -124,6 +124,12 @@ export function toRequestMarks(marks: Mark[], pageHeights: number[]): PageRedact
     pageIndex: m.pageIndex,
     rects: m.rects.map((r) => toPdf(r, pageHeights[m.pageIndex] ?? 0)),
   }));
+}
+
+/** "SSN", or "Form field (SSN)" for a match inside a field's value. */
+export function sourceLabel(info: { source: MarkInfo["source"]; inField?: boolean }): string {
+  const s = SOURCE_LABELS[info.source];
+  return info.inField ? `Form field (${s})` : s;
 }
 
 export const SOURCE_LABELS: Record<MarkInfo["source"], string> = {

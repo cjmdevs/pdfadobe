@@ -14,6 +14,7 @@ import { runToFile, type Qpdf } from "../pages/qpdf";
 import { pageChars, type Rect } from "../edit/chars";
 import type { OverlayOptions, PageRedaction } from "./apply";
 import { norm } from "./sanitize";
+import type { LeakPlace } from "./places";
 
 export interface LeakHit {
   /** Index into the secrets list given to the scan. -1 for a box that shows content. */
@@ -26,7 +27,11 @@ export interface LeakHit {
 }
 
 export class RedactionLeakError extends Error {
-  constructor(readonly hits: LeakHit[]) {
+  constructor(
+    readonly hits: LeakHit[],
+    /** Where the file still stores it (for file-bytes hits): "a form field on page 1". */
+    readonly places: LeakPlace[] = [],
+  ) {
     super(
       `Redaction check failed: ${hits.length} trace(s) of redacted content remain. ` +
         "The file was not saved.",
