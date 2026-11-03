@@ -189,7 +189,7 @@
   font-variant-numeric: tabular-nums;
 }
 .zoom-box {
-  width: 5.5em;
+  width: 6.5em;
   text-align: right;
   margin: 0 var(--space-1);
   font-variant-numeric: tabular-nums;
@@ -817,10 +817,11 @@ body.pointer-dragging * {
   flex: 1;
   min-width: 0;
 }
-/* A tool's options panel takes the room it needs and scrolls; the tool list below it
-   keeps at least a few rows, so switching tools never needs scrolling the panel away. */
+/* A tool's options panel sizes to its content (at most 62 % of the pane, then scrolls);
+   the tool list below takes the rest and keeps a few rows, so switching tools is quick. */
 .tool-panel-host {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
+  max-height: 62%;
   min-height: 120px;
   overflow: auto;
 }
@@ -832,8 +833,7 @@ body.pointer-dragging * {
   padding: var(--space-4);
 }
 .tool-panel-host + .tool-list {
-  flex: 0 1 auto;
-  max-height: 38%;
+  flex: 1 1 0;
   min-height: 96px;
   border-top: 1px solid var(--border-strong);
 }
