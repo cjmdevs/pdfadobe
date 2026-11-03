@@ -5,6 +5,45 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
+- **B7 (UI design pass) built 2026-11-02; owner check pending** (`docs/testing/b7-test-guide.md`).
+  No feature changes. Owner picked direction B "Ledger" from three mockups
+  (`docs/ui/mockups/`), US spelling, and allowed rearranging any menu or panel. Audit:
+  `docs/ui/audit.md` (300 screenshots); before/after pairs `docs/ui/before|after`,
+  `docs/ui/compare.html` (all of docs/ui is local only: docs/ is gitignored).
+  - **Design system:** `src/ui/theme/tokens.css` (colour, type, 4 px spacing, radius,
+    elevation; light + dark; `--page-*` for overlays drawn on white paper, `--tint-*` for
+    tool icons, used by `registry.ts`), `base.css` (buttons, fields, `.form-grid`,
+    `.checks`, `.seg`, `.notice`, panels, menus, dialogs, toasts). `styles.css` uses
+    tokens only (no raw colours). `tests/unit/contrast.test.ts` checks WCAG AA for 108
+    token pairs in both themes.
+  - **Kit:** `src/ui/kit/Dialog.tsx` (Modal + `ModalActions`: a body's action renders
+    in the footer, so every dialog is Cancel + one primary), `keyboard.ts` (arrow keys
+    in toolbars and menus; toolbars take arrows only after Tab, since arrows/Home/End are
+    page shortcuts), `text.ts` (`plural()`). One icon set: Fluent 20 regular (stamp is
+    `approvals_app`; Fluent has no 20 px stamp).
+  - **Layout:** Tools pane 260 px, a tool's panel sizes to its content (max 62 %) above the
+    tool list; tool toolbars go icon-only when labels don't fit (`useCompact`), Close is
+    sticky; the main toolbar wraps below 1100 CSS px (125-150 % scaling on 1366 px).
+    Redact panel is numbered steps (Find, Review, How the boxes look, Apply; Sanitize
+    folded).
+  - **Fix found on the way:** Enter (Acrobat "next screen") swallowed Enter on focused
+    buttons, so keyboard users could not press buttons; Enter/Space now go to buttons,
+    menu items, options and tabs (`Commands.tsx` `activates`).
+  - **Tests:** `tests/e2e/a11y.spec.ts` (every tool from the keyboard, focus ring on each
+    Tab stop, menus by keyboard, fit at 125/150 %); e2e dialog buttons are found in the
+    whole dialog (`dialogWith`). `npm run ui:shots -- <folder>` captures every screen.
+    199/199 e2e pass; Vitest 742 pass + the known `mcp-stdio` machine-policy failure.
+  - **Deviations:** dialog titles, buttons and menus are sentence case; tool names stay
+    Title Case. PDF review state "Cancelled" stays (it is written to the file).
+    125/150 % checked by emulating the smaller CSS viewport; the real Windows Scale
+    setting is owner step 9. Toolbars keep every control as a Tab stop (arrow keys are
+    extra), not a single roving stop.
+  - **Known gaps:** at small zoom a connector's end covers its tickmark, so dragging the
+    tickmark can grab the connector (seen when the pane grew to 280 px; 260 px passes).
+    The capture script misses the Header & Footer/Watermark/More menus, error and loading
+    states, and some 1920 shots catch an unpainted page. Not pushed: `mcp-stdio` fails
+    until HKLM `AllowContentToClaude` is removed on the build PC.
+
 - **B5 (Create PDF / Export PDF) done 2026-11-02, owner check on a work PC passed**
   (`docs/testing/b5-test-guide.md`; spec and decisions in `docs/phases/b5.md`).
   `office.rs` drives desktop Office by COM (late-bound IDispatch, named args): source
