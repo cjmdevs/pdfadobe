@@ -5,7 +5,7 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **B7 (UI design pass) built 2026-11-02; owner check pending** (`docs/testing/b7-test-guide.md`).
+- **B7 (UI design pass) done 2026-11-03, owner check passed (all 11 steps, step 3 retested after the Redact fix)** (`docs/testing/b7-test-guide.md`).
   No feature changes. Owner picked direction B "Ledger" from three mockups
   (`docs/ui/mockups/`), US spelling, and allowed rearranging any menu or panel. Audit:
   `docs/ui/audit.md` (300 screenshots); before/after pairs `docs/ui/before|after`,
