@@ -43,7 +43,7 @@ test("find, mark, review and apply: the new file holds no SSN", async ({ page, m
 
   await panel.getByRole("button", { name: "Accept all" }).click();
   await panel.getByTestId("redact-apply").click();
-  await expect(page.locator(".toast", { hasText: "Redacted 5 mark(s)" })).toContainText(
+  await expect(page.locator(".toast", { hasText: "Redacted 5 marks" })).toContainText(
     "into a new file",
   );
   const written = mockfs.writes.map((w) => w.path);

@@ -1,4 +1,4 @@
-// Customize Quick Tools (backlog B4; laid out as Acrobat's dialog since B6): the toolbar as
+// Customize quick tools (backlog B4; laid out as Acrobat's dialog since B6): the toolbar as
 // a strip of icons with Add divider, Move left, Move right and Remove; "Choose tools to
 // add" lists every tool's actions in groups that open and close, and the add button puts
 // the chosen one on the strip. Save stays greyed until something changes. Saved per user
@@ -107,7 +107,7 @@ export function CustomizeDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <FormModal
-      title="Customize Quick Tools"
+      title="Customize quick tools"
       submit="Save"
       wide
       submitDisabled={!changed}

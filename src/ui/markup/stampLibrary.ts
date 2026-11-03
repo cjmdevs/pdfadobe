@@ -137,20 +137,20 @@ export function stampMenu(wb: WorkbenchApi, entries: StampEntry[]): MenuItem[] {
   items.push(
     {
       id: "addFavorite",
-      label: "Add Current Stamp To Favorites",
+      label: "Add current stamp to favorites",
       separator: true,
       disabled: !last || isFav,
       run: () => last && setFavs([...stampFavorites, last.ref]),
     },
     {
       id: "removeFavorite",
-      label: "Remove Current Stamp From Favorites",
+      label: "Remove current stamp from favorites",
       disabled: !isFav,
       run: () => setFavs(stampFavorites.filter((r) => r !== last?.ref)),
     },
     {
       id: "showNames",
-      label: "Show Stamp Names",
+      label: "Show stamp names",
       separator: true,
       check: true,
       checked: showStampNames,
@@ -158,7 +158,7 @@ export function stampMenu(wb: WorkbenchApi, entries: StampEntry[]): MenuItem[] {
     },
     {
       id: "paste",
-      label: "Paste Clipboard Image as Stamp Tool",
+      label: "Paste clipboard image as stamp",
       separator: true,
       run: (c) => c.markup?.pasteStamp(),
     },

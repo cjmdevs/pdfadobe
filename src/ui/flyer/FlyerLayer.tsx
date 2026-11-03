@@ -5,6 +5,7 @@
 // click on an amount sends it, and foot/cross-foot drags around amounts, then takes the
 // total; a calculator tape is placed once.
 import { useEffect, useRef, useState } from "react";
+import { plural } from "../kit/text";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import {
@@ -258,7 +259,7 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
             },
           });
           latest.current.wb.toast(
-            `${picked.length} amount(s) selected. Click the total to compare, or No total in the calculator.`,
+            `${plural(picked.length, "amount")} selected. Click the total to compare, or No total in the calculator.`,
           );
         });
       },

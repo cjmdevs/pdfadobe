@@ -2,6 +2,7 @@
 // each as <name>_OCR.pdf beside the original. Progress per file, Cancel stops after the
 // page being read. Closing the dialog while it runs cancels it.
 import { useEffect, useState } from "react";
+import { ModalActions } from "../kit/Dialog";
 import { useWorkbench } from "../../app/workbench";
 import { platform } from "../../platform";
 import { baseName } from "../../platform/types";
@@ -14,7 +15,7 @@ const STATUS: Record<BatchFile["status"], string> = {
   done: "Done",
   skipped: "Left alone",
   failed: "Failed",
-  cancelled: "Cancelled",
+  cancelled: "Canceled",
 };
 
 export function BatchOcr() {
@@ -78,7 +79,7 @@ export function BatchOcr() {
           </tbody>
         </table>
       )}
-      <div className="row">
+      <ModalActions>
         {running ? (
           <>
             <progress max={files.length} value={run.done} />
@@ -93,10 +94,10 @@ export function BatchOcr() {
             onClick={start}
             disabled={files.length === 0 || run !== null || finished}
           >
-            Recognize Text in {files.length} {files.length === 1 ? "file" : "files"}
+            Recognize text in {files.length} {files.length === 1 ? "file" : "files"}
           </button>
         )}
-      </div>
+      </ModalActions>
       {finished && (
         <p role="status">
           Finished: {files.filter((f) => f.status === "done").length} saved,{" "}

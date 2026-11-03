@@ -52,7 +52,7 @@ export function StampsPalette({ documentId }: { documentId: string }) {
         {shown.length === 0 && (
           <p className="hint">
             {cat === FAVORITES
-              ? "No favorites yet: place a stamp, then Stamp ▸ Add Current Stamp To Favorites."
+              ? "No favorites yet: place a stamp, then Stamp ▸ Add current stamp to favorites."
               : "No stamps here."}
           </p>
         )}

@@ -1,5 +1,6 @@
 // Redact commands for the active document (Phase 5), for the tool context.
 import { useMemo, useState } from "react";
+import { plural } from "../kit/text";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManager } from "@embedpdf/plugin-interaction-manager/react";
@@ -79,7 +80,7 @@ export function useRedactCommands(documentId: string, enabled: boolean): RedactC
           if (!bytes) return;
           const list = await pageOp("redactPageMarks", bytes, pages);
           addCandidates(annots, documentId, heights, list, wb.author);
-          wb.toast(`Marked ${list.length} whole page(s) for redaction.`);
+          wb.toast(`Marked ${plural(list.length, "whole page")} for redaction.`);
         });
       },
       marks: marks.length,

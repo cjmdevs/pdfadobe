@@ -9,7 +9,7 @@ test.describe("document properties", () => {
     await openPaths(page, [P.nav]);
     await waitForPainted(page, 0);
     await page.keyboard.press("Control+d");
-    const dlg = page.getByRole("dialog", { name: "Document Properties" });
+    const dlg = page.getByRole("dialog", { name: "Document properties" });
     await expect(dlg).toBeVisible();
     const field = (k: string) => dlg.locator(`dd[data-field="${k}"]`);
     await expect(field("File")).toHaveText(P.nav);
@@ -35,7 +35,7 @@ test.describe("document properties", () => {
     await openPaths(page, [P.noPrint]);
     await waitForPainted(page, 0);
     await page.keyboard.press("Control+d");
-    const dlg = page.getByRole("dialog", { name: "Document Properties" });
+    const dlg = page.getByRole("dialog", { name: "Document properties" });
     await expect(dlg.locator('dd[data-field="Security method"]')).toHaveText("Password security");
     await expect(dlg.getByTestId("security")).toContainText("PrintingNot allowed");
     await expect(dlg.getByTestId("security")).toContainText("Content copyingNot allowed");

@@ -27,7 +27,7 @@ const ARRANGE: [Arrange, string][] = [
 ];
 const ALIGN = [
   ["left", "Align left"],
-  ["center", "Align centres"],
+  ["center", "Align centers"],
   ["right", "Align right"],
   ["top", "Align top"],
   ["middle", "Align middles"],
@@ -223,7 +223,7 @@ export function ObjectsPanel({
       </div>
       <div className="format-row">
         <select
-          aria-label="Edit Using"
+          aria-label="Edit using"
           value=""
           disabled={busy || !image || several}
           onChange={(e) =>

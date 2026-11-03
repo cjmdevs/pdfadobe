@@ -1,6 +1,7 @@
 // Markup file commands (Phase 3): flatten to a new file, XFDF export/import, comment
 // summary. Heavy work runs in the page-engine worker; files are never overwritten.
 import type { WorkbenchApi } from "../../app/workbench";
+import { plural } from "../kit/text";
 import { pageOp } from "../../app/pages";
 import type { FlattenTarget } from "../../engine/flatten";
 import { dirName, platform, safeFileName } from "../../platform";
@@ -44,7 +45,9 @@ export async function flattenToNewFile(
     }
     const path = await writeNext(wb, documentId, "flattened", out.bytes);
     if (!path) return;
-    wb.toast(`Flattened ${out.flattened} comment(s) into a new file. The original is unchanged.`);
+    wb.toast(
+      `Flattened ${plural(out.flattened, "comment")} into a new file. The original is unchanged.`,
+    );
     await wb.openPaths([path]);
   } catch (e) {
     wb.toast(`Flatten failed: ${message(e)}`, "error");
@@ -59,7 +62,7 @@ export async function summaryToNewFile(wb: WorkbenchApi, documentId: string): Pr
     const out = await pageOp("summarizeComments", bytes, m.name, navigator.language);
     const path = await writeNext(wb, documentId, "comment summary", out.pdf);
     if (!path) return;
-    wb.toast(`Comment summary created (${out.comments} comment(s)).`);
+    wb.toast(`Comment summary created (${plural(out.comments, "comment")}).`);
     await wb.openPaths([path]);
   } catch (e) {
     wb.toast(`Comment summary failed: ${message(e)}`, "error");

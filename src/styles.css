@@ -778,7 +778,7 @@ body.pointer-dragging * {
   background: var(--bg-panel);
 }
 .tools-pane {
-  width: 280px;
+  width: 260px;
   flex: none;
   display: flex;
   flex-direction: column;
@@ -1483,7 +1483,7 @@ body.pointer-dragging * {
   gap: var(--space-3);
 }
 .stamp-summary {
-  padding: var(--space-3);
+  min-width: 0;
 }
 .stamp-summary h3 {
   margin: 0 0 var(--space-3);
@@ -1532,13 +1532,31 @@ body.pointer-dragging * {
   gap: var(--space-3);
   min-width: 300px;
 }
+/* Stamp Summary / Notes switch: a segmented control (base.css .seg look). */
 .stamp-summary .tabs {
   display: flex;
-  gap: var(--space-2);
-  margin-bottom: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.stamp-summary .tabs button {
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  white-space: nowrap;
+}
+.stamp-summary .tabs button + button {
+  border-left: 1px solid var(--border);
 }
 .stamp-summary .tabs button[aria-selected="true"] {
   background: var(--bg-active);
+  color: var(--accent-ink);
+  font-weight: var(--weight-strong);
+}
+.stamp-summary .filters select {
+  flex: 1;
+  min-width: 0;
 }
 .stamp-summary .note-text {
   white-space: pre-wrap;
@@ -1821,8 +1839,6 @@ body.pointer-dragging * {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--text-base);
 }
 .forms-row {
   display: flex;
@@ -1887,25 +1903,14 @@ body.pointer-dragging * {
   color: var(--fg-muted);
   font-size: var(--text-sm);
 }
-.forms-panel .link {
-  min-width: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent);
-  font: inherit;
-  cursor: pointer;
-}
-.forms-panel .link:hover {
-  text-decoration: underline;
-}
 .forms-heading {
   margin: var(--space-3) 0 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--fg-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+  font-size: var(--text-md);
+  font-weight: var(--weight-strong);
+  font-variant: all-small-caps;
+  letter-spacing: 0.04em;
 }
 .forms-csv {
   display: flex;
@@ -1937,7 +1942,9 @@ body.pointer-dragging * {
   gap: var(--space-3);
 }
 .forms-panel button[aria-pressed="true"] {
-  outline: 2px solid var(--accent);
+  background: var(--bg-active);
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 
 /* XFA-only form (Phase 6): what to do instead of filling here. */
@@ -2318,15 +2325,19 @@ body.pointer-dragging * {
 }
 
 /* Scan & OCR (Phase 7) */
-.scan-panel {
-  padding: var(--space-3) var(--space-4);
-  font-size: var(--text-base);
-}
 .scan-panel details {
-  margin-bottom: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border);
+}
+.scan-panel details:first-child {
+  padding-top: 0;
+  border-top: 0;
 }
 .scan-panel summary {
-  font-weight: 600;
+  font-weight: var(--weight-strong);
+  font-variant: all-small-caps;
+  letter-spacing: 0.04em;
+  font-size: var(--text-md);
   margin-bottom: var(--space-3);
   cursor: pointer;
 }
@@ -2543,6 +2554,7 @@ body.pointer-dragging * {
   background: var(--warning-bg);
 }
 .signature-panel ol {
+  margin: 0;
   padding-left: var(--space-5);
 }
 .signature-panel li {
@@ -2558,4 +2570,48 @@ body.pointer-dragging * {
 .cert-sign input[list],
 .cert-sign fieldset > label > input:not([type]) {
   width: 360px;
+}
+
+/* Redact panel (B7 layout: numbered steps Find, Review, Look, Apply; Sanitize folded). */
+.redact-panel .stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.redact-panel .checks.inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+}
+.redact-panel fieldset.checks {
+  margin: 0;
+}
+.redact-panel code,
+.stamp-summary code {
+  font: var(--text-sm) var(--font-mono);
+  overflow-wrap: anywhere;
+}
+.redact-panel .rows {
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.redact-panel .rows > li.row {
+  padding: var(--space-1) var(--space-2);
+  gap: var(--space-2);
+}
+.redact-panel .rows > li.row:last-child {
+  border-bottom: 0;
+}
+.redact-panel .review .tool.small {
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  border-color: var(--border-strong);
+}
+.redact-panel .review [data-accepted="true"] .link {
+  color: var(--fg);
+}
+.redact-panel [data-testid="redact-apply"] {
+  align-self: stretch;
 }

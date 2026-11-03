@@ -2,6 +2,7 @@
 // the result as a new file "<name>_Optimized.pdf" beside the original (which is never
 // changed), then open it.
 import { useState } from "react";
+import { ModalActions } from "../kit/Dialog";
 import { useWorkbench } from "../../app/workbench";
 import { pageOp } from "../../app/pages";
 import {
@@ -86,11 +87,11 @@ export function OptimizeDialog({ documentId, onClose }: { documentId: string; on
         Also subsets fully embedded fonts, removes unused objects and, when it does not add size,
         turns on fast web view. Black-and-white scans are left as they are.
       </p>
-      <div className="row">
+      <ModalActions>
         <button type="button" className="primary" onClick={() => void run()} disabled={working}>
-          {working ? "Reducing…" : "Reduce File Size"}
+          {working ? "Reducing…" : "Reduce file size"}
         </button>
-      </div>
+      </ModalActions>
       {result && (
         <div role="status" data-testid="optimize-result">
           <p>

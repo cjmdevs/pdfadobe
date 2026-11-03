@@ -10,7 +10,7 @@ test.describe("persistence", () => {
     await toggle.click(); // light -> dark
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
-    expect(bg).toBe("rgb(30, 30, 30)");
+    expect(bg).toBe("rgb(26, 27, 25)");
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   });

@@ -3,6 +3,8 @@
 // (Phase 7 images; B5 Office files, batches and mixed combines). New files never replace
 // existing ones (" (2)" is added).
 import { useEffect, useState } from "react";
+import { plural } from "../kit/text";
+import { ModalActions } from "../kit/Dialog";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useWorkbench } from "../../app/workbench";
 import { pageOp, pageTask } from "../../app/pages";
@@ -80,7 +82,9 @@ export function ExportPdfDialog({ documentId, onClose }: { documentId: string; o
           await platform.writeNewFile(target, pageFileName(name, p, pageCount, as), img);
           setDone(i + 1);
         }
-        wb.toast(`Saved ${pages.length} ${as === "png" ? "PNG" : "JPEG"} file(s) in ${target}.`);
+        wb.toast(
+          `Saved ${plural(pages.length, `${as === "png" ? "PNG" : "JPEG"} file`)} in ${target}.`,
+        );
       }
       onClose();
     } catch (e) {
@@ -178,7 +182,7 @@ export function ExportPdfDialog({ documentId, onClose }: { documentId: string; o
           Change…
         </button>
       </div>
-      <div className="row">
+      <ModalActions>
         <button
           type="button"
           className="primary"
@@ -193,7 +197,7 @@ export function ExportPdfDialog({ documentId, onClose }: { documentId: string; o
                 ? "Word is converting…"
                 : "Exporting…"}
         </button>
-      </div>
+      </ModalActions>
     </div>
   );
 }
@@ -364,10 +368,10 @@ export function CreatePdfDialog({ onClose }: { onClose(): void }) {
     <div className="decorate" data-testid="create-pdf-dialog">
       <div className="row">
         <button type="button" onClick={() => void platform.pickPaths("create").then(add)}>
-          Add Files…
+          Add files…
         </button>
         <button type="button" onClick={() => void addFolder()}>
-          Add a Folder…
+          Add folder…
         </button>
         {items.length > 0 && (
           <button type="button" onClick={() => setItems([])}>
@@ -438,7 +442,7 @@ export function CreatePdfDialog({ onClose }: { onClose(): void }) {
         print from any program to the &ldquo;Microsoft Print to PDF&rdquo; printer that comes with
         Windows.
       </p>
-      <div className="row">
+      <ModalActions>
         <button
           type="button"
           className="primary"
@@ -447,7 +451,7 @@ export function CreatePdfDialog({ onClose }: { onClose(): void }) {
         >
           {status ?? label}
         </button>
-      </div>
+      </ModalActions>
     </div>
   );
 }

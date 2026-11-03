@@ -138,7 +138,7 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
       />
       <ToolButton
         icon="customize"
-        label="Customize Quick Tools…"
+        label="Customize quick tools…"
         onClick={() => wb.setDialog({ kind: "customize" })}
       />
       <ToolButton

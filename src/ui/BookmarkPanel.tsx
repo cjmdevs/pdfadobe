@@ -6,6 +6,7 @@
 // - Delete or extract a bookmark together with its pages.
 // Every change is one undoable step.
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { plural } from "./kit/text";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useBookmarkCapability } from "@embedpdf/plugin-bookmark/react";
 import { useScroll } from "@embedpdf/plugin-scroll/react";
@@ -187,7 +188,7 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
     if (what === "delete") {
       const yes = await wb.confirm({
         title: "Delete bookmark and pages",
-        message: `Delete “${title}” and its ${pages.length} page(s) (${range})? You can undo this.`,
+        message: `Delete “${title}” and its ${plural(pages.length, "page")} (${range})? You can undo this.`,
         ok: "Delete",
         danger: true,
       });

@@ -2,6 +2,7 @@
 // annotation plugin, so it is one more undoable markup change. Comments already in the
 // document (same /NM id) are skipped. Our built-in stamps are drawn again by subject.
 import type { DocumentState } from "@embedpdf/core";
+import { plural } from "../kit/text";
 import type {
   AnnotationDocumentState,
   AnnotationScope,
@@ -62,7 +63,7 @@ export async function importXfdf(
     scope.createAnnotation(it.annotation.pageIndex, it.annotation, it.ctx as never);
   const dup = parsed.annotations.length - fresh.length;
   wb.toast(
-    `Imported ${items.length} comment(s)` +
+    `Imported ${plural(items.length, "comment")}` +
       (dup ? `; ${dup} already in this document` : "") +
       (parsed.skipped ? `; ${parsed.skipped} on pages this document does not have` : "") +
       ".",

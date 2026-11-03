@@ -717,7 +717,7 @@ test.describe("Edit PDF", () => {
     test("Edit Using hands the picture over and takes each save back", async ({ page }) => {
       await openEdit(page);
       await addJpeg(page);
-      await objects(page).getByLabel("Edit Using").selectOption("paint");
+      await objects(page).getByLabel("Edit using").selectOption("paint");
       await expect(page.getByTestId("edit-using-status")).toContainText("Open in Paint");
       const sent = await page.evaluate(() => {
         const w = window as unknown as { __PDFWB_EXTEDIT__?: { ext: string; app: string }[] };

@@ -3,6 +3,7 @@
 // " (2)" etc. when taken) and open it; the original is never changed. Heavy work runs in
 // the page-engine worker. Redacted text never goes to a toast or the log.
 import type { WorkbenchApi } from "../../app/workbench";
+import { plural } from "../kit/text";
 import { pageOp } from "../../app/pages";
 import type { LeakHit, OverlayOptions, SanitizeOptions } from "../../engine/redact";
 import { dirName, platform, safeFileName } from "../../platform";
@@ -78,13 +79,15 @@ export async function applyRedactions(
     const path = await writeNew(wb, documentId, "Redacted", r.bytes);
     if (!path) return false;
     const extra = [
-      r.imagesRemoved ? `${r.imagesRemoved} image(s) removed` : "",
-      r.annotationsRemoved ? `${r.annotationsRemoved} comment(s)/link(s) removed` : "",
-      r.fieldsRemoved ? `${r.fieldsRemoved} form field(s) removed` : "",
-      r.pathsRemovedWhole ? `${r.pathsRemovedWhole} drawing(s) removed whole` : "",
+      r.imagesRemoved ? `${plural(r.imagesRemoved, "image")} removed` : "",
+      r.annotationsRemoved
+        ? `${plural(r.annotationsRemoved, "comment or link", "comments or links")} removed`
+        : "",
+      r.fieldsRemoved ? `${plural(r.fieldsRemoved, "form field")} removed` : "",
+      r.pathsRemovedWhole ? `${plural(r.pathsRemovedWhole, "drawing")} removed whole` : "",
     ].filter(Boolean);
     wb.toast(
-      `Redacted ${accepted.length} mark(s) into a new file${extra.length ? ` (${extra.join(", ")})` : ""}. ` +
+      `Redacted ${plural(accepted.length, "mark")} into a new file${extra.length ? ` (${extra.join(", ")})` : ""}. ` +
         "The original is unchanged.",
     );
     await wb.openPaths([path]);
@@ -113,7 +116,7 @@ export async function sanitizeToNewFile(
     wb.toast(
       `Sanitized into a new file: ${n.metadataRemoved} metadata, ${n.attachmentsRemoved} attachment, ` +
         `${n.actionsRemoved} script/action, ${n.privateDataRemoved} private-data and ` +
-        `${n.hiddenTextRemoved} hidden-text item(s) removed. The original is unchanged.`,
+        `${plural(n.hiddenTextRemoved, "hidden-text item")} removed. The original is unchanged.`,
     );
     await wb.openPaths([path]);
   } catch (e) {

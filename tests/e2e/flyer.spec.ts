@@ -50,10 +50,10 @@ test("place tickmarks until Esc, see them in the Stamp Summary, save and reopen"
   ).toHaveAttribute("aria-pressed", "false");
   await expect(summary.getByRole("button", { name: /^Agrees to/ })).toHaveCount(1);
 
-  // Recent lists them; Clear Recent Stamps empties it.
+  // Recent lists them; Clear recent stamps empties it.
   await tb(page, "Recent tickmarks").click();
   await expect(page.getByRole("menuitemradio", { name: "Agrees to", exact: true })).toBeVisible();
-  await page.getByRole("menuitemradio", { name: "Clear Recent Stamps" }).click();
+  await page.getByRole("menuitemradio", { name: "Clear recent stamps" }).click();
   await tb(page, "Recent tickmarks").click();
   await expect(page.getByRole("menuitemradio")).toHaveCount(1);
   await page.keyboard.press("Escape");
@@ -241,7 +241,7 @@ test("calculator: keys, click amounts, foot with variance, tape on the page", as
   await page.mouse.down();
   await page.mouse.move(b.x, b.y, { steps: 5 });
   await page.mouse.up();
-  await expect(page.getByTestId("foot-result")).toContainText("4 amount(s) selected");
+  await expect(page.getByTestId("foot-result")).toContainText("4 amounts selected");
   const gl = at(212, 504);
   await page.mouse.move(gl.x, gl.y);
   await page.mouse.click(gl.x, gl.y);
@@ -323,7 +323,7 @@ test("letter tickmarks: pick C, it stays C; matching Cs link across pages; Clear
   await page.getByRole("button", { name: "Letters tickmarks" }).click();
   await tb(page, "Recent tickmarks").click();
   await expect(page.getByRole("menuitemradio", { name: "Letter C" })).toBeVisible();
-  await page.getByRole("menuitemradio", { name: "Clear Recent Stamps" }).click();
+  await page.getByRole("menuitemradio", { name: "Clear recent stamps" }).click();
   await expect(page.getByText("Recent tickmarks cleared.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Letters tickmarks" })).toHaveAttribute(
     "aria-pressed",

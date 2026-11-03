@@ -266,15 +266,15 @@ test.describe("markup", () => {
 
     // The last stamp tops the menu; it can become a favorite.
     await tb(page, "Stamp").click();
-    await menu.getByRole("menuitemradio", { name: "Add Current Stamp To Favorites" }).click();
+    await menu.getByRole("menuitemradio", { name: "Add current stamp to favorites" }).click();
     await tb(page, "Stamp").click();
     await expect(menu.getByRole("menuitemradio", { name: "Approved" })).toHaveCount(2);
     await expect(
-      menu.getByRole("menuitemradio", { name: "Remove Current Stamp From Favorites" }),
+      menu.getByRole("menuitemradio", { name: "Remove current stamp from favorites" }),
     ).toBeEnabled();
-    await menu.getByRole("menuitemcheckbox", { name: "Show Stamp Names" }).click();
+    await menu.getByRole("menuitemcheckbox", { name: "Show stamp names" }).click();
     await tb(page, "Stamp").click();
-    await expect(menu.getByRole("menuitemcheckbox", { name: "Show Stamp Names" })).toBeChecked();
+    await expect(menu.getByRole("menuitemcheckbox", { name: "Show stamp names" })).toBeChecked();
     await page.keyboard.press("Escape");
 
     // The palette lists a category's stamps; a click arms one.
@@ -293,9 +293,9 @@ test.describe("markup", () => {
     await openPaths(page, [P.text]);
     await waitForPainted(page, 0);
     await page.getByRole("button", { name: "Stamp", exact: true }).click();
-    await tb(page, "Custom Stamps").click();
-    await page.getByRole("menuitemradio", { name: "Create Custom Stamp…" }).click();
-    const dialog = page.getByRole("dialog", { name: "Custom Stamps" });
+    await tb(page, "Custom stamps").click();
+    await page.getByRole("menuitemradio", { name: "Create custom stamp…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Custom stamps" });
     await dialog.getByLabel("Category").fill("Firm");
     const chooser = page.waitForEvent("filechooser");
     await dialog.getByRole("button", { name: /Choose image/ }).click();
@@ -493,7 +493,7 @@ test.describe("markup", () => {
     await (await chooser).setFiles(file);
     // workpaper-a has comments on pages 1 and 2; text-1p has one page.
     await expect(
-      page.getByText(/Imported 1 comment\(s\); 1 on pages this document does not have/),
+      page.getByText(/Imported 1 comment; 1 on pages this document does not have/),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toBeEnabled();
     await page.keyboard.press("Control+s");

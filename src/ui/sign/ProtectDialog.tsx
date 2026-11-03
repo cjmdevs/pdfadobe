@@ -2,6 +2,7 @@
 // new file beside the original ("<name>_Protected.pdf" / "<name>_Unprotected.pdf"),
 // which is never changed, and open it.
 import { useState } from "react";
+import { ModalActions } from "../kit/Dialog";
 import { useWorkbench, type WorkbenchApi } from "../../app/workbench";
 import { dirName, platform, safeFileName } from "../../platform";
 import {
@@ -182,7 +183,7 @@ export function ProtectDialog({ documentId, onClose }: { documentId: string; onC
       </fieldset>
 
       {problem && <p className="muted">{problem}</p>}
-      <div className="button-row">
+      <ModalActions>
         <button
           type="button"
           className="primary"
@@ -191,7 +192,7 @@ export function ProtectDialog({ documentId, onClose }: { documentId: string; onC
         >
           {busy ? "Protecting…" : "Save a protected copy"}
         </button>
-      </div>
+      </ModalActions>
     </div>
   );
 }
@@ -240,11 +241,11 @@ export function RemoveSecurityDialog({
         onChange={(e) => setPw(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && pw && void run()}
       />
-      <div className="button-row">
+      <ModalActions>
         <button type="button" className="primary" disabled={busy || !pw} onClick={() => void run()}>
           {busy ? "Removing…" : "Save an unprotected copy"}
         </button>
-      </div>
+      </ModalActions>
     </div>
   );
 }

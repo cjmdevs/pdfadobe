@@ -1,5 +1,6 @@
 // Flatten (Phase 3): which markup to draw into the pages. The result is a new file.
 import { useState } from "react";
+import { ModalActions } from "../kit/Dialog";
 import { useWorkbench } from "../../app/workbench";
 import { flattenToNewFile } from "./markupFiles";
 
@@ -28,6 +29,7 @@ export function FlattenBody({
   };
   return (
     <form
+      id="flatten-form"
       className="flatten-form"
       onSubmit={(e) => {
         e.preventDefault();
@@ -69,11 +71,11 @@ export function FlattenBody({
           All comments in the document
         </label>
       </fieldset>
-      <div className="button-row">
-        <button type="submit" className="primary">
+      <ModalActions>
+        <button type="submit" form="flatten-form" className="primary">
           Flatten to new file
         </button>
-      </div>
+      </ModalActions>
     </form>
   );
 }

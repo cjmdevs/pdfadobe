@@ -3,6 +3,7 @@
 // into a new file "<name>_Signed.pdf" (the original is never changed). PAdES
 // (ETSI.CAdES.detached), SHA-256. No timestamp server: the app makes no network calls.
 import { useEffect, useState } from "react";
+import { ModalActions } from "../kit/Dialog";
 import { useWorkbench } from "../../app/workbench";
 import { platform, type CertInfo } from "../../platform";
 import { decodePng } from "../../engine/pages/png";
@@ -252,11 +253,11 @@ export function CertSignDialog({
         </fieldset>
       )}
 
-      <div className="button-row">
+      <ModalActions>
         <button type="button" className="primary" disabled={!ready} onClick={() => void sign()}>
           {busy ? "Signing…" : "Sign and save as a new file"}
         </button>
-      </div>
+      </ModalActions>
     </div>
   );
 }

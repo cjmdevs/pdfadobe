@@ -80,7 +80,9 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
   const markFound = () => {
     if (!scope || !found?.length) return;
     addCandidates(scope, documentId, heights, found, wb.author);
-    wb.toast(`Marked ${found.length} item(s). Review them below, then Apply.`);
+    wb.toast(
+      `Marked ${found.length} ${found.length === 1 ? "item" : "items"}. Review them below, then apply.`,
+    );
     setFound(null);
   };
 
@@ -106,9 +108,9 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
 
   return (
     <section className="redact-panel" aria-label="Redact" data-testid="redact-panel">
-      <details open>
-        <summary>Search &amp; Redact</summary>
-        <label>
+      <details className="panel-section" open>
+        <summary className="section-title">1. Find what to remove</summary>
+        <label className="stack">
           Find text
           <input
             type="text"
@@ -117,24 +119,26 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
             placeholder="A name, number or phrase"
           />
         </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={matchCase}
-            onChange={(e) => setMatchCase(e.target.checked)}
-          />
-          Match case
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={wholeWord}
-            onChange={(e) => setWholeWord(e.target.checked)}
-          />
-          Whole words only
-        </label>
-        <fieldset>
-          <legend>Patterns</legend>
+        <div className="checks inline">
+          <label>
+            <input
+              type="checkbox"
+              checked={matchCase}
+              onChange={(e) => setMatchCase(e.target.checked)}
+            />
+            Match case
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={wholeWord}
+              onChange={(e) => setWholeWord(e.target.checked)}
+            />
+            Whole words only
+          </label>
+        </div>
+        <fieldset className="checks">
+          <legend>Also find these patterns</legend>
           {PATTERNS.map((p) => (
             <label key={p.id} title={p.help}>
               <input
@@ -150,7 +154,7 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
             </label>
           ))}
         </fieldset>
-        <label>
+        <label className="stack">
           Your own pattern (regular expression)
           <input
             type="text"
@@ -160,39 +164,46 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
             aria-invalid={regexProblem !== null}
           />
         </label>
-        {regexProblem && <p className="hint error">{regexProblem}</p>}
-        <button type="button" onClick={() => void search()} disabled={searching}>
-          {searching ? "Searching…" : "Find"}
-        </button>
-        <p className="hint">Scanned pages need OCR first; mark them with Draw Box.</p>
+        {regexProblem && <p className="hint error-text">{regexProblem}</p>}
+        <div className="button-row">
+          <button type="button" onClick={() => void search()} disabled={searching}>
+            {searching ? "Searching…" : "Find"}
+          </button>
+        </div>
+        <p className="hint">Scanned pages need OCR first, or mark them with Draw box.</p>
         {found && (
-          <div data-testid="redact-found">
+          <div className="found" data-testid="redact-found">
             <p>{found.length === 0 ? "Nothing found." : `${found.length} found:`}</p>
-            <ul>
+            <ul className="rows">
               {found.map((f, i) => (
-                <li key={i}>
-                  Page {f.pageIndex + 1} · {SOURCE_LABELS[f.source]}: <code>{f.text}</code>
+                <li key={i} className="row">
+                  <span className="muted num">Page {f.pageIndex + 1}</span>
+                  <span className="grow">
+                    {SOURCE_LABELS[f.source]}: <code>{f.text}</code>
+                  </span>
                 </li>
               ))}
             </ul>
             {found.length > 0 && (
-              <button type="button" onClick={markFound}>
-                Mark all {found.length}
-              </button>
+              <div className="button-row">
+                <button type="button" onClick={markFound}>
+                  Mark all {found.length}
+                </button>
+              </div>
             )}
           </div>
         )}
       </details>
 
-      <details open>
-        <summary>
-          Review ({accepted.length} of {marks.length} accepted)
+      <details className="panel-section" open>
+        <summary className="section-title">
+          2. Review marks ({accepted.length} of {marks.length} accepted)
         </summary>
         {marks.length === 0 && (
-          <p className="hint">No marks yet: use Find, Draw Box, Mark Text or Mark Page.</p>
+          <p className="hint">No marks yet. Use Find, or Draw box, Mark text or Mark page.</p>
         )}
         {marks.length > 0 && (
-          <div className="row">
+          <div className="button-row">
             <button
               type="button"
               onClick={() =>
@@ -210,14 +221,15 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
             </button>
           </div>
         )}
-        <ul data-testid="redact-review">
+        <ul className="rows review" data-testid="redact-review">
           {marks.map((m) => {
             const info = redactMarks.info(documentId, m.id);
             const ok = redactMarks.accepted(documentId, m.id);
             return (
-              <li key={m.id} data-accepted={ok}>
-                <button type="button" className="link" onClick={() => jump(m)}>
-                  Page {m.pageIndex + 1} · {SOURCE_LABELS[info?.source ?? "manual"]}
+              <li key={m.id} className="row" data-accepted={ok}>
+                <button type="button" className="link grow" onClick={() => jump(m)}>
+                  <span className="muted num">Page {m.pageIndex + 1}</span>{" "}
+                  {SOURCE_LABELS[info?.source ?? "manual"]}
                   {info?.text ? (
                     <>
                       : <code>{info.text}</code>
@@ -226,12 +238,13 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
                 </button>
                 <button
                   type="button"
+                  className="tool small"
                   aria-pressed={ok}
                   onClick={() => redactMarks.setAccepted(documentId, [m.id], !ok)}
                 >
                   {ok ? "Accepted" : "Accept"}
                 </button>
-                <button type="button" onClick={() => reject([m])}>
+                <button type="button" className="tool small" onClick={() => reject([m])}>
                   Reject
                 </button>
               </li>
@@ -240,99 +253,108 @@ export default function RedactPanel({ documentId }: { documentId: string }) {
         </ul>
       </details>
 
-      <details open>
-        <summary>Overlay</summary>
-        <label>
-          <input
-            type="checkbox"
-            checked={overlay.fill !== null}
-            onChange={(e) => redactMarks.setOverlay({ fill: e.target.checked ? "#000000" : null })}
-          />
-          Fill the box
-        </label>
-        {overlay.fill !== null && (
-          <label>
-            Fill colour
+      <details className="panel-section" open>
+        <summary className="section-title">3. How the boxes look</summary>
+        <div className="form-grid">
+          <label className="check full">
             <input
-              type="color"
-              value={overlay.fill}
-              onChange={(e) => redactMarks.setOverlay({ fill: e.target.value })}
+              type="checkbox"
+              checked={overlay.fill !== null}
+              onChange={(e) =>
+                redactMarks.setOverlay({ fill: e.target.checked ? "#000000" : null })
+              }
             />
+            Fill the box
           </label>
-        )}
-        <label>
-          Overlay text
+          {overlay.fill !== null && (
+            <>
+              <label htmlFor="redact-fill">Fill color</label>
+              <input
+                id="redact-fill"
+                type="color"
+                value={overlay.fill}
+                onChange={(e) => redactMarks.setOverlay({ fill: e.target.value })}
+              />
+            </>
+          )}
+          <label htmlFor="redact-text">Overlay text</label>
           <input
+            id="redact-text"
             type="text"
             value={overlay.text}
             placeholder='e.g. "Redacted"'
             onChange={(e) => redactMarks.setOverlay({ text: e.target.value })}
           />
-        </label>
-        <label>
-          Text colour
+          <label htmlFor="redact-text-color">Text color</label>
           <input
+            id="redact-text-color"
             type="color"
             value={overlay.textColor}
             onChange={(e) => redactMarks.setOverlay({ textColor: e.target.value })}
           />
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={overlay.repeat}
-            onChange={(e) => redactMarks.setOverlay({ repeat: e.target.checked })}
-          />
-          Repeat the text to fill the box
-        </label>
+          <label className="check full">
+            <input
+              type="checkbox"
+              checked={overlay.repeat}
+              onChange={(e) => redactMarks.setOverlay({ repeat: e.target.checked })}
+            />
+            Repeat the text to fill the box
+          </label>
+        </div>
       </details>
 
-      <details open>
-        <summary>Apply</summary>
-        <label>
+      <section className="panel-section" aria-label="Apply">
+        <h3 className="section-title">4. Apply</h3>
+        <label className="check">
           <input
             type="checkbox"
             checked={alsoSanitize}
             onChange={(e) => setAlsoSanitize(e.target.checked)}
           />
-          Also run Sanitize Document (options below)
+          Also sanitize the document (options below)
         </label>
         <button
           type="button"
-          className="primary"
+          className="primary danger-fill"
           data-testid="redact-apply"
           disabled={!cmds || accepted.length === 0 || cmds.working}
           onClick={() => void cmds?.apply(alsoSanitize ? sanitizeOpt : null)}
         >
-          {cmds?.working ? "Working…" : `Apply ${accepted.length} accepted mark(s)`}
+          {cmds?.working
+            ? "Working…"
+            : `Apply ${accepted.length} accepted ${accepted.length === 1 ? "mark" : "marks"}`}
         </button>
         <p className="hint">
           Writes a new file, &quot;{wb.meta[documentId]?.name.replace(/\.pdf$/i, "")}
           _Redacted.pdf&quot;. The content under each box is removed for good; the original is not
           changed. Marks not accepted are left out.
         </p>
-      </details>
+      </section>
 
-      <details>
-        <summary>Sanitize Document</summary>
-        {(Object.keys(SANITIZE_LABELS) as (keyof SanitizeOptions)[]).map((k) => (
-          <label key={k}>
-            <input
-              type="checkbox"
-              checked={sanitizeOpt[k]}
-              onChange={(e) => setSanitizeOpt((o) => ({ ...o, [k]: e.target.checked }))}
-            />
-            {SANITIZE_LABELS[k]}
-          </label>
-        ))}
-        <button
-          type="button"
-          data-testid="sanitize-run"
-          disabled={!cmds || cmds.working}
-          onClick={() => void cmds?.sanitize(sanitizeOpt)}
-        >
-          Sanitize into a new file
-        </button>
+      <details className="panel-section">
+        <summary className="section-title">Sanitize document</summary>
+        <div className="checks">
+          {(Object.keys(SANITIZE_LABELS) as (keyof SanitizeOptions)[]).map((k) => (
+            <label key={k}>
+              <input
+                type="checkbox"
+                checked={sanitizeOpt[k]}
+                onChange={(e) => setSanitizeOpt((o) => ({ ...o, [k]: e.target.checked }))}
+              />
+              {SANITIZE_LABELS[k]}
+            </label>
+          ))}
+        </div>
+        <div className="button-row">
+          <button
+            type="button"
+            data-testid="sanitize-run"
+            disabled={!cmds || cmds.working}
+            onClick={() => void cmds?.sanitize(sanitizeOpt)}
+          >
+            Sanitize into a new file
+          </button>
+        </div>
         <p className="hint">
           Writes &quot;{wb.meta[documentId]?.name.replace(/\.pdf$/i, "")}_Sanitized.pdf&quot;, fully
           rewritten: earlier versions and unused objects are dropped.

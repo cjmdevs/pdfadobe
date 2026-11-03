@@ -51,7 +51,7 @@ function signItems(c: ToolContext): MenuItem[] {
   });
   const add = (kind: "signature" | "initials"): MenuItem => ({
     id: `add-${kind}`,
-    label: kind === "initials" ? "Add Initials…" : "Add Signature…",
+    label: kind === "initials" ? "Add initials…" : "Add signature…",
     run: (cc) => cc.wb.setDialog({ kind: "signatures", create: kind, documentId: cc.documentId }),
   });
   const sigs = saved.filter((s) => s.kind === "signature");
@@ -108,7 +108,7 @@ export interface ToolContext {
 }
 
 export interface SignCommands {
-  /** "Digitally Sign" is on: a drag (or click) on a page marks the signature's place. */
+  /** "Digitally sign" is on: a drag (or click) on a page marks the signature's place. */
   drawing: boolean;
   setDrawing(on: boolean): void;
   /** The document is password-protected (signing needs it removed first). */
@@ -202,7 +202,7 @@ export interface MarkupCommands {
   /** Arms a stamp for the next click on a page: "b:approved" (built-in, or a bare
    * src/engine/stamps.ts id) or "c:<id>" (custom). */
   pickStamp(ref: string): void;
-  /** Arms the picture on the clipboard as a stamp (Paste Clipboard Image as Stamp Tool). */
+  /** Arms the picture on the clipboard as a stamp (Paste clipboard image as stamp). */
   pasteStamp(): void;
   /** Acrobat's Stamp menu (stampLibrary.ts). */
   stampMenu(): MenuItem[];
@@ -499,7 +499,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "addText",
         label: "Add text (click to place, drag to set the width)",
-        caption: "Add Text",
+        caption: "Add text",
         icon: "addText",
         run: (c) => {
           if (!c.documentId || !c.edit) return;
@@ -513,7 +513,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "addImage",
         label: "Add image (JPEG or PNG; click to place, drag to set the width)",
-        caption: "Add Image",
+        caption: "Add image",
         icon: "addImage",
         run: (c) => {
           if (!c.documentId || !c.edit) return;
@@ -559,7 +559,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "cropPages",
         label: "Crop pages…",
-        caption: "Crop Pages",
+        caption: "Crop pages",
         icon: "crop",
         run: dialog("crop"),
       },
@@ -576,7 +576,7 @@ export const TOOLS: ToolDef[] = [
         items: () =>
           (["background", "bates"] as const).map((id) => ({
             id,
-            label: id === "background" ? "Background" : "Bates Numbering",
+            label: id === "background" ? "Background" : "Bates numbering",
             run: () => undefined,
             items: decorItems(id),
           })),
@@ -702,13 +702,13 @@ export const TOOLS: ToolDef[] = [
       },
       {
         id: "customStamps",
-        label: "Custom Stamps",
+        label: "Custom stamps",
         icon: "stamp",
         run: () => {},
         menuOnly: true,
         items: [
-          { id: "create", label: "Create Custom Stamp…", run: openStamps },
-          { id: "manage", label: "Manage Stamps…", run: openStamps },
+          { id: "create", label: "Create custom stamp…", run: openStamps },
+          { id: "manage", label: "Manage stamps…", run: openStamps },
         ],
         enabled: (c) => hasDoc(c) && c.markup !== null,
       },
@@ -791,7 +791,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "certSignBox",
         label: "Digitally sign: drag a box where the signature goes",
-        caption: "Digitally Sign",
+        caption: "Digitally sign",
         icon: "docSigned",
         run: (c) => c.sign?.setDrawing(!c.sign.drawing),
         pressed: (c) => c.sign?.drawing ?? false,
@@ -832,7 +832,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "removeSecurity",
         label: "Remove security…",
-        caption: "Remove Security",
+        caption: "Remove security",
         icon: "unlock",
         run: (c) => {
           if (c.documentId) c.wb.setDialog({ kind: "removeSecurity", documentId: c.documentId });
@@ -917,7 +917,7 @@ export const TOOLS: ToolDef[] = [
           })),
           {
             id: "clearRecent",
-            label: "Clear Recent Stamps",
+            label: "Clear recent stamps",
             separator: true,
             run: (cc: ToolContext) => cc.flyer?.clearRecent(),
           },
@@ -1028,7 +1028,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "drawBox",
         label: "Mark an area: drag a box over what to remove",
-        caption: "Draw Box",
+        caption: "Draw box",
         icon: "redact",
         run: (c) => {
           if (!c.documentId || !c.redact) return;
@@ -1042,7 +1042,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "markSelection",
         label: "Mark the selected text for redaction",
-        caption: "Mark Text",
+        caption: "Mark text",
         icon: "text",
         run: (c) => c.redact?.markSelection(),
         enabled: (c) => c.redact !== null,
@@ -1050,7 +1050,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "markPages",
         label: "Mark the current page (or the pages selected in Organize) for redaction",
-        caption: "Mark Page",
+        caption: "Mark page",
         icon: "pages",
         run: (c) => c.redact?.markPages(c.pages),
         enabled: (c) => c.redact !== null && c.pages.length > 0,
@@ -1211,8 +1211,8 @@ export const TOOLS: ToolDef[] = [
         menuOnly: true,
         run: () => undefined,
         items: [
-          { id: "file", label: "From File (PDF or images)…", run: dialog("insert") },
-          { id: "blank", label: "Blank Page…", run: dialog("blank") },
+          { id: "file", label: "From file (PDF or images)…", run: dialog("insert") },
+          { id: "blank", label: "Blank page…", run: dialog("blank") },
         ],
       },
       {
@@ -1229,16 +1229,16 @@ export const TOOLS: ToolDef[] = [
           };
           const all = Array.from({ length: c.pageCount }, (_, i) => i);
           return [
-            { id: "straighten", label: "Straighten All Pages", run: go("straighten", all) },
+            { id: "straighten", label: "Straighten all pages", run: go("straighten", all) },
             {
               id: "straightenPage",
-              label: "Straighten This Page",
+              label: "Straighten this page",
               run: go("straighten", c.pages.slice(0, 1)),
             },
-            { id: "upright", label: "Turn Pages Upright", run: go("upright", all) },
+            { id: "upright", label: "Turn pages upright", run: go("upright", all) },
             {
               id: "optimize",
-              label: "Reduce File Size…",
+              label: "Reduce file size…",
               separator: true,
               run: (ctx: ToolContext) => {
                 if (ctx.documentId)
@@ -1250,15 +1250,15 @@ export const TOOLS: ToolDef[] = [
       },
       {
         id: "recognize",
-        label: "Recognize Text: add a searchable text layer to scanned pages",
-        caption: "Recognize Text",
+        label: "Recognize text: add a searchable text layer to scanned pages",
+        caption: "Recognize text",
         icon: "text",
         menuOnly: true,
         run: () => undefined,
         items: [
           {
             id: "file",
-            label: "In This File",
+            label: "In this file",
             run: (c) => {
               const id = c.documentId;
               if (id) void scanActions().then((m) => m.recognize(c.wb, id));
@@ -1266,7 +1266,7 @@ export const TOOLS: ToolDef[] = [
           },
           {
             id: "page",
-            label: "On This Page",
+            label: "On this page",
             run: (c) => {
               const id = c.documentId;
               if (id) void scanActions().then((m) => m.recognize(c.wb, id, c.pages.slice(0, 1)));
@@ -1274,12 +1274,12 @@ export const TOOLS: ToolDef[] = [
           },
           {
             id: "folder",
-            label: "In Multiple Files (a folder)…",
+            label: "In multiple files (a folder)…",
             run: (c) => c.wb.setDialog({ kind: "batchOcr" }),
           },
         ],
       },
-      phase7Action("bates", "Bates Numbering", "bates"),
+      phase7Action("bates", "Bates numbering", "bates"),
       { ...organizeAction("extract"), divider: true },
       organizeAction("rotateLeft"),
       organizeAction("rotateRight"),
@@ -1299,8 +1299,8 @@ export const TOOLS: ToolDef[] = [
     toolbar: [
       {
         id: "reduce",
-        label: "Reduce File Size…",
-        caption: "Reduce Size",
+        label: "Reduce file size…",
+        caption: "Reduce size",
         icon: "optimize",
         run: (c) => {
           if (c.documentId) c.wb.setDialog({ kind: "optimize", documentId: c.documentId });
@@ -1322,7 +1322,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "fromImages",
         label: "Create PDF from files…",
-        caption: "From Files",
+        caption: "From files",
         icon: "createPdf",
         run: (c) => c.wb.setDialog({ kind: "createPdf" }),
         enabled: () => true,
@@ -1354,7 +1354,7 @@ export const TOOLS: ToolDef[] = [
   decorTool("headerFooter", "header", "Header & Footer", "headerFooter"),
   decorTool("watermark", "watermark", "Watermark", "watermark"),
   decorTool("background", "background", "Background", "fill"),
-  decorTool("bates", "bates", "Bates Numbering", "bates"),
+  decorTool("bates", "bates", "Bates numbering", "bates"),
 ];
 
 export const isBuilt = (t: ToolDef) => t.comingIn === null;
@@ -1485,7 +1485,7 @@ export const DEFAULT_QUICK_TOOLBAR = [
  * Keeps known, built action references, without duplicates. Unknown or unbuilt ones
  * (from an older or newer firm layout file) are dropped, not errors.
  */
-/** A divider between quick tools (Customize Quick Tools: Add divider). */
+/** A divider between quick tools (Customize quick tools: Add divider). */
 export const QUICK_DIVIDER = "|";
 
 export function cleanQuickToolbar(refs: unknown): string[] | null {

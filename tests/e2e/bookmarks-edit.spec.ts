@@ -93,7 +93,7 @@ test.describe("bookmark editor", () => {
     await page.getByRole("button", { name: "Bookmark options" }).click();
     await page.getByRole("menuitem", { name: "Delete bookmark and its pages…" }).click();
     const confirm = page.getByRole("dialog", { name: "Delete bookmark and pages" });
-    await expect(confirm).toContainText("5 page(s) (pages 2-6)");
+    await expect(confirm).toContainText("5 pages (pages 2-6)");
     await confirm.getByRole("button", { name: "Delete" }).click();
     await idle(page);
     await expect(row(page, "Part I - Sizes")).toHaveCount(0);

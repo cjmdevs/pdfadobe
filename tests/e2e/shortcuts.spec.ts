@@ -120,11 +120,11 @@ test.describe("keyboard shortcuts", () => {
     await expect(page.getByLabel("Find text")).toHaveCount(0);
 
     await page.keyboard.press("Control+d");
-    await expect(page.getByRole("dialog", { name: "Document Properties" })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Document properties" })).toBeVisible();
     await page.keyboard.press("Escape");
 
     await page.keyboard.press("F1");
-    const help = page.getByRole("dialog", { name: "Keyboard Shortcuts" });
+    const help = page.getByRole("dialog", { name: "Keyboard shortcuts" });
     await expect(help).toContainText("Go to page");
     await expect(help).toContainText("Ctrl+Shift+N");
     await page.keyboard.press("Escape");

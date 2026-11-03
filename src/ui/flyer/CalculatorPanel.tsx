@@ -3,6 +3,7 @@
 // Amounts can be clicked on the page, a column or row footed against its total, and the
 // tape placed on the page as an annotation (To PDF; or an existing tape updated).
 import type { PdfFreeTextAnnoObject } from "@embedpdf/models";
+import { plural } from "../kit/text";
 import { useEffect, useRef, useState } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useAnnotation } from "@embedpdf/plugin-annotation/react";
@@ -51,20 +52,20 @@ const KEYS: Key[] = [
   { k: "M-", label: "M-", name: "Memory minus", col: 4, row: 1 },
   { k: "M+", label: "M+", name: "Memory plus", col: 5, row: 1 },
   { k: "decimals", label: "", col: 6, row: 1 },
-  { k: "NewTape", label: "New Tape", col: 7, row: 1 },
+  { k: "NewTape", label: "New tape", col: 7, row: 1 },
   { k: "Backspace", label: "→", name: "Backspace", col: 1, row: 2 },
   { k: "C", label: "C", col: 2, row: 2 },
   { k: "CE", label: "CE", col: 3, row: 2 },
   { k: "Neg", label: "+/-", name: "Change sign", col: 4, row: 2 },
   { k: "%", label: "%", name: "Percent", col: 5, row: 2 },
-  { k: "AddLine", label: "Add Line", col: 6, row: 2 },
+  { k: "AddLine", label: "Add line", col: 6, row: 2 },
   { k: "toPdf", label: "To PDF", col: 7, row: 2 },
-  { k: "dateTime", label: "Date Time", col: 1, row: 3, rows: 2 },
+  { k: "dateTime", label: "Date and time", col: 1, row: 3, rows: 2 },
   { k: "7", label: "7", col: 2, row: 3 },
   { k: "8", label: "8", col: 3, row: 3 },
   { k: "9", label: "9", col: 4, row: 3 },
   { k: "-", label: "−\n=", name: "Minus equals", col: 5, row: 3, rows: 2 },
-  { k: "deleteLine", label: "Delete Line", col: 6, row: 3 },
+  { k: "deleteLine", label: "Delete line", col: 6, row: 3 },
   { k: "GT", label: "GT", name: "Grand total", col: 7, row: 3 },
   { k: "4", label: "4", col: 2, row: 4 },
   { k: "5", label: "5", col: 3, row: 4 },
@@ -441,7 +442,7 @@ export function CalculatorPanel({ documentId }: { documentId: string }) {
         <div className="calc-foot" role="status" data-testid="foot-result">
           {footing.stage === "total" ? (
             <>
-              {footing.values.length} amount(s) selected, click the total.{" "}
+              {plural(footing.values.length, "amount")} selected, click the total.{" "}
               <button
                 type="button"
                 onClick={() =>

@@ -106,6 +106,22 @@ button.subtle {
   color: var(--accent);
   padding: 0 var(--space-2);
 }
+/* Text link look (jump to a page, open a row). */
+button.link {
+  min-height: 0;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  text-align: left;
+  white-space: normal;
+  cursor: pointer;
+}
+button.link:hover:not(:disabled) {
+  background: none;
+  text-decoration: underline;
+}
 button.big {
   display: inline-flex;
   gap: var(--space-3);
@@ -506,4 +522,7 @@ kbd {
   padding: 0 var(--space-2);
   margin: 0 var(--space-2) var(--space-1) 0;
   background: var(--bg-sunken);
+}
+.modal-actions {
+  display: contents;
 }

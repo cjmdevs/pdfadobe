@@ -1,6 +1,7 @@
 // Dialogs for page operations: insert (PDF or images), replace, blank page, crop, page
 // size, split, Combine Files, and the unsaved-changes prompt.
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { plural } from "./kit/text";
 import { useDocumentState } from "@embedpdf/core/react";
 import {
   formatRanges,
@@ -262,7 +263,7 @@ function BlankDialog({ documentId, pages, pageCount, onClose }: OpProps) {
         <label>
           Size{" "}
           <select aria-label="Size" value={size} onChange={(e) => setSize(e.target.value)}>
-            <option value="same">Same as neighbouring page</option>
+            <option value="same">Same as neighboring page</option>
             {Object.entries(SIZES).map(([k, v]) => (
               <option key={k} value={k}>
                 {v.label}
@@ -384,7 +385,7 @@ function ReplaceDialog({ documentId, pages, pageCount, onClose }: OpProps) {
             : t.map((_, i) => i).filter((i) => i < (file.src?.pageCount ?? 0));
           if (o.length !== t.length)
             throw new RangeError(
-              `Replacing ${t.length} page(s) needs ${t.length} page(s) from the other file.`,
+              `Replacing ${plural(t.length, "page")} needs ${plural(t.length, "page")} from the other file.`,
             );
           onClose();
           await actions.replace(t, file.src.bytes, o);
@@ -555,7 +556,7 @@ function PageSizeDialog({ documentId, pages, pageCount, onClose }: OpProps) {
           </label>
         </div>
       )}
-      <p className="muted small">Content and markup are scaled to fit, centred.</p>
+      <p className="muted small">Content and markup are scaled to fit, centered.</p>
       {scope.ui}
       <ErrorText text={err} />
     </FormModal>
@@ -617,7 +618,7 @@ function SplitDialog({ documentId, pageCount, onClose }: OpProps) {
       const big = parts.filter((p) => p.oversize).length;
       wb.toast(
         `Split into ${parts.length} files.` +
-          (big ? ` ${big} single page(s) are larger than the limit on their own.` : ""),
+          (big ? ` ${plural(big, "single page")} are larger than the limit on their own.` : ""),
       );
     } catch (e) {
       setErr(message(e));

@@ -18,6 +18,7 @@ import {
   test,
   waitForPainted,
   type Page,
+  dialogWith,
 } from "./fixtures";
 
 const tb = (page: Page, name: string) =>
@@ -60,8 +61,8 @@ test.describe("Fill & Sign", () => {
     await placeAt(page, 0.5, 0.4);
 
     await tb(page, "Sign yourself").click();
-    await page.getByRole("menuitemradio", { name: "Add Signature…" }).click();
-    const dialog = page.getByTestId("signature-dialog");
+    await page.getByRole("menuitemradio", { name: "Add signature…" }).click();
+    const dialog = dialogWith(page, "signature-dialog");
     await dialog.getByLabel("Signature text").fill("Pat Sample");
     await dialog.getByRole("radio", { name: "Great Vibes" }).click();
     await dialog.getByRole("button", { name: "Save and place" }).click();
@@ -90,8 +91,8 @@ test.describe("Fill & Sign", () => {
     await waitForPainted(page, 0);
     await page.getByRole("button", { name: "Fill & Sign", exact: true }).click();
     await tb(page, "Sign yourself").click();
-    await page.getByRole("menuitemradio", { name: "Add Initials…" }).click();
-    const dialog = page.getByTestId("signature-dialog");
+    await page.getByRole("menuitemradio", { name: "Add initials…" }).click();
+    const dialog = dialogWith(page, "signature-dialog");
     await dialog.getByRole("tab", { name: "Draw" }).click();
     const pad = (await dialog.getByTestId("signature-pad").boundingBox())!;
     await page.mouse.move(pad.x + 30, pad.y + 60);
@@ -121,7 +122,7 @@ test.describe("Certificate signatures", () => {
     await page.mouse.down();
     await page.mouse.move(box.x + box.width * 0.55, box.y + box.height * 0.5, { steps: 5 });
     await page.mouse.up();
-    const dialog = page.getByTestId("cert-sign");
+    const dialog = dialogWith(page, "cert-sign");
     await expect(dialog.getByRole("radio", { name: /Browser Test Signer/ })).toBeChecked();
     await dialog.getByLabel("Location").fill("Test office");
     await dialog.getByRole("button", { name: "Sign and save as a new file" }).click();
@@ -156,7 +157,7 @@ test.describe("Certificate signatures", () => {
     await field.scrollIntoViewIfNeeded();
     await expect(field).toContainText("Click to sign");
     await field.click();
-    const dialog = page.getByTestId("cert-sign");
+    const dialog = dialogWith(page, "cert-sign");
     await expect(dialog).toContainText('Signs the field "Client Signature"');
     await dialog.getByRole("button", { name: "Sign and save as a new file" }).click();
     const out = "C:\\Corpus\\sign-field_Signed.pdf";
@@ -178,7 +179,7 @@ test.describe("Protect", () => {
     await waitForPainted(page, 0);
     await page.getByRole("button", { name: "Protect", exact: true }).click();
     await tb(page, "Protect with passwords…").click();
-    const dialog = page.getByTestId("protect");
+    const dialog = dialogWith(page, "protect");
     await expect(dialog.getByTestId("permissions-warning")).toContainText(
       "A permissions password is not real protection",
     );
@@ -204,7 +205,7 @@ test.describe("Protect", () => {
     await page.getByRole("button", { name: "Protect", exact: true }).click();
     await expect(tb(page, "Protect with passwords…")).toBeDisabled();
     await tb(page, "Remove security…").click();
-    const dialog = page.getByTestId("remove-security");
+    const dialog = dialogWith(page, "remove-security");
     await dialog.getByLabel("Password").fill("wrong");
     await dialog.getByRole("button", { name: "Save an unprotected copy" }).click();
     await expect(page.getByText(/That password is not correct/)).toBeVisible();

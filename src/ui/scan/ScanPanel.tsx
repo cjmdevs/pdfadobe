@@ -40,7 +40,7 @@ export default function ScanPanel({ documentId }: { documentId: string }) {
   return (
     <section className="redact-panel scan-panel" aria-label="Scan & OCR" data-testid="scan-panel">
       <details open>
-        <summary>Recognize Text</summary>
+        <summary>Recognize text</summary>
         <fieldset disabled={run !== null}>
           {scopes.map(([value, label]) => (
             <label key={value}>
@@ -103,7 +103,7 @@ export default function ScanPanel({ documentId }: { documentId: string }) {
           </div>
         ) : (
           <button type="button" className="primary" onClick={start} disabled={pageCount === 0}>
-            Recognize Text
+            Recognize text
           </button>
         )}
         {outcome && (
@@ -123,7 +123,7 @@ export default function ScanPanel({ documentId }: { documentId: string }) {
           disabled={run !== null}
           onClick={() => wb.setDialog({ kind: "batchOcr" })}
         >
-          Recognize Text in a Folder…
+          Recognize text in a folder…
         </button>
       </details>
     </section>

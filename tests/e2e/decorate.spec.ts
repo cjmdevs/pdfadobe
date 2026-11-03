@@ -14,6 +14,7 @@ import {
   test,
   waitForPainted,
   type Page,
+  dialogWith,
 } from "./fixtures";
 
 const editBar = (page: Page) => page.getByTestId("tool-toolbar");
@@ -49,7 +50,7 @@ async function find(page: Page, text: string) {
 test("header & footer: page numbers added, searchable, removed", async ({ page }) => {
   await openEdit(page, P.nav);
   await menu(page, "Header & Footer", "Add…");
-  const dlg = page.getByTestId("header-footer-dialog");
+  const dlg = dialogWith(page, "header-footer-dialog");
   await expect(dlg.getByTestId("decorate-preview")).toHaveText("First page: Page 1 of 8");
   await dlg.getByLabel("Left header").click();
   await dlg.getByRole("button", { name: "File Name" }).click();
@@ -69,7 +70,7 @@ test("header & footer: page numbers added, searchable, removed", async ({ page }
 test("watermark and background from the Edit toolbar", async ({ page }) => {
   await openEdit(page, P.text);
   await menu(page, "Watermark", "Add…");
-  const wm = page.getByTestId("watermark-dialog");
+  const wm = dialogWith(page, "watermark-dialog");
   await wm.getByLabel("Watermark text").fill("CONFIDENTIAL");
   await wm.getByRole("button", { name: "Apply" }).click();
   await idle(page);
@@ -78,7 +79,7 @@ test("watermark and background from the Edit toolbar", async ({ page }) => {
 
   await page.keyboard.press("Escape");
   await more(page, "Background", "Add…");
-  await page.getByTestId("background-dialog").getByRole("button", { name: "Apply" }).click();
+  await dialogWith(page, "background-dialog").getByRole("button", { name: "Apply" }).click();
   await idle(page);
   // Two undo steps: background, then watermark.
   await page.keyboard.press("Control+z");
@@ -92,11 +93,11 @@ test("watermark and background from the Edit toolbar", async ({ page }) => {
 test("Bates numbering across two files writes _Bates copies", async ({ page, mockfs }) => {
   await openEdit(page, P.nav);
   await queueChoices(page, { savePaths: ["C:\\Out\\workpaper-b_Bates.pdf"] });
-  await more(page, "Bates Numbering", "Add…");
-  const dlg = page.getByTestId("bates-dialog");
+  await more(page, "Bates numbering", "Add…");
+  const dlg = dialogWith(page, "bates-dialog");
   await dlg.getByLabel("Prefix").fill("MGR");
   const chooser = page.waitForEvent("filechooser");
-  await dlg.getByRole("button", { name: "Add Files…" }).click();
+  await dlg.getByRole("button", { name: "Add files…" }).click();
   await (await chooser).setFiles(join(CORPUS, "workpaper-b.pdf"));
   await expect(dlg.locator(".bates-files li")).toHaveCount(2);
   await expect(dlg.getByTestId("decorate-preview")).toHaveText("First page: MGR000001");

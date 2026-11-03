@@ -1,6 +1,6 @@
 // Modal dialogs: open errors, document properties, keyboard shortcuts, and (Phase 2)
 // page operations, Combine Files and unsaved changes (PageOpsDialogs.tsx).
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useRotate } from "@embedpdf/plugin-rotate/react";
 import type { PdfMetadataObject } from "@embedpdf/models";
@@ -8,6 +8,7 @@ import { SHORTCUTS, displayKey } from "../app/shortcuts";
 import { useNav } from "../app/useNav";
 import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workbench";
 import { CustomizeDialog } from "./CustomizeDialog";
+import { Modal, ModalActions } from "./kit/Dialog";
 import { StampPicker } from "./markup/StampPicker";
 import { TickmarkLibrary } from "./flyer/TickmarkLibrary";
 import { StampDetails } from "./flyer/StampDetails";
@@ -34,42 +35,7 @@ import {
   type PermissionName,
 } from "../engine/properties";
 
-export function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const d = ref.current;
-    if (d && !d.open) d.showModal();
-  }, []);
-  return (
-    <dialog
-      ref={ref}
-      className="modal"
-      aria-label={title}
-      onCancel={(e) => {
-        e.preventDefault();
-        onClose();
-      }}
-    >
-      <header>
-        <h2>{title}</h2>
-      </header>
-      <div className="modal-body">{children}</div>
-      <footer className="button-row">
-        <button type="button" className="primary" autoFocus onClick={onClose}>
-          Close
-        </button>
-      </footer>
-    </dialog>
-  );
-}
+export { Modal };
 
 export function Dialogs() {
   const { confirmRequest } = useWorkbench();
@@ -105,7 +71,7 @@ function MainDialog() {
       );
     case "stamps":
       return (
-        <Modal title="Custom Stamps" onClose={close}>
+        <Modal title="Custom stamps" onClose={close}>
           <StampPicker />
         </Modal>
       );
@@ -157,7 +123,7 @@ function MainDialog() {
       return <CombineDialog startWith={dialog.documentId} onClose={close} />;
     case "optimize":
       return (
-        <Modal title="Reduce File Size" onClose={close}>
+        <Modal title="Reduce file size" onClose={close}>
           <OptimizeDialog documentId={dialog.documentId} onClose={close} />
         </Modal>
       );
@@ -166,10 +132,10 @@ function MainDialog() {
         <Modal
           title={
             {
-              header: "Add Header & Footer",
-              bates: "Bates Numbering",
-              watermark: "Add Watermark",
-              background: "Add Background",
+              header: "Add header & footer",
+              bates: "Bates numbering",
+              watermark: "Add watermark",
+              background: "Add background",
             }[dialog.what]
           }
           onClose={close}
@@ -186,7 +152,7 @@ function MainDialog() {
     case "signatures":
       return (
         <Modal
-          title={dialog.create === "initials" ? "Add Initials" : "Add Signature"}
+          title={dialog.create === "initials" ? "Add initials" : "Add signature"}
           onClose={close}
         >
           <SignatureDialog kind={dialog.create} documentId={dialog.documentId} onClose={close} />
@@ -194,7 +160,7 @@ function MainDialog() {
       );
     case "certSign":
       return (
-        <Modal title="Sign with a Certificate" onClose={close}>
+        <Modal title="Sign with a certificate" onClose={close}>
           <CertSignDialog
             documentId={dialog.documentId}
             box={dialog.box}
@@ -205,13 +171,13 @@ function MainDialog() {
       );
     case "protect":
       return (
-        <Modal title="Protect with Passwords" onClose={close}>
+        <Modal title="Protect with passwords" onClose={close}>
           <ProtectDialog documentId={dialog.documentId} onClose={close} />
         </Modal>
       );
     case "removeSecurity":
       return (
-        <Modal title="Remove Security" onClose={close}>
+        <Modal title="Remove security" onClose={close}>
           <RemoveSecurityDialog documentId={dialog.documentId} onClose={close} />
         </Modal>
       );
@@ -223,7 +189,7 @@ function MainDialog() {
       );
     case "batchOcr":
       return (
-        <Modal title="Recognize Text in a Folder" onClose={close}>
+        <Modal title="Recognize text in a folder" onClose={close}>
           <BatchOcr />
         </Modal>
       );
@@ -249,30 +215,33 @@ function OpenErrorDialog({
       <p data-testid="open-error-message" data-kind={kind}>
         {message}
       </p>
-      <div className="button-row">
-        {(kind === "locked" || kind === "network") && (
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              void openPaths([path]);
-            }}
-          >
-            Try again
-          </button>
-        )}
-        {kind === "notFound" && path && (
-          <button
-            type="button"
-            onClick={() => {
-              forget(path);
-              onClose();
-            }}
-          >
-            Remove from recent files
-          </button>
-        )}
-      </div>
+      {(kind === "locked" || kind === "network" || (kind === "notFound" && path)) && (
+        <ModalActions>
+          {(kind === "locked" || kind === "network") && (
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                onClose();
+                void openPaths([path]);
+              }}
+            >
+              Try again
+            </button>
+          )}
+          {kind === "notFound" && path && (
+            <button
+              type="button"
+              onClick={() => {
+                forget(path);
+                onClose();
+              }}
+            >
+              Remove from recent files
+            </button>
+          )}
+        </ModalActions>
+      )}
     </Modal>
   );
 }
@@ -335,7 +304,7 @@ function PropertiesDialog({ documentId, onClose }: { documentId: string; onClose
     ["Fast web view", m.linearized ? "Yes" : "No"],
   ];
   return (
-    <Modal title="Document Properties" onClose={onClose}>
+    <Modal title="Document properties" onClose={onClose}>
       <h3>Description</h3>
       <dl className="props" data-testid="properties">
         {rows.map(([k, v]) => (
@@ -370,7 +339,7 @@ function PropertiesDialog({ documentId, onClose }: { documentId: string; onClose
 
 function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   return (
-    <Modal title="Keyboard Shortcuts" onClose={onClose}>
+    <Modal title="Keyboard shortcuts" onClose={onClose}>
       <table className="shortcuts">
         <thead>
           <tr>

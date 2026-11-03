@@ -167,7 +167,7 @@ function LinkForm({
             <span>Colour</span>
             <input
               type="color"
-              aria-label="Link colour"
+              aria-label="Link color"
               value={color}
               onChange={(e) => setColor(e.target.value)}
             />

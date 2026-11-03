@@ -2,6 +2,7 @@
 // import an image; saved per user (Windows: DPAPI-encrypted) and then placed. Also lists
 // the saved ones so they can be deleted.
 import { useEffect, useRef, useState } from "react";
+import { ModalActions } from "../kit/Dialog";
 import { useWorkbench } from "../../app/workbench";
 import { platform, type SavedSignature, type SignatureKind } from "../../platform";
 import {
@@ -160,11 +161,11 @@ export function SignatureDialog({
         </div>
       )}
 
-      <div className="button-row">
+      <ModalActions>
         <button type="button" className="primary" disabled={busy} onClick={() => void save()}>
           {documentId ? "Save and place" : "Save"}
         </button>
-      </div>
+      </ModalActions>
 
       <SavedList list={list} />
       <p className="hint">

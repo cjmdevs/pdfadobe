@@ -61,7 +61,7 @@ export async function recognize(wb: WorkbenchApi, documentId: string, pages?: nu
   if (outcome) wb.toast(`Recognize text: ${outcome}`);
 }
 
-/** Enhance > Straighten Pages / Turn Pages Upright on `list` (0-based pages). */
+/** Enhance > Straighten Pages / Turn pages upright on `list` (0-based pages). */
 export async function enhance(
   wb: WorkbenchApi,
   documentId: string,

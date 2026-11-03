@@ -19,6 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import { useCoreState } from "@embedpdf/core/react";
+import { plural } from "../ui/kit/text";
 import { useDocumentManagerCapability } from "@embedpdf/plugin-document-manager/react";
 import { usePrintCapability } from "@embedpdf/plugin-print/react";
 import { useAnnotationCapability, useAnnotationPlugin } from "@embedpdf/plugin-annotation/react";
@@ -787,7 +788,7 @@ export function WorkbenchProvider({
           autoRotate: settingsRef.current.printAutoRotate,
           currentPage,
         });
-        if (r.status === "printed") toast(`Sent ${r.pages} page(s) to the printer.`);
+        if (r.status === "printed") toast(`Sent ${plural(r.pages, "page")} to the printer.`);
       } catch (e) {
         if (e instanceof PlatformError && e.kind === "unsupported" && printer) {
           // WebView print (Edge's PDF print preview). Used outside Windows or when
@@ -958,7 +959,7 @@ export function WorkbenchProvider({
           showRevision(id, next, opts.page ?? null, opts.select ?? null);
           return true;
         } catch (e) {
-          if (e instanceof OcrCancelled) toast(`${label} was cancelled. Nothing was changed.`);
+          if (e instanceof OcrCancelled) toast(`${label} was canceled. Nothing was changed.`);
           else toast(`${label} failed: ${e instanceof Error ? e.message : String(e)}`, "error");
           return false;
         }

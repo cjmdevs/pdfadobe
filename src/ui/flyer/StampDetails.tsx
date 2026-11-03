@@ -1,6 +1,7 @@
 // Before a sign-off stamp is placed (Phase 4 stage 2): its workpaper reference and custom
 // fields. Name, initials and time are filled in at each click.
 import { useState } from "react";
+import { ModalActions } from "../kit/Dialog";
 import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
 import { useInteractionManagerCapability } from "@embedpdf/plugin-interaction-manager/react";
 import { useWorkbench } from "../../app/workbench";
@@ -42,6 +43,7 @@ export function StampDetails({
   };
   return (
     <form
+      id="stamp-details-form"
       className="stamp-details"
       onSubmit={(e) => {
         e.preventDefault();
@@ -69,9 +71,11 @@ export function StampDetails({
         {wb.settings.userInitials ? ` (${wb.settings.userInitials})` : ""}, with the time of each
         click.
       </p>
-      <button type="submit" className="primary">
-        Place
-      </button>
+      <ModalActions>
+        <button type="submit" form="stamp-details-form" className="primary">
+          Place
+        </button>
+      </ModalActions>
     </form>
   );
 }

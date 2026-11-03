@@ -62,8 +62,8 @@ test.describe("workspace", () => {
     await openPaths(page, [P.wpA]);
     await waitForPainted(page, 0);
     expect(await quickNames(page)).toContain("Delete pages");
-    await page.getByRole("button", { name: "Customize Quick Tools…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Customize Quick Tools" });
+    await page.getByRole("button", { name: "Customize quick tools…" }).click();
+    const dlg = page.getByRole("dialog", { name: "Customize quick tools" });
     const save = dlg.getByRole("button", { name: "Save", exact: true });
     await expect(save).toBeDisabled();
     const strip = dlg.getByRole("list", { name: "Pinned tools" });
@@ -110,8 +110,8 @@ test.describe("workspace", () => {
     await boot(page);
     await openPaths(page, [P.wpA]);
     await waitForPainted(page, 0);
-    await page.getByRole("button", { name: "Customize Quick Tools…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Customize Quick Tools" });
+    await page.getByRole("button", { name: "Customize quick tools…" }).click();
+    const dlg = page.getByRole("dialog", { name: "Customize quick tools" });
     await dlg.getByText("Firm default", { exact: true }).click();
     await dlg.getByLabel("Firm layout file").fill(LAYOUT);
     await dlg.getByRole("button", { name: "Load firm default" }).click();
@@ -131,8 +131,8 @@ test.describe("workspace", () => {
 
   test("save the current toolbar as the firm default file", async ({ page, mockfs }) => {
     await boot(page);
-    await page.getByRole("button", { name: "Customize Quick Tools…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Customize Quick Tools" });
+    await page.getByRole("button", { name: "Customize quick tools…" }).click();
+    const dlg = page.getByRole("dialog", { name: "Customize quick tools" });
     await dlg.getByText("Firm default", { exact: true }).click();
     await dlg.getByLabel("Firm layout file").fill(LAYOUT);
     await dlg.getByRole("button", { name: "Save this toolbar as the firm default" }).click();

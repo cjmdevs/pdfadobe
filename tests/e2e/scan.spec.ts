@@ -1,5 +1,5 @@
 // Phase 7: Scan & OCR. Recognize Text makes the synthetic scan searchable (one undo
-// step), and Recognize Text in a Folder writes <name>_OCR.pdf beside each original.
+// step), and Recognize text in a folder writes <name>_OCR.pdf beside each original.
 import {
   boot,
   bytesAt,
@@ -9,6 +9,7 @@ import {
   queueChoices,
   test,
   waitForPainted,
+  dialogWith,
 } from "./fixtures";
 
 const SCAN = "C:\\Scans\\scanned-image-only.pdf";
@@ -26,7 +27,7 @@ test("Recognize Text makes a scan searchable; a second run leaves it alone", asy
   const toolbar = page.getByTestId("tool-toolbar");
   for (const name of [
     "Insert",
-    "Recognize Text",
+    "Recognize text",
     "Extract",
     "Rotate left",
     "Rotate right",
@@ -35,7 +36,7 @@ test("Recognize Text makes a scan searchable; a second run leaves it alone", asy
     await expect(toolbar.getByText(new RegExp(`^${name}( ▾)?$`))).toBeVisible();
 
   const panel = page.getByTestId("scan-panel");
-  await panel.getByRole("button", { name: "Recognize Text", exact: true }).click();
+  await panel.getByRole("button", { name: "Recognize text", exact: true }).click();
   await expect(panel.getByTestId("ocr-outcome")).toHaveText("Read 1 page.", { timeout: 60_000 });
   await idle(page);
 
@@ -48,12 +49,12 @@ test("Recognize Text makes a scan searchable; a second run leaves it alone", asy
   await expect(page.getByTestId("search-summary")).toHaveText(/1 of 1 matches/);
 
   // Again: the page has text now, so it is skipped and nothing changes.
-  await panel.getByRole("button", { name: "Recognize Text", exact: true }).click();
+  await panel.getByRole("button", { name: "Recognize text", exact: true }).click();
   await expect(panel.getByTestId("ocr-outcome")).toContainText("1 page already had text");
   expect(mockfs.writes).toEqual([]);
 });
 
-test("Recognize Text in a Folder writes _OCR files beside the originals", async ({
+test("Recognize text in a folder writes _OCR files beside the originals", async ({
   page,
   mockfs,
 }) => {
@@ -67,13 +68,13 @@ test("Recognize Text in a Folder writes _OCR files beside the originals", async 
   await page.getByRole("button", { name: "Scan & OCR", exact: true }).click();
   await page
     .getByTestId("scan-panel")
-    .getByRole("button", { name: /in a Folder/ })
+    .getByRole("button", { name: /in a folder/ })
     .click();
 
-  const dialog = page.getByTestId("batch-ocr");
+  const dialog = dialogWith(page, "batch-ocr");
   await dialog.getByRole("button", { name: "Choose Folder…" }).click();
   await expect(dialog.locator("tr")).toHaveCount(3);
-  await dialog.getByRole("button", { name: "Recognize Text in 3 files" }).click();
+  await dialog.getByRole("button", { name: "Recognize text in 3 files" }).click();
   await expect(dialog.getByRole("status")).toHaveText(/Finished: 2 saved, 1 left alone, 0 failed/, {
     timeout: 90_000,
   });
@@ -99,9 +100,9 @@ test("Enhance menu straightens and turns pages upright", async ({ page, mockfs }
     await page.getByRole("menuitemradio", { name: item }).click();
   };
   // The synthetic scan is level and upright: nothing to change.
-  await menu("Straighten All Pages");
+  await menu("Straighten all pages");
   await expect(page.locator(".toast", { hasText: "No tilted pages found." })).toBeVisible();
-  await menu("Turn Pages Upright");
+  await menu("Turn pages upright");
   await expect(page.locator(".toast", { hasText: "already upright" })).toBeVisible({
     timeout: 60_000,
   });

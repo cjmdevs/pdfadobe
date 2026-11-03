@@ -15,6 +15,7 @@ import {
   queueChoices,
   test,
   waitForPainted,
+  dialogWith,
 } from "./fixtures";
 
 test("Export PDF: chosen pages as PNG files, then the text", async ({ page, mockfs }) => {
@@ -22,11 +23,11 @@ test("Export PDF: chosen pages as PNG files, then the text", async ({ page, mock
   await openPaths(page, [P.nav]);
   await waitForPainted(page, 0);
   await page.getByRole("button", { name: "Export PDF", exact: true }).click();
-  const dlg = page.getByTestId("export-dialog");
+  const dlg = dialogWith(page, "export-dialog");
   await dlg.getByRole("combobox", { name: "Resolution" }).selectOption("72");
   await dlg.getByLabel("Pages").fill("5-6");
   await dlg.getByRole("button", { name: "Export" }).click();
-  await expect(page.locator(".toast", { hasText: "Saved 2 PNG file(s)" })).toBeVisible();
+  await expect(page.locator(".toast", { hasText: "Saved 2 PNG files" })).toBeVisible();
   expect(mockfs.writes.map((w) => w.path)).toEqual([
     "C:\\Corpus\\navigation_Page_5.png",
     "C:\\Corpus\\navigation_Page_6.png",
@@ -50,7 +51,7 @@ test("Export PDF to Word and Excel, beside the source", async ({ page, mockfs })
   await openPaths(page, [P.footing]);
   await waitForPainted(page, 0);
   await page.getByRole("button", { name: "Export PDF", exact: true }).click();
-  const dlg = page.getByTestId("export-dialog");
+  const dlg = dialogWith(page, "export-dialog");
   await dlg.getByRole("radio", { name: "Word document (.docx)" }).check();
   await expect(dlg.getByRole("note")).toContainText("layouts");
   await dlg.getByRole("button", { name: "Export" }).click();
@@ -69,7 +70,7 @@ test("Export to Word is offered only with desktop Word", async ({ page }) => {
   await boot(page);
   await openPaths(page, [P.text]);
   await page.getByRole("button", { name: "Export PDF", exact: true }).click();
-  const dlg = page.getByTestId("export-dialog");
+  const dlg = dialogWith(page, "export-dialog");
   await expect(dlg.getByText("(needs Microsoft Word)")).toBeVisible();
   await expect(dlg.getByRole("radio", { name: /Word document/ })).toBeDisabled();
 });
@@ -86,9 +87,9 @@ test("Create PDF: a folder of Office files and scans, one PDF each beside the or
   mockfs.entries[`${ENG}\\~$Letter.docx`] = { file: "text-1p.pdf" };
   await boot(page);
   await page.getByRole("button", { name: "Create PDF", exact: true }).click();
-  const dlg = page.getByTestId("create-pdf-dialog");
+  const dlg = dialogWith(page, "create-pdf-dialog");
   await queueChoices(page, { folders: [ENG] });
-  await dlg.getByRole("button", { name: "Add a Folder…" }).click();
+  await dlg.getByRole("button", { name: "Add folder…" }).click();
   await expect(dlg.getByRole("list", { name: "Files" })).toContainText("TB.xlsx");
   await expect(dlg.getByRole("list", { name: "Files" })).not.toContainText("~$");
   await expect(dlg.getByText("PDFs in the list are only used when combining.")).toBeVisible();
@@ -107,9 +108,9 @@ test("Create PDF waits for Office it does not have", async ({ page, mockfs }) =>
   mockfs.entries[`${ENG}\\Deck.pptx`] = { file: "text-1p.pdf" };
   await boot(page);
   await page.getByRole("button", { name: "Create PDF", exact: true }).click();
-  const dlg = page.getByTestId("create-pdf-dialog");
+  const dlg = dialogWith(page, "create-pdf-dialog");
   await queueChoices(page, { paths: [[`${ENG}\\Deck.pptx`]] });
-  await dlg.getByRole("button", { name: "Add Files…" }).click();
+  await dlg.getByRole("button", { name: "Add files…" }).click();
   await expect(dlg.getByText("(needs Microsoft PowerPoint)")).toBeVisible();
   await expect(dlg.getByRole("button", { name: "Create 1 PDF" })).toBeDisabled();
 });
@@ -122,11 +123,11 @@ test("Create PDF: Office, PDF and scan combined in the chosen order", async ({ p
   };
   await boot(page);
   await page.getByRole("button", { name: "Create PDF", exact: true }).click();
-  const dlg = page.getByTestId("create-pdf-dialog");
+  const dlg = dialogWith(page, "create-pdf-dialog");
   await queueChoices(page, {
     paths: [[`${ENG}\\photo-rgb.jpg`, P.scanTif, `${ENG}\\Letter.docx`]],
   });
-  await dlg.getByRole("button", { name: "Add Files…" }).click();
+  await dlg.getByRole("button", { name: "Add files…" }).click();
   await dlg.getByRole("radio", { name: /One combined PDF/ }).check();
   await dlg.getByRole("checkbox", { name: /Recognize text/ }).uncheck();
   // Name order is Letter, photo, scan; put the scan before the photo.

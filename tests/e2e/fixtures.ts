@@ -343,3 +343,9 @@ export async function idle(page: Page) {
     )
     .toBe(true);
 }
+
+/** The open dialog holding this body (B7: a dialog's actions sit in its footer, outside
+ * the body element, so look buttons up in the whole dialog). */
+export function dialogWith(page: Page, testId: string) {
+  return page.locator("dialog[open]").filter({ has: page.getByTestId(testId) });
+}

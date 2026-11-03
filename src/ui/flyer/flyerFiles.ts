@@ -2,6 +2,7 @@
 // export/import, and the firm tickmark file. Nothing is overwritten without the user
 // picking the path.
 import type { WorkbenchApi } from "../../app/workbench";
+import { plural } from "../kit/text";
 import { summaryCsv, type SummaryRow } from "../../flyer/items";
 import {
   importTickmarks,
@@ -32,7 +33,7 @@ export async function exportSummaryCsv(wb: WorkbenchApi, documentId: string): Pr
     // BOM: Excel then reads the file as UTF-8.
     const bytes = new TextEncoder().encode("﻿" + summaryCsv(rows, formatWhen));
     await platform.saveAs(target, m.source.kind === "path" ? m.source.path : null, bytes);
-    wb.toast(`Stamp Summary exported (${rows.length} item(s)).`);
+    wb.toast(`Stamp Summary exported (${plural(rows.length, "item")}).`);
   } catch (e) {
     wb.toast(`Export failed: ${message(e)}`, "error");
   }
@@ -50,7 +51,9 @@ export async function exportWorkpaperSettings(wb: WorkbenchApi): Promise<void> {
       wb.settings.calc,
     );
     await platform.saveAs(target, null, new TextEncoder().encode(JSON.stringify(file, null, 2)));
-    wb.toast(`Exported ${file.tickmarks.length} tickmark(s) and ${file.stamps.length} stamp(s).`);
+    wb.toast(
+      `Exported ${plural(file.tickmarks.length, "tickmark")} and ${plural(file.stamps.length, "stamp")}.`,
+    );
   } catch (e) {
     wb.toast(`Export failed: ${message(e)}`, "error");
   }
@@ -68,7 +71,7 @@ export async function importWorkpaperSettings(wb: WorkbenchApi): Promise<void> {
       ...(parsed.calculator ? { calc: parsed.calculator } : {}),
     });
     wb.toast(
-      `Imported ${parsed.tickmarks.length} tickmark(s) and ${parsed.stamps.length} stamp(s).`,
+      `Imported ${plural(parsed.tickmarks.length, "tickmark")} and ${plural(parsed.stamps.length, "stamp")}.`,
     );
   } catch (e) {
     wb.toast(`Import failed: ${message(e)}`, "error");

@@ -5,6 +5,7 @@
 // - Sign-off stamps: the user's initials, every stamp, "New stamp…".
 // - Firm & files: the firm file on the share, export/import of the settings file.
 import { useState, type ReactNode } from "react";
+import { plural } from "../kit/text";
 import { useWorkbench } from "../../app/workbench";
 import {
   TICK_SECTIONS,
@@ -409,7 +410,7 @@ function FilesTab({ onNote }: { onNote: (n: string) => void }) {
         firmStampsCache: file.stamps,
       });
       onNote(
-        `Loaded ${file.tickmarks.length} firm tickmark(s) and ${file.stamps.length} stamp(s).`,
+        `Loaded ${plural(file.tickmarks.length, "firm tickmark")} and ${plural(file.stamps.length, "stamp")}.`,
       );
     } catch (e) {
       onNote(`Could not load it: ${e instanceof Error ? e.message : String(e)}`);

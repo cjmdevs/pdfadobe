@@ -3,6 +3,7 @@
 // for page numbers, date and file name; saved setups; page range. Measurements are in
 // inches here and points in the engine.
 import { useRef, useState } from "react";
+import { ModalActions } from "../kit/Dialog";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useWorkbench } from "../../app/workbench";
 import {
@@ -344,7 +345,7 @@ function HeaderFooterForm({
       {(["header", "footer"] as const).map((row) => (
         <fieldset key={row} className="hf-boxes">
           <legend>{row === "header" ? "Header" : "Footer"}</legend>
-          {["Left", "Centre", "Right"].map((label, col) => (
+          {["Left", "Center", "Right"].map((label, col) => (
             <label key={label}>
               {label} {row}
               <input
@@ -401,7 +402,7 @@ function HeaderFooterForm({
             ))}
           </ol>
           <button type="button" onClick={() => void addFiles()}>
-            Add Files…
+            Add files…
           </button>
           {files.length > 1 && (
             <p className="hint">
@@ -414,7 +415,7 @@ function HeaderFooterForm({
       <p className="hint" data-testid="decorate-preview">
         First page{sample ? `: ${sample}` : ""}
       </p>
-      <div className="row">
+      <ModalActions>
         <button
           type="button"
           className="primary"
@@ -423,7 +424,7 @@ function HeaderFooterForm({
         >
           {done !== null ? `Numbering ${done + 1} of ${files.length}…` : "Apply"}
         </button>
-      </div>
+      </ModalActions>
     </div>
   );
 }
@@ -542,7 +543,7 @@ function WatermarkForm({ documentId, onClose }: { documentId: string; onClose():
           Across
           <select value={h} onChange={(e) => setH(e.target.value as typeof h)}>
             <option value="left">Left</option>
-            <option value="center">Centre</option>
+            <option value="center">Center</option>
             <option value="right">Right</option>
           </select>
         </label>
@@ -550,18 +551,18 @@ function WatermarkForm({ documentId, onClose }: { documentId: string; onClose():
           Down
           <select value={v} onChange={(e) => setV(e.target.value as typeof v)}>
             <option value="top">Top</option>
-            <option value="center">Centre</option>
+            <option value="center">Center</option>
             <option value="bottom">Bottom</option>
           </select>
         </label>
       </fieldset>
       <PageRange value={range.range} onChange={range.setRange} />
       {range.error && <p className="hint error">{range.error}</p>}
-      <div className="row">
+      <ModalActions>
         <button type="button" className="primary" onClick={() => void apply()}>
           Apply
         </button>
-      </div>
+      </ModalActions>
     </div>
   );
 }
@@ -601,7 +602,7 @@ function BackgroundForm({ documentId, onClose }: { documentId: string; onClose()
           Colour
           <input
             type="color"
-            aria-label="Background colour"
+            aria-label="Background color"
             value={color}
             onChange={(e) => setColor(e.target.value)}
           />
@@ -642,11 +643,11 @@ function BackgroundForm({ documentId, onClose }: { documentId: string; onClose()
       <PageRange value={range.range} onChange={range.setRange} />
       {range.error && <p className="hint error">{range.error}</p>}
       <p className="hint">The background is drawn behind everything on the page.</p>
-      <div className="row">
+      <ModalActions>
         <button type="button" className="primary" onClick={() => void apply()}>
           Apply
         </button>
-      </div>
+      </ModalActions>
     </div>
   );
 }
