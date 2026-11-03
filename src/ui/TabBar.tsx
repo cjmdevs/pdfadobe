@@ -22,7 +22,8 @@ export function TabBar() {
   const open = useOpenDocuments();
   const { activeDocumentId } = useActiveDocument();
   const { provides: manager } = useDocumentManagerCapability();
-  const { meta, closeDocument, editState, dropTabOutside, moveToNewWindow } = useWorkbench();
+  const { meta, closeDocument, editState, dropTabOutside, moveToNewWindow, home, setHome } =
+    useWorkbench();
   // Every tab gets its meta before EmbedPDF opens it, and loses it when it closes, moves
   // to another window or is replaced by a new revision. EmbedPDF drops a closed document
   // only after PDFium has closed it, so one without meta is on its way out: not a tab.
@@ -77,11 +78,29 @@ export function TabBar() {
   if (docs.length === 0) return null;
   return (
     <div className="tabbar" role="tablist" aria-label="Open documents">
+      <div
+        role="tab"
+        aria-selected={home}
+        aria-label="Home"
+        title="Home"
+        tabIndex={0}
+        className={`tab tab-home${home ? " active" : ""}`}
+        data-testid="home-tab"
+        onClick={() => setHome(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setHome(true);
+          }
+        }}
+      >
+        <Icon name="home" size={16} />
+      </div>
       {docs.map((d) => {
         const { m } = d;
         const name = m.name;
         const title = m.source.kind === "path" ? m.source.path : name;
-        const active = d.id === activeDocumentId;
+        const active = d.id === activeDocumentId && !home;
         const mark = over?.id === d.id && drag.source !== d.id;
         return (
           <div
@@ -97,7 +116,10 @@ export function TabBar() {
             onPointerDown={(e) => {
               if (!(e.target as Element).closest(".tab-close")) drag.start(e, d.id);
             }}
-            onClick={() => manager?.setActiveDocument(d.id)}
+            onClick={() => {
+              manager?.setActiveDocument(d.id);
+              setHome(false);
+            }}
             onAuxClick={(e) => {
               if (e.button === 1) closeDocument(d.id);
             }}

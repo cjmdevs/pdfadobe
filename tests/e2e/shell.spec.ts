@@ -104,9 +104,9 @@ test.describe("app shell", () => {
 
     const recent = page.getByRole("list", { name: "Recent files" }).getByRole("listitem");
     await expect(recent).toHaveCount(2);
-    // Most recent first; UNC path shown in full.
+    // Most recent first; the UNC folder shown in full.
     await expect(recent.nth(0)).toContainText("long-500p.pdf");
-    await expect(recent.nth(0)).toContainText("\\\\fileserver\\share\\Corpus\\long-500p.pdf");
+    await expect(recent.nth(0)).toContainText("\\\\fileserver\\share\\Corpus");
     await recent
       .nth(1)
       .getByRole("button", { name: /^text-1p/ })

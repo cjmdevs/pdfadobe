@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_SETTINGS,
-  MAX_RECENT,
-  addRecent,
-  removeRecent,
-  samePath,
-  sanitizeSettings,
-} from "../../src/app/settings";
+import { DEFAULT_SETTINGS, samePath, sanitizeSettings } from "../../src/app/settings";
 import { SHORTCUTS, displayKey, matchShortcut, type KeyLike } from "../../src/app/shortcuts";
 import {
   ACTUAL_SIZE_SCALE,
@@ -47,16 +40,14 @@ describe("settings", () => {
     ).toBeNull();
   });
 
-  it("maintains a case-insensitive, capped recent list", () => {
-    let r: string[] = [];
-    for (let i = 0; i < 20; i++) r = addRecent(r, `C:\\f${i}.pdf`);
-    expect(r).toHaveLength(MAX_RECENT);
-    expect(r[0]).toBe("C:\\f19.pdf");
-    r = addRecent(r, "c:\\F5.PDF");
-    expect(r[0]).toBe("c:\\F5.PDF");
-    expect(r.filter((p) => samePath(p, "C:\\f5.pdf"))).toHaveLength(1);
-    expect(removeRecent(r, "C:\\F19.pdf")).not.toContain("C:\\f19.pdf");
+  it("compares Windows paths case-insensitively with either slash", () => {
     expect(samePath("\\\\server\\share\\a.pdf", "//SERVER/share/A.pdf")).toBe(true);
+  });
+
+  it("restores tabs only when asked, and keeps thumbnails on by default (B2)", () => {
+    expect(DEFAULT_SETTINGS.restoreSession).toBe(false);
+    expect(DEFAULT_SETTINGS.recentThumbnails).toBe(true);
+    expect(sanitizeSettings({ restoreSession: true }).restoreSession).toBe(true);
   });
 });
 

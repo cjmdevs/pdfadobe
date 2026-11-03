@@ -7,6 +7,9 @@ import type { StampTemplate } from "../engine/flyer/userStamps";
 import { sanitizeStampTemplates, sanitizeTickmarks } from "../flyer/library";
 import { DEFAULT_CALC, sanitizeCalc, type CalcSettings } from "../flyer/calc";
 import { sanitizePresets, type HeaderFooterPreset } from "../engine/decorate";
+import { samePath, sanitizeRecent, type RecentFile } from "./recent";
+
+export { samePath };
 
 export type Theme = "system" | "light" | "dark";
 export type ViewMode = "continuous" | "single" | "twoUp";
@@ -23,9 +26,13 @@ export interface Settings {
   coverPage: boolean;
   sidebarOpen: boolean;
   sidebarTab: SidebarTab;
-  /** Most recent first. Paths only; files opened from memory are never remembered. */
-  recent: string[];
-  /** Paths of tabs open at exit, restored at next start. */
+  /** Most recent first (B2). Files opened from memory are never remembered. */
+  recent: RecentFile[];
+  /** Reopen the tabs that were open at exit (B2: opt-in; Home screen otherwise). */
+  restoreSession: boolean;
+  /** Cache a page-1 picture of each recent file (in Local AppData only). */
+  recentThumbnails: boolean;
+  /** Paths of tabs open at exit, restored at next start when restoreSession is on. */
   openTabs: string[];
   activeTab: string | null;
   printScaling: Scaling;
@@ -98,8 +105,6 @@ export interface Settings {
   headerFooterPresets: HeaderFooterPreset[];
 }
 
-export const MAX_RECENT = 15;
-
 /** Settings that belong to one window (backlog B1): extra windows never save them, so
  * they cannot overwrite the main window's view or its list of tabs to reopen. */
 export const WINDOW_LOCAL_SETTINGS: readonly (keyof Settings)[] = [
@@ -123,6 +128,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sidebarOpen: true,
   sidebarTab: "thumbnails",
   recent: [],
+  restoreSession: false,
+  recentThumbnails: true,
   openTabs: [],
   activeTab: null,
   printScaling: "shrinkOversized",
@@ -208,7 +215,10 @@ export function sanitizeSettings(raw: unknown): Settings {
     coverPage: typeof r.coverPage === "boolean" ? r.coverPage : d.coverPage,
     sidebarOpen: typeof r.sidebarOpen === "boolean" ? r.sidebarOpen : d.sidebarOpen,
     sidebarTab: isTab(r.sidebarTab) ? r.sidebarTab : d.sidebarTab,
-    recent: paths(r.recent, MAX_RECENT),
+    recent: sanitizeRecent(r.recent),
+    restoreSession: typeof r.restoreSession === "boolean" ? r.restoreSession : d.restoreSession,
+    recentThumbnails:
+      typeof r.recentThumbnails === "boolean" ? r.recentThumbnails : d.recentThumbnails,
     openTabs,
     activeTab,
     printScaling: isScaling(r.printScaling) ? r.printScaling : d.printScaling,
@@ -338,22 +348,8 @@ function stringList(v: unknown): string[] | null {
   return v.filter((x): x is string => typeof x === "string").slice(0, 100);
 }
 
-/** Windows paths are case-insensitive and accept either slash. */
-export function samePath(a: string, b: string): boolean {
-  const norm = (p: string) => p.replace(/\//g, "\\").toLowerCase();
-  return norm(a) === norm(b);
-}
-
 function dedupePaths(list: string[]): string[] {
   const out: string[] = [];
   for (const p of list) if (!out.some((q) => samePath(p, q))) out.push(p);
   return out;
-}
-
-export function addRecent(recent: string[], path: string): string[] {
-  return [path, ...recent.filter((p) => !samePath(p, path))].slice(0, MAX_RECENT);
-}
-
-export function removeRecent(recent: string[], path: string): string[] {
-  return recent.filter((p) => !samePath(p, path));
 }

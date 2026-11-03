@@ -6,7 +6,8 @@ import { useRotate } from "@embedpdf/plugin-rotate/react";
 import type { PdfMetadataObject } from "@embedpdf/models";
 import { SHORTCUTS, displayKey } from "../app/shortcuts";
 import { useNav } from "../app/useNav";
-import { describeOpenError, useForgetRecent, useWorkbench } from "../app/workbench";
+import { describeOpenError, useWorkbench } from "../app/workbench";
+import { removeRecentFile } from "../app/recent";
 import { CustomizeDialog } from "./CustomizeDialog";
 import { Modal, ModalActions } from "./kit/Dialog";
 import { StampPicker } from "./markup/StampPicker";
@@ -207,8 +208,7 @@ function OpenErrorDialog({
   kind: string;
   onClose: () => void;
 }) {
-  const forget = useForgetRecent();
-  const { openPaths } = useWorkbench();
+  const { openPaths, changeRecent } = useWorkbench();
   return (
     <Modal title="Can't open file" onClose={onClose}>
       {path && <p className="path">{path}</p>}
@@ -233,7 +233,7 @@ function OpenErrorDialog({
             <button
               type="button"
               onClick={() => {
-                forget(path);
+                changeRecent((list) => removeRecentFile(list, path));
                 onClose();
               }}
             >

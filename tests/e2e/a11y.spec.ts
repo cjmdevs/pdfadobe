@@ -114,3 +114,20 @@ for (const scale of [1.25, 1.5])
     const dlg = page.locator("dialog[open]");
     await expect(dlg.getByRole("button", { name: "Close" })).toBeInViewport();
   });
+
+test("Home screen works from the keyboard (B2)", async ({ page }) => {
+  await boot(page, { settings: { recent: [P.text] } });
+  const home = page.getByTestId("start-page");
+  for (const name of ["Open…", "Drop PDF files here", "Organize Pages", "Combine Files"])
+    await tabTo(page, home.getByRole("button", { name, exact: true }));
+  await tabTo(page, home.getByRole("button", { name: "Pin text-1p.pdf" }));
+  await page.keyboard.press("Enter");
+  await expect(home.getByRole("button", { name: "Unpin text-1p.pdf" })).toBeFocused();
+  await tabTo(page, home.getByRole("button", { name: "text-1p.pdf", exact: true }));
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("tab", { name: /text-1p/ })).toHaveAttribute("aria-selected", "true");
+  // The Home tab is a Tab stop and Enter shows Home again.
+  await tabTo(page, page.getByTestId("home-tab"));
+  await page.keyboard.press("Enter");
+  await expect(home).toBeVisible();
+});

@@ -118,6 +118,11 @@ export interface Platform {
   windows: AppWindows | null;
   /** The user's custom stamp images (Phase 3). */
   stamps: StampLibrary;
+  /** Page-1 thumbnails of recent files (B2; Windows: Local AppData only). */
+  thumbs: ThumbCache;
+  /** Whether each path can be reached now (B2 Home screen). Never throws; a share that
+   * does not answer within a few seconds is "offline". */
+  pathStatus(paths: string[]): Promise<PathStatus[]>;
   /** Font files for Edit PDF (backlog B3). */
   fonts: FontFolders;
   /** Saved visual signatures and initials (Phase 8; Windows: DPAPI-encrypted). */
@@ -198,6 +203,18 @@ export interface FontFolders {
   /** The engine's font index cache, or null. */
   loadIndex(): Promise<FontIndexCache | null>;
   saveIndex(cache: FontIndexCache): Promise<void>;
+}
+
+export type PathStatus = "ok" | "missing" | "offline";
+
+/** Home screen thumbnails (B2): JPEGs keyed by a 32-hex id, never by the file's name. */
+export interface ThumbCache {
+  put(id: string, jpeg: Uint8Array): Promise<void>;
+  /** null when there is none (deleted, or never made). */
+  get(id: string): Promise<Uint8Array | null>;
+  remove(ids: string[]): Promise<void>;
+  /** Deletes every thumbnail not listed (an empty list clears them all). */
+  keep(ids: string[]): Promise<void>;
 }
 
 /** Custom stamp images, per user (Windows: config folder; browser: this session). */

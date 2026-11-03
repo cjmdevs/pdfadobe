@@ -26,7 +26,8 @@ interface Fake {
   requestClose?: () => Promise<boolean>;
 }
 
-const tabs = (page: Page) => page.getByRole("tablist", { name: "Open documents" }).getByRole("tab");
+const tabs = (page: Page) =>
+  page.getByRole("tablist", { name: "Open documents" }).locator("[role=tab][data-doc]");
 const tab = (page: Page, name: string) => tabs(page).filter({ hasText: name });
 const fake = (page: Page) =>
   page.evaluate(
@@ -79,7 +80,7 @@ test.describe("tabs and windows", () => {
       const w = window as unknown as { __maxTabs: number };
       const bar = document.querySelector("[role=tablist]")!;
       const count = () =>
-        (w.__maxTabs = Math.max(w.__maxTabs, bar.querySelectorAll("[role=tab]").length));
+        (w.__maxTabs = Math.max(w.__maxTabs, bar.querySelectorAll("[role=tab][data-doc]").length));
       w.__maxTabs = 0;
       count();
       new MutationObserver(count).observe(bar, { childList: true, subtree: true });

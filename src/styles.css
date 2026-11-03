@@ -346,16 +346,16 @@
   color: inherit;
 }
 
-/* ---- Start page ---- */
+/* ---- Home screen (B2) ---- */
 .start {
   height: 100%;
   overflow: auto;
   display: flex;
   justify-content: center;
-  padding: 8vh var(--space-5);
+  padding: 6vh var(--space-5);
 }
 .start-card {
-  width: min(640px, 100%);
+  width: min(720px, 100%);
   background: var(--bg-panel);
   border-radius: var(--radius);
   box-shadow: var(--elev-1);
@@ -363,12 +363,48 @@
   align-self: flex-start;
 }
 .start-card h1 {
-  margin: 0 0 var(--space-2);
+  margin: 0 0 var(--space-4);
   font-size: var(--text-xl);
 }
 .start-card h2 {
   font-size: var(--text-md);
   margin: var(--space-6) 0 var(--space-3);
+}
+.home-open {
+  display: flex;
+  gap: var(--space-4);
+  align-items: stretch;
+}
+.home-drop {
+  flex: 1;
+  border: 2px dashed var(--border-strong);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--fg-muted);
+  min-height: 56px;
+}
+.home-drop:hover,
+.app.dragging .home-drop {
+  border-color: var(--accent);
+  color: var(--fg);
+}
+.home-tools {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.home-tools button {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.home-recent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
 }
 .recent {
   list-style: none;
@@ -387,16 +423,72 @@
   border: none;
   background: transparent;
   display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-2) var(--space-3);
+}
+.recent-thumb {
+  flex: none;
+  width: 48px;
+  height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+  color: var(--fg-muted);
+}
+.recent-thumb img {
+  max-width: 100%;
+  max-height: 100%;
+}
+.recent-text {
+  min-width: 0;
+  display: flex;
   flex-direction: column;
-  padding: var(--space-3) var(--space-3);
 }
 .recent-name {
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .recent-path {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.recent-away {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.recent li.away .recent-open {
+  color: var(--fg-muted);
+}
+.recent li.away .recent-name {
+  font-weight: normal;
+}
+.recent li.away .recent-thumb {
+  opacity: 0.45;
+}
+.tab-home {
+  padding: 0 var(--space-3);
+}
+.workspace {
+  position: relative;
+}
+.home-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--bg-doc);
+}
+.app.home-over .tool-toolbar,
+.app.home-over .props-bar {
+  display: none;
 }
 
 /* ---- Overlays ---- */

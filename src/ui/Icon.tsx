@@ -2,6 +2,9 @@
 // bundled at build time from @fluentui/svg-icons (raw SVG, no runtime code, no network).
 // Our own set: never Adobe's icons (CLAUDE.md / backlog B4).
 import open from "@fluentui/svg-icons/icons/folder_open_20_regular.svg?raw";
+import home from "@fluentui/svg-icons/icons/home_20_regular.svg?raw";
+import offline from "@fluentui/svg-icons/icons/cloud_off_20_regular.svg?raw";
+import fileMissing from "@fluentui/svg-icons/icons/document_dismiss_20_regular.svg?raw";
 import print from "@fluentui/svg-icons/icons/print_20_regular.svg?raw";
 import sidebar from "@fluentui/svg-icons/icons/panel_left_20_regular.svg?raw";
 import first from "@fluentui/svg-icons/icons/arrow_previous_20_regular.svg?raw";
@@ -141,6 +144,9 @@ const SVG = {
   fieldDropdown,
   fieldDate,
   open,
+  home,
+  offline,
+  fileMissing,
   print,
   sidebar,
   first,

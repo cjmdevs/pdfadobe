@@ -138,12 +138,17 @@ function Shell({ ready }: { ready: boolean }) {
   const loadedId = useLoadedDocumentId();
   const theme = useResolvedTheme(wb.settings.theme);
   const [dragging, setDragging] = useState(false);
+  // The Home tab shows Home over the open documents; switching tabs leaves it.
+  const homeOver = wb.home && !!activeDocumentId;
+  const { setHome } = wb;
+  useEffect(() => setHome(false), [activeDocumentId, setHome]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
-  // Startup: reopen last session's tabs, then anything passed on the command line.
+  // Startup: the Home screen, or last session's tabs when that setting is on (B2), then
+  // anything passed on the command line.
   const started = useRef(false);
   useEffect(() => {
     if (!ready || started.current) return;
@@ -152,7 +157,18 @@ function Shell({ ready }: { ready: boolean }) {
       // Only the first window reopens last session's tabs; extra windows start with the
       // tabs moved into them (workbench adopts those).
       const { openTabs, activeTab } =
-        WINDOW_LABEL === "main" ? wb.settings : { openTabs: [], activeTab: null };
+        WINDOW_LABEL === "main" && wb.settings.restoreSession
+          ? wb.settings
+          : { openTabs: [], activeTab: null };
+      // Thumbnails of files no longer in Recent Files (or all of them, when turned off).
+      if (WINDOW_LABEL === "main")
+        void platform.thumbs
+          .keep(
+            wb.settings.recentThumbnails
+              ? wb.settings.recent.flatMap((e) => (e.thumb ? [e.thumb] : []))
+              : [],
+          )
+          .catch(() => undefined);
       const launch = await platform.takeLaunchPaths();
       await wb.openPaths(openTabs, { quiet: true });
       if (activeTab) wb.activatePath(activeTab);
@@ -215,7 +231,7 @@ function Shell({ ready }: { ready: boolean }) {
 
   return (
     <div
-      className={`app${dragging ? " dragging" : ""}`}
+      className={`app${dragging ? " dragging" : ""}${homeOver ? " home-over" : ""}`}
       onDragOver={(e) => {
         if (e.dataTransfer.types.includes("Files")) {
           e.preventDefault();
@@ -240,6 +256,11 @@ function Shell({ ready }: { ready: boolean }) {
         </Guard>
       )}
       <main className="workspace">
+        {homeOver && (
+          <div className="home-overlay">
+            <StartPage />
+          </div>
+        )}
         {loadedId && (
           <Guard resetKey={loadedId}>
             <Sidebar key={loadedId} documentId={loadedId} />

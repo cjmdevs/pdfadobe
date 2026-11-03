@@ -23,6 +23,8 @@ import {
   type SignatureLibrary,
   type FontFolders,
   type StampLibrary,
+  type ThumbCache,
+  type PathStatus,
   type FileErrorKind,
   type OpenedFile,
   type Platform,
@@ -155,6 +157,25 @@ const stamps: StampLibrary = {
     }),
   remove: async (id) => {
     await call("stamp_remove", { id });
+  },
+};
+
+const thumbs: ThumbCache = {
+  put: async (id, jpeg) => {
+    await call("thumb_put", jpeg, { headers: { "x-thumb": id } });
+  },
+  get: async (id) => {
+    try {
+      return new Uint8Array(await call<ArrayBuffer>("thumb_get", { id }));
+    } catch {
+      return null;
+    }
+  },
+  remove: async (ids) => {
+    if (ids.length) await call("thumbs_remove", { ids });
+  },
+  keep: async (ids) => {
+    await call("thumbs_keep", { ids });
   },
 };
 
@@ -303,6 +324,9 @@ export const tauriPlatform: Platform = {
   docs,
   windows,
   stamps,
+  thumbs,
+  pathStatus: (paths) =>
+    paths.length ? call<PathStatus[]>("path_status", { paths }) : Promise.resolve([]),
   signatures,
   certs,
   fonts,

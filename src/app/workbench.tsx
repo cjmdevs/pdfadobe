@@ -39,16 +39,13 @@ import { pageOp } from "./pages";
 import { OcrCancelled } from "../engine/ocr/tesseract";
 import { calcs } from "../ui/forms/calcStore";
 import { splitLaunchPage } from "./launchPage";
+import { setThumb, touchRecent, type RecentChange, type RecentFile } from "./recent";
 import type { DocInfo } from "./docstore";
 import { FALLBACK_AUTHOR } from "../markup/config";
-import {
-  WINDOW_LOCAL_SETTINGS,
-  addRecent,
-  removeRecent,
-  samePath,
-  sanitizeSettings,
-  type Settings,
-} from "./settings";
+import { WINDOW_LOCAL_SETTINGS, samePath, sanitizeSettings, type Settings } from "./settings";
+
+/** Home screen thumbnails: about 300 x 400 px for a Letter page. */
+const THUMB_DPI = 36;
 
 /** This window: "main" is the first one; extra windows are "w-1", "w-2"... (backlog B1). */
 export const WINDOW_LABEL = platform.windows?.label ?? "main";
@@ -154,11 +151,14 @@ export interface WorkbenchApi {
   /** The Windows display name (shown in Settings as the default). */
   osUserName: string | null;
   updateSettings(patch: Partial<Settings>): void;
+  /** Changes Recent Files (B2) and deletes the thumbnails the change let go of. */
+  changeRecent(fn: (list: RecentFile[]) => RecentChange): void;
   meta: Record<string, DocMeta>;
-  pickAndOpen(): Promise<void>;
+  /** `tool`: open that tool on the picked file (Home screen quick tools, B2). */
+  pickAndOpen(opts?: { tool?: string }): Promise<void>;
   openPaths(paths: string[], opts?: { quiet?: boolean }): Promise<void>;
   /** `activate: false` opens in the background (a newer open request owns the focus). */
-  openFiles(files: OpenedFile[], opts?: { activate?: boolean }): void;
+  openFiles(files: OpenedFile[], opts?: { activate?: boolean; tool?: string }): void;
   /** Switch to the tab showing `path`, if open. */
   activatePath(path: string): void;
   closeDocument(id: string): void;
@@ -228,6 +228,9 @@ export interface WorkbenchApi {
   toasts: Toast[];
   toast(text: string, tone?: Toast["tone"]): void;
   searchOpen: boolean;
+  /** Home screen shown over the open tabs (B2; the Home tab). */
+  home: boolean;
+  setHome(show: boolean): void;
   setSearchOpen(open: boolean): void;
   /** Current page per document in Single Page mode (0-based). */
   singlePage: Record<string, number>;
@@ -282,6 +285,7 @@ export function WorkbenchProvider({
   const [dialog, setDialog] = useState<Dialog>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [home, setHome] = useState(false);
   const [singlePage, setSinglePageState] = useState<Record<string, number>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [osUserName, setOsUserName] = useState<string | null>(null);
@@ -447,6 +451,46 @@ export function WorkbenchProvider({
       .catch(() => undefined);
   }, []);
 
+  const changeRecent = useCallback(
+    (fn: (list: RecentFile[]) => RecentChange) => {
+      const { list, dropped } = fn(settingsRef.current.recent);
+      // Ahead of the render, so several changes in a row build on each other.
+      settingsRef.current = { ...settingsRef.current, recent: list };
+      updateSettings({ recent: list });
+      if (dropped.length) void platform.thumbs.remove(dropped).catch(() => undefined);
+    },
+    [updateSettings],
+  );
+
+  /** Page-1 thumbnail for the Home screen (B2). Password-protected or damaged files get
+   * none (PDFium cannot open them without the password). `bytes` must be our own copy. */
+  const makeThumb = useCallback(
+    async (path: string, bytes: Uint8Array) => {
+      if (!settingsRef.current.recentThumbnails) return;
+      const id = crypto.randomUUID().replace(/-/g, "");
+      try {
+        const jpeg = await pageOp("pageImage", bytes, 0, THUMB_DPI, "jpeg", 70);
+        await platform.thumbs.put(id, jpeg);
+      } catch {
+        return;
+      }
+      // Turned off meanwhile: forget it. A file no longer in the list hands the id back.
+      if (!settingsRef.current.recentThumbnails) void platform.thumbs.remove([id]);
+      else changeRecent((list) => setThumb(list, path, id));
+    },
+    [changeRecent],
+  );
+
+  /** A file was opened or saved under `path`: top of Recent Files, fresh thumbnail. */
+  const remember = useCallback(
+    (path: string, bytes: ArrayBuffer | Uint8Array) => {
+      changeRecent((list) => touchRecent(list, path, Date.now()));
+      if (settingsRef.current.recentThumbnails)
+        void makeThumb(path, new Uint8Array(bytes.slice(0)));
+    },
+    [changeRecent, makeThumb],
+  );
+
   const toast = useCallback((text: string, tone: Toast["tone"] = "info") => {
     const id = ++toastSeq;
     setToasts((t) => [...t, { id, text, tone }]);
@@ -477,13 +521,26 @@ export function WorkbenchProvider({
     [docs],
   );
 
+  const setActiveTool = useCallback((id: string, tool: string | null, page?: number) => {
+    const m = metaRef.current[id];
+    if (!m) return;
+    if (page !== undefined) restorePages.current.set(id, page);
+    metaRef.current = { ...metaRef.current, [id]: { ...m, activeTool: tool } };
+    setMeta(metaRef.current);
+  }, []);
+
   const openFiles = useCallback(
     (
       files: OpenedFile[],
       {
         activate = true,
         page,
-      }: { activate?: boolean; /** 0-based page to show */ page?: number } = {},
+        tool,
+      }: {
+        activate?: boolean;
+        /** 0-based page to show */ page?: number;
+        /** Tool to open on the document */ tool?: string;
+      } = {},
     ) => {
       if (!docs) return;
       for (const f of files) {
@@ -493,7 +550,11 @@ export function WorkbenchProvider({
             ([, m]) => m.source.kind === "path" && samePath(m.source.path, path),
           );
           if (existing) {
-            if (activate) docs.setActiveDocument(existing[0]);
+            if (activate) {
+              docs.setActiveDocument(existing[0]);
+              setHome(false);
+            }
+            if (tool) setActiveTool(existing[0], tool);
             continue;
           }
         }
@@ -505,12 +566,14 @@ export function WorkbenchProvider({
           platform.docs.create(storeId, copy, { name: f.name, path, saved: true }).then(setInfo),
         );
         const documentId = addTab(storeId, f.source, f.name, f.bytes, activate);
+        if (activate) setHome(false);
         if (documentId && page !== undefined) restorePages.current.set(documentId, page);
+        if (documentId && tool) setActiveTool(documentId, tool);
         if (documentId && f.source.kind === "path")
           pendingBackups.current.set(documentId, f.source.path);
       }
     },
-    [addTab, docs, queued, setInfo],
+    [addTab, docs, queued, setActiveTool, setInfo],
   );
 
   /** Same file already open in another window: switch to that window (owner decision). */
@@ -532,11 +595,11 @@ export function WorkbenchProvider({
         try {
           if (await openElsewhere(path)) continue;
           const file = await platform.readPath(path);
+          remember(path, file.bytes); // copies before the viewer takes the bytes
           openFiles([file], {
             activate: seq === openSeq.current,
             ...(page !== null ? { page: page - 1 } : {}),
           });
-          updateSettings({ recent: addRecent(settingsRef.current.recent, path) });
         } catch (e) {
           const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
           if (opts.quiet) toast(`Could not reopen ${path}: ${describeOpenError(err)}`, "error");
@@ -544,26 +607,26 @@ export function WorkbenchProvider({
         }
       }
     },
-    [openElsewhere, openFiles, toast, updateSettings],
+    [openElsewhere, openFiles, remember, toast],
   );
 
-  const pickAndOpen = useCallback(async () => {
-    try {
-      const picked = await platform.pickFiles();
-      openSeq.current++; // this choice wins over slower reads still in flight
-      const files: OpenedFile[] = [];
-      for (const f of picked)
-        if (!(f.source.kind === "path" && (await openElsewhere(f.source.path)))) files.push(f);
-      openFiles(files);
-      let recent = settingsRef.current.recent;
-      for (const f of files)
-        if (f.source.kind === "path") recent = addRecent(recent, f.source.path);
-      updateSettings({ recent });
-    } catch (e) {
-      const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
-      setDialog({ kind: "openError", path: "", error: err });
-    }
-  }, [openElsewhere, openFiles, updateSettings]);
+  const pickAndOpen = useCallback(
+    async ({ tool }: { tool?: string } = {}) => {
+      try {
+        const picked = await platform.pickFiles();
+        openSeq.current++; // this choice wins over slower reads still in flight
+        const files: OpenedFile[] = [];
+        for (const f of picked)
+          if (!(f.source.kind === "path" && (await openElsewhere(f.source.path)))) files.push(f);
+        for (const f of files) if (f.source.kind === "path") remember(f.source.path, f.bytes);
+        openFiles(files, tool ? { tool } : {});
+      } catch (e) {
+        const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
+        setDialog({ kind: "openError", path: "", error: err });
+      }
+    },
+    [openElsewhere, openFiles, remember],
+  );
 
   const activatePath = useCallback(
     (path: string) => {
@@ -1020,9 +1083,11 @@ export function WorkbenchProvider({
         toast("Choose a new file name, or use Save (Ctrl+S) to update this file.", "error");
         return false;
       }
+      let written: Uint8Array;
       try {
         await commitMarkup(id);
-        await platform.saveAs(target, source, await bytesToWrite(m.storeId));
+        written = await bytesToWrite(m.storeId);
+        await platform.saveAs(target, source, written);
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
         toast(`Could not save: ${describeOpenError(err)}`, "error");
@@ -1037,11 +1102,11 @@ export function WorkbenchProvider({
         [id]: { ...m, source: { kind: "path", path: target }, name },
       };
       setMeta(metaRef.current);
-      updateSettings({ recent: addRecent(settingsRef.current.recent, target) });
+      remember(target, written);
       toast(`Saved as ${name}.`);
       return true;
     },
-    [bytesToWrite, commitMarkup, queued, resolveId, setInfo, settled, toast, updateSettings],
+    [bytesToWrite, commitMarkup, queued, remember, resolveId, setInfo, settled, toast],
   );
 
   const save = useCallback(
@@ -1051,9 +1116,11 @@ export function WorkbenchProvider({
       const m = metaRef.current[id];
       if (!m) return false;
       if (m.source.kind !== "path") return saveAs(id);
+      let written: Uint8Array;
       try {
         await commitMarkup(id);
-        await platform.save(m.source.path, await bytesToWrite(m.storeId));
+        written = await bytesToWrite(m.storeId);
+        await platform.save(m.source.path, written);
       } catch (e) {
         const err = e instanceof PlatformError ? e : new PlatformError("other", String(e));
         if (err.kind === "unverified") {
@@ -1066,10 +1133,11 @@ export function WorkbenchProvider({
         return false;
       }
       setInfo(await queued(m.storeId, () => platform.docs.markSaved(m.storeId)));
+      remember(m.source.path, written);
       toast(`Saved ${m.name}.`);
       return true;
     },
-    [bytesToWrite, commitMarkup, queued, resolveId, saveAs, setInfo, settled, toast],
+    [bytesToWrite, commitMarkup, queued, remember, resolveId, saveAs, setInfo, settled, toast],
   );
 
   const openNew = useCallback(
@@ -1108,14 +1176,6 @@ export function WorkbenchProvider({
     const m = metaRef.current[id];
     if (!m) return;
     metaRef.current = { ...metaRef.current, [id]: { ...m, bookmark: path } };
-    setMeta(metaRef.current);
-  }, []);
-
-  const setActiveTool = useCallback((id: string, tool: string | null, page?: number) => {
-    const m = metaRef.current[id];
-    if (!m) return;
-    if (page !== undefined) restorePages.current.set(id, page);
-    metaRef.current = { ...metaRef.current, [id]: { ...m, activeTool: tool } };
     setMeta(metaRef.current);
   }, []);
 
@@ -1239,6 +1299,7 @@ export function WorkbenchProvider({
       author,
       osUserName,
       updateSettings,
+      changeRecent,
       meta,
       pickAndOpen,
       openPaths,
@@ -1253,6 +1314,8 @@ export function WorkbenchProvider({
       toasts,
       toast,
       searchOpen,
+      home,
+      setHome,
       setSearchOpen,
       singlePage,
       setSinglePage,
@@ -1287,6 +1350,7 @@ export function WorkbenchProvider({
       author,
       osUserName,
       updateSettings,
+      changeRecent,
       meta,
       pickAndOpen,
       openPaths,
@@ -1300,6 +1364,8 @@ export function WorkbenchProvider({
       toasts,
       toast,
       searchOpen,
+      home,
+      setHome,
       singlePage,
       setSinglePage,
       docBytes,
@@ -1329,13 +1395,4 @@ export function WorkbenchProvider({
     ],
   );
   return <Ctx.Provider value={api}>{children}</Ctx.Provider>;
-}
-
-/** Remove a path from Recent Files (e.g. after "not found"). */
-export function useForgetRecent() {
-  const { settings, updateSettings } = useWorkbench();
-  return useCallback(
-    (path: string) => updateSettings({ recent: removeRecent(settings.recent, path) }),
-    [settings.recent, updateSettings],
-  );
 }

@@ -1,4 +1,4 @@
-// Remembered between sessions: theme, last zoom, open tabs, view mode.
+// Remembered between sessions: theme, last zoom, open tabs (when restore is on), view mode.
 // (Window size/position is remembered by tauri-plugin-window-state in the Windows app.)
 import { P, boot, expect, openPaths, test, waitForPainted } from "./fixtures";
 
@@ -24,7 +24,7 @@ test.describe("persistence", () => {
   });
 
   test("open tabs, active tab, last zoom and view mode are restored", async ({ page }) => {
-    await boot(page);
+    await boot(page, { settings: { restoreSession: true } });
     await openPaths(page, [P.text, P.nav, P.long200]);
     await expect(page.getByRole("tab", { name: /\.pdf/ })).toHaveCount(3);
     await page.getByRole("tab", { name: /navigation/ }).click();
@@ -48,7 +48,9 @@ test.describe("persistence", () => {
   });
 
   test("a tab whose file disappeared is skipped with a notice", async ({ page }) => {
-    await boot(page, { settings: { openTabs: [P.text, P.missing], activeTab: P.text } });
+    await boot(page, {
+      settings: { restoreSession: true, openTabs: [P.text, P.missing], activeTab: P.text },
+    });
     await expect(page.getByRole("tab", { name: /text-1p/ })).toBeVisible();
     await expect(page.getByRole("alert").filter({ hasText: "Could not reopen" })).toContainText(
       "moved-away.pdf",

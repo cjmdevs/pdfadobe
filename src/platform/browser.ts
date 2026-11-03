@@ -21,6 +21,8 @@ import {
   type SavedSignature,
   type SignatureLibrary,
   type StampLibrary,
+  type ThumbCache,
+  type PathStatus,
   type FontFolders,
   type Platform,
 } from "./types";
@@ -216,6 +218,19 @@ const stamps: StampLibrary = {
   },
 };
 
+/** Browser build: thumbnails last for the session (tests, development). */
+const sessionThumbs = new Map<string, Uint8Array>();
+const thumbs: ThumbCache = {
+  put: async (id, jpeg) => {
+    sessionThumbs.set(id, jpeg);
+  },
+  get: async (id) => sessionThumbs.get(id) ?? null,
+  remove: async (ids) => ids.forEach((id) => sessionThumbs.delete(id)),
+  keep: async (ids) => {
+    for (const id of [...sessionThumbs.keys()]) if (!ids.includes(id)) sessionThumbs.delete(id);
+  },
+};
+
 /** Browser build: saved signatures last for the session (tests, development). */
 const sessionSignatures = new Map<string, { info: SavedSignature; bytes: Uint8Array }>();
 const signatures: SignatureLibrary = {
@@ -334,6 +349,18 @@ export const browserPlatform: Platform = {
   },
   docs,
   stamps,
+  thumbs,
+  // Playwright's mock file system answers: 404 = missing, a "network" error = offline.
+  async pathStatus(paths) {
+    return Promise.all(
+      paths.map(async (p): Promise<PathStatus> => {
+        const res = await fetch(`/__mockfs/${encodeURIComponent(p)}`).catch(() => null);
+        if (!res) return "ok";
+        if (res.status === 404) return "missing";
+        return res.headers.get("x-mockfs-error") === "network" ? "offline" : "ok";
+      }),
+    );
+  },
   signatures,
   certs,
   fonts,

@@ -308,6 +308,9 @@ export interface ToolDef {
   toolbar: ToolAction[];
   /** Hidden from the Tools pane (built-in commands that can only be pinned). */
   unlisted?: boolean;
+  /** Quick tool on the Home screen (B2), shown once built. A tool that needs a document
+   * asks for a PDF first and opens on it. */
+  home?: boolean;
 }
 
 const hasDoc = (c: ToolContext) => c.documentId !== null && c.actions !== null;
@@ -421,6 +424,7 @@ export const TOOLS: ToolDef[] = [
     color: "var(--tint-green)",
     description: "Reorder, rotate, insert, extract, replace, split, crop pages",
     comingIn: null,
+    home: true,
     open: "toolbar",
     view: "pages",
     toolbar: ORGANIZE_TOOLBAR,
@@ -432,6 +436,7 @@ export const TOOLS: ToolDef[] = [
     color: "var(--tint-violet)",
     description: "Merge PDFs and scans into one PDF, with a bookmark per file",
     comingIn: null,
+    home: true,
     needsDocument: false,
     open: (c) => c.wb.setDialog({ kind: "combine", documentId: c.documentId }),
     toolbar: [],

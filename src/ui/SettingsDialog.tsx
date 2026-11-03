@@ -1,8 +1,10 @@
-// Settings (Phase 3): the markup author name and the saved markup styles.
+// Settings (Phase 3, B2): markup author and styles, Home screen start and thumbnails.
 import { useState } from "react";
 import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
 import { useWorkbench } from "../app/workbench";
 import { toolDefaults } from "../markup/config";
+import { dropThumbs } from "../app/recent";
+import { platform } from "../platform";
 
 export function SettingsBody() {
   const wb = useWorkbench();
@@ -64,6 +66,35 @@ export function SettingsBody() {
       <p className="hint">
         Fonts in this folder are listed under Firm in Edit PDF. A copy is kept on this PC, so they
         still work when the share is offline.
+      </p>
+      <div className="checks">
+        <label>
+          <input
+            type="checkbox"
+            checked={wb.settings.restoreSession}
+            onChange={(e) => wb.updateSettings({ restoreSession: e.target.checked })}
+          />{" "}
+          Reopen last session’s files at start
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={wb.settings.recentThumbnails}
+            onChange={(e) => {
+              const on = e.target.checked;
+              if (!on) {
+                wb.changeRecent(dropThumbs);
+                void platform.thumbs.keep([]).catch(() => undefined);
+              }
+              wb.updateSettings({ recentThumbnails: on });
+            }}
+          />{" "}
+          Show page thumbnails in recent files
+        </label>
+      </div>
+      <p className="hint">
+        Otherwise PDF Workbench starts on the Home screen. Thumbnails are pictures of page 1, kept
+        only on this PC; turning them off deletes them.
       </p>
       <div className="settings-row">
         <span>Markup styles saved with “Make default”</span>

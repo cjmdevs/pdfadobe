@@ -5,55 +5,50 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **B7 (UI design pass) done 2026-11-03, owner check passed (all 11 steps, step 3 retested after the Redact fix)** (`docs/testing/b7-test-guide.md`).
-  No feature changes. Owner picked direction B "Ledger" from three mockups
-  (`docs/ui/mockups/`), US spelling, and allowed rearranging any menu or panel. Audit:
-  `docs/ui/audit.md` (300 screenshots); before/after pairs `docs/ui/before|after`,
-  `docs/ui/compare.html` (all of docs/ui is local only: docs/ is gitignored).
-  - **Design system:** `src/ui/theme/tokens.css` (colour, type, 4 px spacing, radius,
-    elevation; light + dark; `--page-*` for overlays drawn on white paper, `--tint-*` for
-    tool icons, used by `registry.ts`), `base.css` (buttons, fields, `.form-grid`,
-    `.checks`, `.seg`, `.notice`, panels, menus, dialogs, toasts). `styles.css` uses
-    tokens only (no raw colours). `tests/unit/contrast.test.ts` checks WCAG AA for 108
-    token pairs in both themes.
-  - **Kit:** `src/ui/kit/Dialog.tsx` (Modal + `ModalActions`: a body's action renders
-    in the footer, so every dialog is Cancel + one primary), `keyboard.ts` (arrow keys
-    in toolbars and menus; toolbars take arrows only after Tab, since arrows/Home/End are
-    page shortcuts), `text.ts` (`plural()`). One icon set: Fluent 20 regular (stamp is
-    `approvals_app`; Fluent has no 20 px stamp).
-  - **Layout:** Tools pane 260 px, a tool's panel sizes to its content (max 62 %) above the
-    tool list; tool toolbars go icon-only when labels don't fit (`useCompact`), Close is
-    sticky; the main toolbar wraps below 1100 CSS px (125-150 % scaling on 1366 px).
-    Redact panel is numbered steps (Find, Review, How the boxes look, Apply; Sanitize
-    folded).
-  - **Fix found on the way:** Enter (Acrobat "next screen") swallowed Enter on focused
-    buttons, so keyboard users could not press buttons; Enter/Space now go to buttons,
-    menu items, options and tabs (`Commands.tsx` `activates`).
-  - **Tests:** `tests/e2e/a11y.spec.ts` (every tool from the keyboard, focus ring on each
-    Tab stop, menus by keyboard, fit at 125/150 %); e2e dialog buttons are found in the
-    whole dialog (`dialogWith`). `npm run ui:shots -- <folder>` captures every screen.
-    199/199 e2e pass; Vitest 742 pass + the known `mcp-stdio` machine-policy failure.
-  - **Deviations:** dialog titles, buttons and menus are sentence case; tool names stay
-    Title Case. PDF review state "Cancelled" stays (it is written to the file).
-    125/150 % checked by emulating the smaller CSS viewport; the real Windows Scale
-    setting is owner step 9. Toolbars keep every control as a Tab stop (arrow keys are
-    extra), not a single roving stop.
-  - **Owner check 2026-11-03:** steps 1-2, 5, 7-11 passed; 4 and 6 re-explained. Step 3
-    found two problems, both fixed: the review rows were cramped (a shared `.rows` rule
-    stretched their buttons), and Find + Mark all + Apply on `ssn-redaction.pdf` was
-    refused because the SSN is also a form field's value, which Find did not search, and
-    the message pointed at Sanitize, which cannot help. Now Find also searches form-field
-    values (`engine/redact/fieldSearch.ts`, whole widget marked, label "Form field
-    (SSN)"; the MCP redact_patterns tool uses the same code) and a refusal says where the
-    text still is with the one fix for it (`places.ts`: form field + page, comment +
-    page, bookmark, properties, elsewhere; `RedactionLeakError.places`). Tests:
-    `tests/unit/redact-fields.test.ts`, two new cases in `redact.spec.ts`.
-    `.mcpb` rebuilt. This changes Redact behaviour (owner approved 2026-11-03).
-  - **Known gaps:** at small zoom a connector's end covers its tickmark, so dragging the
-    tickmark can grab the connector (seen when the pane grew to 280 px; 260 px passes).
-    The capture script misses the Header & Footer/Watermark/More menus, error and loading
-    states, and some 1920 shots catch an unpainted page. Not pushed: `mcp-stdio` fails
-    until HKLM `AllowContentToClaude` is removed on the build PC.
+- **B2 (Home screen) built 2026-11-03; owner check pending** (`docs/testing/b2-test-guide.md`).
+  Plan approved with the recommended answers (Home tab, quick tools Combine + Organize
+  only, no thumbnail for password-protected files, missing local files greyed).
+  - **Home** (`src/ui/StartPage.tsx`): at launch, after the last tab closes, and from the
+    house tab at the left of the tab bar (`TabBar.tsx`; `wb.home` overlays the workspace,
+    the document stays mounted, tool/properties bars are hidden). Open, drop zone (click =
+    Open; dropping works anywhere as before), quick tools = registry tools with
+    `home: true` that are built (a tool needing a document asks for a PDF and opens on it:
+    `pickAndOpen({ tool })`), Recent Files.
+  - **Recent Files** (`src/app/recent.ts`, Node-safe): entries `{ path, opened, pinned,
+    thumb }` (old plain-path lists convert on load); 15 unpinned + up to 20 pinned;
+    pinned first. Every change returns the thumbnail ids it dropped and
+    `wb.changeRecent` deletes them. Reachability by `path_status` (Rust, one thread per
+    path, 2.5 s limit): ok / missing (drive or share answers, file gone) / offline (share,
+    mapped or removable drive unreachable or slow). Offline rows are greyed, a click
+    re-checks quietly; missing rows go through the normal open error with "Remove".
+  - **Thumbnails** (`src-tauri/src/thumbs.rs`): page 1, JPEG at 36 dpi via the page
+    worker's `pageImage`, made on open, Save and Save As; stored only in
+    `%LOCALAPPDATA%\com.mgrcpas.pdfworkbench\thumbnails\<32-hex id>.jpg` (Local, not
+    Roaming; never named after the PDF). Deleted on remove, clear all, falling off the
+    list, and all of them when the setting is turned off; startup sweeps orphans.
+    Encrypted files get none (PDFium can't open them without the password).
+  - **Settings**: `restoreSession` (default off: B2 changes the old always-restore
+    behaviour) and `recentThumbnails` (default on), both in the Settings dialog.
+  - **Tests**: `tests/unit/recent.test.ts`, Rust `thumbs` (ids, store, sweep, roots,
+    missing vs offline incl. `\\localhost\<no share>`), `tests/e2e/home.spec.ts`, a11y
+    keyboard test. Existing e2e adjusted for the Home tab and opt-in restore. Found on the
+    way: save-then-read e2e tests raced the save (worse now the worker also renders a
+    thumbnail); they now wait for the write (`saveNow`). Vitest 755 + 1 skip, Rust 73,
+    e2e 211/212 (the known Edit PDF Shift+arrow flake; fails 2 of 6 on the old code too).
+  - **Deviations/gaps:** a file changed by another program keeps its old thumbnail until
+    opened here again. Recent Files is shared by all windows and the last writer wins
+    (as before). Clear all also removes pinned files. Real network shares: Phase 10.
+    No new dependencies (two Fluent icons from the existing package).
+
+- **B7 (UI design pass) done 2026-11-03, owner check passed** (`docs/testing/b7-test-guide.md`).
+  Direction "Ledger"; design system `src/ui/theme/tokens.css` + `base.css` (tokens only in
+  `styles.css`, WCAG AA checked by `tests/unit/contrast.test.ts`); kit `src/ui/kit/`
+  (Dialog = Cancel + one primary, `keyboard.ts`, `text.ts`); Fluent 20 icons. Enter/Space
+  press focused buttons, menu items, options and tabs (`Commands.tsx` `activates`).
+  Redact Find also searches form-field values (`engine/redact/fieldSearch.ts`) and a
+  refusal says where the text still is (`places.ts`). Deviations: sentence-case dialogs,
+  toolbars keep every control as a Tab stop. Gaps: at small zoom a connector's end can
+  cover its tickmark; `npm run ui:shots` misses some menus and error states.
 
 - **B5 (Create PDF / Export PDF) done 2026-11-02, owner check on a work PC passed**
   (`docs/testing/b5-test-guide.md`; spec and decisions in `docs/phases/b5.md`).

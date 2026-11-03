@@ -29,7 +29,10 @@ test.describe("combine files", () => {
     mockfs,
   }) => {
     await boot(page);
-    await page.getByRole("button", { name: "Combine Files", exact: true }).click();
+    await page
+      .getByRole("complementary", { name: "Tools pane" })
+      .getByRole("button", { name: "Combine Files", exact: true })
+      .click();
     const dlg = page.getByRole("dialog", { name: "Combine Files" });
     // The engagement folder has workpapers A, B, C and a 3-page TIFF scan (natural order).
     await queueChoices(page, { folders: [P.engagement] });
