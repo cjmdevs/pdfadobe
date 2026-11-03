@@ -54,7 +54,16 @@ import comment from "@fluentui/svg-icons/icons/comment_20_regular.svg?raw";
 import editPdf from "@fluentui/svg-icons/icons/document_edit_20_regular.svg?raw";
 import addText from "@fluentui/svg-icons/icons/text_add_20_regular.svg?raw";
 import addImage from "@fluentui/svg-icons/icons/image_add_20_regular.svg?raw";
-import stamp from "@fluentui/svg-icons/icons/stamp_32_light.svg?raw";
+// Fluent has no 20 px regular stamp; approvals_app (a document with a seal) matches the set.
+import stamp from "@fluentui/svg-icons/icons/approvals_app_20_regular.svg?raw";
+import stampsPalette from "@fluentui/svg-icons/icons/grid_20_regular.svg?raw";
+import customStamp from "@fluentui/svg-icons/icons/image_edit_20_regular.svg?raw";
+import moveUp from "@fluentui/svg-icons/icons/arrow_up_20_regular.svg?raw";
+import moveDown from "@fluentui/svg-icons/icons/arrow_down_20_regular.svg?raw";
+import fieldCheckbox from "@fluentui/svg-icons/icons/checkbox_checked_20_regular.svg?raw";
+import fieldRadio from "@fluentui/svg-icons/icons/radio_button_20_regular.svg?raw";
+import fieldDropdown from "@fluentui/svg-icons/icons/list_20_regular.svg?raw";
+import fieldDate from "@fluentui/svg-icons/icons/calendar_ltr_20_regular.svg?raw";
 import redact from "@fluentui/svg-icons/icons/eraser_20_regular.svg?raw";
 import form from "@fluentui/svg-icons/icons/form_20_regular.svg?raw";
 import ocr from "@fluentui/svg-icons/icons/scan_text_20_regular.svg?raw";
@@ -123,6 +132,14 @@ import dot from "@fluentui/svg-icons/icons/circle_small_20_regular.svg?raw";
 import textT from "@fluentui/svg-icons/icons/text_t_20_regular.svg?raw";
 
 const SVG = {
+  stampsPalette,
+  customStamp,
+  moveUp,
+  moveDown,
+  fieldCheckbox,
+  fieldRadio,
+  fieldDropdown,
+  fieldDate,
   open,
   print,
   sidebar,

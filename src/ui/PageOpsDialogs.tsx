@@ -1,6 +1,7 @@
 // Dialogs for page operations: insert (PDF or images), replace, blank page, crop, page
 // size, split, Combine Files, and the unsaved-changes prompt.
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Icon } from "./Icon";
 import { plural } from "./kit/text";
 import { useDocumentState } from "@embedpdf/core/react";
 import {
@@ -916,26 +917,32 @@ export function CombineDialog({
               <td className="row-actions">
                 <button
                   type="button"
+                  className="tool small"
                   aria-label={`Move ${it.name} up`}
+                  title="Move up"
                   disabled={i === 0}
                   onClick={() => moveItem(i, i - 1)}
                 >
-                  ↑
+                  <Icon name="moveUp" size={16} />
                 </button>
                 <button
                   type="button"
+                  className="tool small"
                   aria-label={`Move ${it.name} down`}
+                  title="Move down"
                   disabled={i === items.length - 1}
                   onClick={() => moveItem(i, i + 1)}
                 >
-                  ↓
+                  <Icon name="moveDown" size={16} />
                 </button>
                 <button
                   type="button"
+                  className="tool small"
                   aria-label={`Remove ${it.name}`}
+                  title="Remove"
                   onClick={() => setItems((cur) => cur.filter((x) => x.key !== it.key))}
                 >
-                  ×
+                  <Icon name="close" size={16} />
                 </button>
               </td>
             </tr>

@@ -555,11 +555,24 @@
   flex-wrap: wrap;
   margin: var(--space-3) 0;
 }
+/* Label, control and unit line up in columns ("Top [0.5] in"). */
 .field-grid {
   display: grid;
   grid-template-columns: repeat(2, max-content);
-  gap: var(--space-3) var(--space-5);
+  gap: var(--space-3) var(--space-6);
   margin: var(--space-3) 0;
+}
+.field-grid > label {
+  display: grid;
+  grid-template-columns: 4.5em max-content max-content;
+  align-items: center;
+  gap: var(--space-3);
+}
+.field-row > label,
+.modal fieldset > label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 .num-input {
   width: 5em;

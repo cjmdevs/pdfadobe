@@ -314,7 +314,7 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
                   })
                 }
               >
-                {isOpen ? "▾" : "▸"}
+                <Icon name={isOpen ? "chevronDown" : "chevronRight"} size={12} />
               </button>
             ) : (
               <span className="twisty" />
@@ -553,7 +553,7 @@ function ReadOnlyBookmarks({ documentId }: { documentId: string }) {
                 tabIndex={-1}
                 onClick={toggle}
               >
-                {isOpen ? "▾" : "▸"}
+                <Icon name={isOpen ? "chevronDown" : "chevronRight"} size={12} />
               </button>
             ) : (
               <span className="twisty" />

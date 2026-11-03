@@ -695,7 +695,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "stampsPalette",
         label: "Stamps Palette",
-        icon: "stamp",
+        icon: "stampsPalette",
         run: (c) => c.wb.updateSettings({ stampsPaletteOpen: !c.wb.settings.stampsPaletteOpen }),
         pressed: (c) => c.wb.settings.stampsPaletteOpen,
         enabled: (c) => hasDoc(c) && c.markup !== null,
@@ -703,7 +703,7 @@ export const TOOLS: ToolDef[] = [
       {
         id: "customStamps",
         label: "Custom stamps",
-        icon: "stamp",
+        icon: "customStamp",
         run: () => {},
         menuOnly: true,
         items: [
@@ -1173,11 +1173,11 @@ export const TOOLS: ToolDef[] = [
       ...(
         [
           ["text", "Text field", "fieldHighlight"],
-          ["checkbox", "Check box", "checkRequired"],
-          ["radio", "Radio button", "checkRequired"],
-          ["dropdown", "Dropdown", "form"],
-          ["date", "Date field", "form"],
-          ["signature", "Signature field", "form"],
+          ["checkbox", "Check box", "fieldCheckbox"],
+          ["radio", "Radio button", "fieldRadio"],
+          ["dropdown", "Dropdown", "fieldDropdown"],
+          ["date", "Date field", "fieldDate"],
+          ["signature", "Signature field", "signature"],
         ] as const
       ).map(([kind, label, icon]) => ({
         id: `add-${kind}`,

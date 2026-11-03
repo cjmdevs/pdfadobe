@@ -119,7 +119,7 @@ export function CustomizeDialog({ onClose }: { onClose: () => void }) {
     >
       <div className="customize">
         <div className="strip-head">
-          <span>Tools to show in Toolbar:</span>
+          <span>Tools in the quick toolbar</span>
           <span className="strip-controls">
             <button
               type="button"
@@ -193,14 +193,18 @@ export function CustomizeDialog({ onClose }: { onClose: () => void }) {
                   onClick={() => setAt(at === i ? null : i)}
                 >
                   {hit ? <Icon name={hit.action.icon} /> : <span className="bar" />}
-                  {hit?.action.items ? <span className="caret">▾</span> : null}
+                  {hit?.action.items ? (
+                    <span className="caret">
+                      <Icon name="chevronDown" size={12} />
+                    </span>
+                  ) : null}
                 </button>
               </li>
             );
           })}
           {!refs.length && <li className="muted">Nothing on the toolbar.</li>}
         </ol>
-        <div className="choose-head">Choose tools to add:</div>
+        <div className="choose-head">Tools you can add</div>
         <div className="choose">
           <ul className="tool-tree" role="tree" aria-label="Tools">
             {groups.map((t) => {

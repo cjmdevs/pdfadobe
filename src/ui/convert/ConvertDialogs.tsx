@@ -3,6 +3,7 @@
 // (Phase 7 images; B5 Office files, batches and mixed combines). New files never replace
 // existing ones (" (2)" is added).
 import { useEffect, useState } from "react";
+import { Icon } from "../Icon";
 import { plural } from "../kit/text";
 import { ModalActions } from "../kit/Dialog";
 import { useDocumentState } from "@embedpdf/core/react";
@@ -396,19 +397,21 @@ export function CreatePdfDialog({ onClose }: { onClose(): void }) {
                 <>
                   <button
                     type="button"
+                    className="tool small"
                     aria-label={`Move ${it.name} up`}
                     disabled={i === 0}
                     onClick={() => move(i, -1)}
                   >
-                    ↑
+                    <Icon name="moveUp" size={16} />
                   </button>
                   <button
                     type="button"
+                    className="tool small"
                     aria-label={`Move ${it.name} down`}
                     disabled={i === items.length - 1}
                     onClick={() => move(i, 1)}
                   >
-                    ↓
+                    <Icon name="moveDown" size={16} />
                   </button>
                 </>
               )}
