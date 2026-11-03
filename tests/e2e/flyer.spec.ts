@@ -12,6 +12,7 @@ import {
   test,
   waitForPainted,
   type Page,
+  saveNow,
 } from "./fixtures";
 
 const tb = (page: Page, name: string) =>
@@ -63,8 +64,7 @@ test("place tickmarks until Esc, see them in the Stamp Summary, save and reopen"
   await clickPage(page, 0.7, 0.2);
   await expect(summary).toContainText("Stamp Summary (4)");
 
-  await page.keyboard.press("Control+s");
-  await idle(page);
+  await saveNow(page, mockfs);
   const stamps = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
     (a) => a.subtype === "/Stamp",
   );
@@ -129,8 +129,7 @@ test("sign-off stamp, connector that follows a moved tickmark, note", async ({ p
   await summary.getByRole("tab", { name: /Notes/ }).click();
   await expect(page.getByTestId("notes-list")).toContainText("Agreed to bank confirmation.");
 
-  await page.keyboard.press("Control+s");
-  await idle(page);
+  await saveNow(page, mockfs);
   const raw = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text)));
   const line = raw.find((a) => a.subtype === "/Line")!;
   expect(line.subject).toBe("Connector");
@@ -155,8 +154,7 @@ test("sign-off stamp, connector that follows a moved tickmark, note", async ({ p
   await page.mouse.down();
   await page.mouse.move(at.x + 60, at.y + 80, { steps: 6 });
   await page.mouse.up();
-  await page.keyboard.press("Control+s");
-  await idle(page);
+  await saveNow(page, mockfs);
   const saved2 = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text)));
   // The tickmark moved...
   expect(saved2.map((a) => a.rect)).not.toContainEqual(tick.rect);
@@ -190,8 +188,7 @@ test("a connector across two pages: a marker and a link on each page", async ({ 
   await summary.getByRole("button", { name: /^Connector from page 1/ }).click();
   await page.getByRole("button", { name: "Go to the other end (page 1)" }).click();
 
-  await page.keyboard.press("Control+s");
-  await idle(page);
+  await saveNow(page, mockfs);
   const raw = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.wpA)));
   const links = raw.filter((a) => a.subtype === "/Link");
   expect(links.map((l) => l.page).sort()).toEqual([0, 1]);
@@ -261,8 +258,7 @@ test("calculator: keys, click amounts, foot with variance, tape on the page", as
   await expect(summary.getByRole("button", { name: /^Calculator tape/ })).toHaveCount(1);
   await expect(summary.getByRole("button", { name: /^Unreconciled Difference/ })).toHaveCount(1);
 
-  await page.keyboard.press("Control+s");
-  await idle(page);
+  await saveNow(page, mockfs);
   const raw = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.footing)));
   const tape = raw.find((x) => x.subject === "Calculator Tape:PDFlyer")!;
   expect(tape.subtype).toBe("/FreeText");
@@ -275,8 +271,7 @@ test("calculator: keys, click amounts, foot with variance, tape on the page", as
   await page.getByRole("button", { name: "Open this tape in the calculator" }).click();
   await page.keyboard.type("100+");
   await calc.getByRole("button", { name: "Update tape" }).click();
-  await page.keyboard.press("Control+s");
-  await idle(page);
+  await saveNow(page, mockfs);
   const tapes = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.footing))).filter(
     (x) => x.subject === "Calculator Tape:PDFlyer",
   );

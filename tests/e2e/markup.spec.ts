@@ -16,6 +16,7 @@ import {
   test,
   waitForPainted,
   type Page,
+  saveNow,
 } from "./fixtures";
 
 const tb = (page: Page, name: string) =>
@@ -103,8 +104,7 @@ test.describe("markup", () => {
     await page.getByRole("button", { name: /^Rotate right: page 1/ }).click();
     await idle(page);
     await expect(page.getByRole("button", { name: /^Undo Rotate/ })).toBeEnabled();
-    await page.keyboard.press("Control+s");
-    await idle(page);
+    await saveNow(page, mockfs);
     expect(circles()).toHaveLength(1);
     await page.keyboard.press("Control+z");
     await idle(page);
@@ -114,8 +114,7 @@ test.describe("markup", () => {
     await idle(page);
     // Saved after the rotate, so both undo steps leave the tab unsaved.
     await expect(activeTab(page)).toContainText("•");
-    await page.keyboard.press("Control+s");
-    await idle(page);
+    await saveNow(page, mockfs);
     expect(circles()).toHaveLength(0);
   });
 
@@ -166,8 +165,7 @@ test.describe("markup", () => {
     await page.keyboard.press("Escape");
     await expect(tb(page, "Text box")).toHaveAttribute("aria-pressed", "false");
 
-    await page.keyboard.press("Control+s");
-    await idle(page);
+    await saveNow(page, mockfs);
     const annots = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text)));
     const hl = annots.find((a) => a.subtype === "/Highlight");
     expect(hl?.dict["/QuadPoints"]).toBeDefined();
@@ -193,8 +191,7 @@ test.describe("markup", () => {
     await page.keyboard.press("Escape");
     await expect(tb(page, "Eraser")).toHaveAttribute("aria-pressed", "false");
 
-    await page.keyboard.press("Control+s");
-    await idle(page);
+    await saveNow(page, mockfs);
     const ink = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
       (a) => a.subtype === "/Ink",
     );
@@ -253,8 +250,7 @@ test.describe("markup", () => {
     await expect(props(page)).toBeVisible();
     await expect(page.getByTestId("stamp-ghost")).toHaveCount(0);
 
-    await page.keyboard.press("Control+s");
-    await idle(page);
+    await saveNow(page, mockfs);
     const stamps = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
       (a) => a.subtype === "/Stamp",
     );
@@ -330,8 +326,7 @@ test.describe("markup", () => {
     await expect(page.getByTestId("stamp-ghost")).toBeVisible();
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
     await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toBeEnabled();
-    await page.keyboard.press("Control+s");
-    await idle(page);
+    await saveNow(page, mockfs);
     const stamps = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
       (a) => a.subtype === "/Stamp",
     );
@@ -405,8 +400,7 @@ test.describe("markup", () => {
     // Replies and states are not listed as comments of their own.
     await expect(items).toHaveCount(2);
 
-    await page.keyboard.press("Control+s");
-    await idle(page);
+    await saveNow(page, mockfs);
     const annots = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.wpA)));
     const note = annots.find((a) => a.contents === "Tied to TB, see A-1");
     expect(note?.subtype).toBe("/Text");
@@ -442,8 +436,7 @@ test.describe("markup", () => {
 
     await tb(page, "Ellipse").click();
     await drawOnPage(page, [0.4, 0.2], [0.5, 0.3]);
-    await page.keyboard.press("Control+s");
-    await idle(page);
+    await saveNow(page, mockfs);
     const annots = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text)));
     expect(annots.find((a) => a.subtype === "/Square")?.author).toBe("Jane Smith");
     expect(annots.find((a) => a.subtype === "/Circle")?.author).toBe("J. Partner");
@@ -496,8 +489,7 @@ test.describe("markup", () => {
       page.getByText(/Imported 1 comment; 1 on pages this document does not have/),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "Undo Markup (Ctrl+Z)" })).toBeEnabled();
-    await page.keyboard.press("Control+s");
-    await idle(page);
+    await saveNow(page, mockfs);
     const notes = inspectAnnots(new Uint8Array(bytesAt(mockfs, P.text))).filter(
       (a) => a.subtype === "/Text",
     );

@@ -322,6 +322,14 @@ export async function queueChoices(
  * after the viewport gets its size, scrolling back once (see docs/progress.md); a jump
  * made before that would be undone.
  */
+/** Ctrl+S, then waits until the file has been written (idle() alone can win the race). */
+export async function saveNow(page: Page, fs: MockFs) {
+  const before = fs.writes.length;
+  await page.keyboard.press("Control+s");
+  await expect.poll(() => fs.writes.length, { timeout: 30_000 }).toBeGreaterThan(before);
+  await idle(page);
+}
+
 export async function idle(page: Page) {
   await expect(page.getByTestId("busy")).toHaveCount(0, { timeout: 30_000 });
   await expect(
