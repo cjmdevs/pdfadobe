@@ -119,12 +119,20 @@
   align-items: center;
   gap: var(--space-1);
   min-height: var(--toolbar-h);
-  padding: 0 var(--space-3);
+  padding: var(--space-1) var(--space-3);
   background: var(--bg-chrome);
   border-bottom: 1px solid var(--border);
   flex-wrap: nowrap;
   overflow-x: auto;
   flex: none;
+}
+/* 125-150 % text scaling on a 1366 px screen leaves 910-1092 CSS px: the main toolbar
+   wraps to a second row there rather than hiding its last buttons. */
+@media (max-width: 1100px) {
+  .toolbar {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
 }
 /* Icon button (toolbars, panel headers). */
 .tool {
@@ -478,8 +486,10 @@
   padding: 16px;
   align-content: start;
 }
-.page-grid:focus-visible {
-  outline: none;
+.page-grid:focus-visible,
+.viewport:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
 }
 .grid-page {
   position: relative;
@@ -747,11 +757,15 @@ body.pointer-dragging * {
 .tool-toolbar.compact .tool-title > :not(.tool-icon) {
   display: none;
 }
+/* Close stays on screen: the toolbar's buttons scroll under it when they do not fit. */
 .tool-close {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   flex: none;
+  position: sticky;
+  right: 0;
+  box-shadow: -8px 0 8px -4px var(--bg-chrome);
 }
 .tool-toolbar.compact .tool-close .tool-label {
   display: none;

@@ -45,6 +45,14 @@ function isEditable(t: EventTarget | null): boolean {
   );
 }
 
+/** A control that Enter or Space presses (button, link, menu item, option, tab...). */
+function activates(t: EventTarget | null): boolean {
+  if (!(t instanceof HTMLElement)) return false;
+  return t.matches(
+    "button, a[href], summary, [role=button], [role^=menuitem], [role=option], [role=tab], [role=checkbox], [role=radio]",
+  );
+}
+
 function focusAndSelect(id: string) {
   const el = document.getElementById(id);
   if (el instanceof HTMLInputElement) {
@@ -145,6 +153,9 @@ export function Commands() {
       if (e.defaultPrevented || e.isComposing) return;
       // Inside a modal dialog only Escape is ours (the dialog handles it via onCancel).
       if (document.querySelector("dialog[open]")) return;
+      // Enter and Space press the focused button, menu item or option (keyboard users);
+      // only elsewhere are they Acrobat's "next screen" (B7).
+      if ((e.key === "Enter" || e.key === " ") && activates(e.target)) return;
       const cmd = matchShortcut(e, isEditable(e.target));
       if (cmd && runRef.current(cmd)) e.preventDefault();
     };
