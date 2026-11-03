@@ -14,6 +14,7 @@ mod repair;
 mod settings;
 mod signatures;
 mod stamps;
+mod thumbs;
 
 use tauri::Manager;
 
@@ -87,6 +88,11 @@ pub fn run() {
             stamps::stamp_read,
             stamps::stamp_add,
             stamps::stamp_remove,
+            thumbs::thumb_put,
+            thumbs::thumb_get,
+            thumbs::thumbs_remove,
+            thumbs::thumbs_keep,
+            thumbs::path_status,
             signatures::signatures_list,
             signatures::signature_read,
             signatures::signature_add,
