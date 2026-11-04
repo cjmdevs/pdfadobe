@@ -46,11 +46,32 @@ pub fn default_apps_uri() -> String {
 
 #[tauri::command]
 pub fn open_default_apps() -> Result<(), FileError> {
-    std::process::Command::new("explorer.exe")
-        .arg(default_apps_uri())
-        .spawn()
-        .map(|_| ())
-        .map_err(|e| FileError::other(format!("could not open Settings: {e}")))
+    // ShellExecute hands the ms-settings: link to Settings. explorer.exe with the same
+    // link opened the Documents folder instead (owner test, Phase 10a step 4).
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    use windows::core::{HSTRING, PCWSTR, w};
+    let uri = HSTRING::from(default_apps_uri());
+    // SAFETY: plain call with valid, NUL-terminated wide strings that outlive it.
+    let h = unsafe {
+        ShellExecuteW(
+            None,
+            w!("open"),
+            &uri,
+            PCWSTR::null(),
+            PCWSTR::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+    // ShellExecute reports success as a value above 32.
+    if h.0 as usize > 32 {
+        Ok(())
+    } else {
+        Err(FileError::other(format!(
+            "could not open Settings (code {})",
+            h.0 as usize
+        )))
+    }
 }
 
 /// Opens THIRD-PARTY-NOTICES.txt (installed next to the app, bundle.resources) in

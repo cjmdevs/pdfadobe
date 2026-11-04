@@ -125,7 +125,10 @@ function cargoEntries(policy) {
         "metadata",
         "--format-version",
         "1",
-        "--locked",
+        // --offline, not --locked: raising the version changes this app's own entry in
+        // Cargo.lock, which --locked refused (owner test, Phase 10a step 9). --offline
+        // still never fetches anything; a dependency that isn't downloaded fails here.
+        "--offline",
         "--manifest-path",
         join(root, "src-tauri", "Cargo.toml"),
         "--filter-platform",

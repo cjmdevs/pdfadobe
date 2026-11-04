@@ -87,7 +87,7 @@ Apps > Installed apps).
 ## Clean up
 
 ```powershell
-git checkout package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml   # back to 0.1.0
+git checkout package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml src-tauri/Cargo.lock   # back to 0.1.0
 Remove-SmbShare -Name PW10Updates -Force
 Remove-Item -Recurse C:\PW10Updates, C:\PW10Test
 Remove-Item -Recurse "HKCU:\Software\Policies\PDF Workbench"
