@@ -1,6 +1,6 @@
 //! Local crash reports (Phase 10a). Rust panics and the frontend's uncaught errors
 //! (`src/app/crash.ts`) are written as small text files to
-//! `%LOCALAPPDATA%\com.mgrcpas.pdfworkbench\crashes\`. Nothing is ever sent anywhere.
+//! `%LOCALAPPDATA%\com.cjmdevs.pdfworkbench\crashes\`. Nothing is ever sent anywhere.
 //! The newest 20 reports are kept.
 //!
 //! A report holds no document text and no file names: a panic message is kept only after
@@ -15,9 +15,9 @@ use crate::fileio::FileError;
 
 const KEEP: usize = 20;
 const MAX_REPORT: usize = 64 * 1024;
-const APP_ID: &str = "com.mgrcpas.pdfworkbench";
+const APP_ID: &str = "com.cjmdevs.pdfworkbench";
 
-/// `%LOCALAPPDATA%\com.mgrcpas.pdfworkbench\crashes` (same root as the thumbnails).
+/// `%LOCALAPPDATA%\com.cjmdevs.pdfworkbench\crashes` (same root as the thumbnails).
 /// Read from the environment so the panic hook works before Tauri has started.
 pub fn crashes_dir() -> Option<PathBuf> {
     let base = std::env::var_os("LOCALAPPDATA")?;

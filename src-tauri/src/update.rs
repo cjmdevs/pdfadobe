@@ -254,7 +254,7 @@ fn sha256_hex(data: &[u8]) -> String {
 fn fetch_installer(source: &str, m: &Manifest) -> Result<PathBuf, String> {
     let base = std::env::var_os("LOCALAPPDATA").ok_or("no local app data folder")?;
     let dir = PathBuf::from(base)
-        .join("com.mgrcpas.pdfworkbench")
+        .join("com.cjmdevs.pdfworkbench")
         .join("updates");
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).map_err(|e| format!("could not make the update folder: {e}"))?;

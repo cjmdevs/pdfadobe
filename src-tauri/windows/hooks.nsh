@@ -12,7 +12,7 @@
 
 !define PW_PROGID "PDFWorkbench.Document"
 !define PW_REGNAME "PDF Workbench"
-!define PW_CAPS "Software\MGR CPAs\PDF Workbench\Capabilities"
+!define PW_CAPS "Software\cjmdevs\PDF Workbench\Capabilities"
 
 !macro NSIS_HOOK_POSTINSTALL
   WriteRegStr HKCU "${PW_CAPS}" "ApplicationName" "PDF Workbench"
@@ -33,7 +33,7 @@
   ${If} $UpdateMode <> 1
     DeleteRegValue HKCU "Software\RegisteredApplications" "${PW_REGNAME}"
     DeleteRegKey HKCU "${PW_CAPS}"
-    DeleteRegKey /ifempty HKCU "Software\MGR CPAs\PDF Workbench"
+    DeleteRegKey /ifempty HKCU "Software\cjmdevs\PDF Workbench"
     DeleteRegValue HKCU "Software\Classes\.pdf\OpenWithProgids" "${PW_PROGID}"
     DeleteRegKey HKCU "Software\Classes\Applications\${MAINBINARYNAME}.exe"
     !insertmacro UPDATEFILEASSOC

@@ -245,7 +245,7 @@ function nativeEntries() {
 
 const HEADER = `PDF Workbench: third-party notices
 
-PDF Workbench is (c) MGR CPAs. It includes the third-party software listed below, each
+PDF Workbench is (c) cjmdevs. It includes the third-party software listed below, each
 under its own license. The full license texts follow. This file is generated at build
 time from the npm packages in the app bundle, the Rust crates in the app and the bundled
 native programs.`;

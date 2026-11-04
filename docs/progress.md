@@ -12,7 +12,7 @@ Keep it under 2 pages; summarize older phases.
 - **B2 (Home screen) done 2026-11-03, owner check passed.** Home at launch / after the last
   tab / house tab; Recent Files (`src/app/recent.ts`: 15 + 20 pinned; reachability by
   `path_status`: ok / missing / offline greyed); page-1 JPEG thumbnails only in
-  `%LOCALAPPDATA%\com.mgrcpas.pdfworkbench\thumbnails\` (`thumbs.rs`, swept at start);
+  `%LOCALAPPDATA%\com.cjmdevs.pdfworkbench\thumbnails\` (`thumbs.rs`, swept at start);
   session restore opt-in. Gaps: a file changed elsewhere keeps its old thumbnail; Recent
   Files last writer wins across windows; Clear all removes pinned too.
 

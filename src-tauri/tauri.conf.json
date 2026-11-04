@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "PDF Workbench",
   "version": "0.1.0",
-  "identifier": "com.mgrcpas.pdfworkbench",
+  "identifier": "com.cjmdevs.pdfworkbench",
   "build": {
     "beforeDevCommand": "node scripts/fetch-win-binaries.mjs && node scripts/notices.mjs --dev && npm run dev",
     "devUrl": "http://localhost:1420",
@@ -59,10 +59,10 @@
       "vendor/tesseract/": "tesseract/",
       "notices/THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt"
     },
-    "publisher": "MGR CPAs",
-    "copyright": "MGR CPAs",
+    "publisher": "cjmdevs",
+    "copyright": "cjmdevs",
     "shortDescription": "PDF Workbench",
-    "longDescription": "PDF editor for MGR CPAs: viewing, page organization, markup, redaction, workpaper tickmarks, forms and OCR.",
+    "longDescription": "PDF editor: viewing, page organization, markup, redaction, workpaper tickmarks, forms and OCR.",
     "windows": {
       "webviewInstallMode": {
         "type": "embedBootstrapper"

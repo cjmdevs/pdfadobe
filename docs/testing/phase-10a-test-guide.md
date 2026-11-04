@@ -81,7 +81,7 @@ Apps > Installed apps).
     set (step 3).
 12. **Uninstall.** Settings > Apps > Installed apps > PDF Workbench > Uninstall, leave
     "delete app data" unticked. Pass: `%LOCALAPPDATA%\PDF Workbench` is gone; Settings >
-    Apps > Default apps no longer lists PDF Workbench; `%APPDATA%\com.mgrcpas.pdfworkbench`
+    Apps > Default apps no longer lists PDF Workbench; `%APPDATA%\com.cjmdevs.pdfworkbench`
     is still there.
 
 ## Clean up
@@ -115,5 +115,5 @@ powershell -ExecutionPolicy Bypass -File scripts\make-test-codesign-cert.ps1 -Re
 Send the step number, what you saw (a screenshot of any message), and:
 - steps 1, 9: the last 40 lines of the `npm run release` output
 - steps 9 to 11: `Get-ChildItem C:\PW10Updates` and `Get-Content C:\PW10Updates\latest.json`
-- step 8 or any crash: the newest file in `%LOCALAPPDATA%\com.mgrcpas.pdfworkbench\crashes`
+- step 8 or any crash: the newest file in `%LOCALAPPDATA%\com.cjmdevs.pdfworkbench\crashes`
 - step 4 or 12: `reg query HKCU\Software\RegisteredApplications`

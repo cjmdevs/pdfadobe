@@ -9,7 +9,7 @@
 // cut. Every other message is replaced by its length and a short hash, so two reports of
 // the same error can still be matched without showing it.
 //
-// Reports are written by Rust to %LOCALAPPDATA%\com.mgrcpas.pdfworkbench\crashes\
+// Reports are written by Rust to %LOCALAPPDATA%\com.cjmdevs.pdfworkbench\crashes\
 // (newest 20 kept) and never sent anywhere.
 
 export type CrashKind = "error" | "unhandledrejection" | "render" | "worker";

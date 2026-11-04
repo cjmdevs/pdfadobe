@@ -8,8 +8,8 @@ PowerShell. Paths in `<angle brackets>` are yours to fill in.
 | What | Where |
 | --- | --- |
 | The app, qpdf, Tesseract (English), PDFium, THIRD-PARTY-NOTICES.txt | `%LOCALAPPDATA%\PDF Workbench\` |
-| Settings, stamps, signatures | `%APPDATA%\com.mgrcpas.pdfworkbench\` |
-| Thumbnails, crash reports, downloaded updates | `%LOCALAPPDATA%\com.mgrcpas.pdfworkbench\` |
+| Settings, stamps, signatures | `%APPDATA%\com.cjmdevs.pdfworkbench\` |
+| Thumbnails, crash reports, downloaded updates | `%LOCALAPPDATA%\com.cjmdevs.pdfworkbench\` |
 | Start menu shortcut | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\PDF Workbench.lnk` |
 | Uninstall entry, file type, Default apps registration | `HKCU` only |
 
@@ -175,7 +175,7 @@ kept.
 
 ## Crash reports
 
-Kept only on the PC, in `%LOCALAPPDATA%\com.mgrcpas.pdfworkbench\crashes\` (newest 20).
+Kept only on the PC, in `%LOCALAPPDATA%\com.cjmdevs.pdfworkbench\crashes\` (newest 20).
 Settings > Crash reports > Show folder opens it. They hold the time, version, where in the
 code it happened and the error type. They never hold document text or file names. Nothing
 is sent anywhere: ask the person to email the file if you need it.
