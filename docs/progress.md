@@ -5,7 +5,7 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **Phase 10a (packaging) built 2026-11-04; owner check pending**
+- **Phase 10a (packaging) done 2026-11-04, owner check passed.**
   (`docs/testing/phase-10a-test-guide.md`, spec and decisions `docs/phases/phase-10a.md`,
   admin guide `docs/admin.md`). Details in "Phase 10a" below.
 
@@ -168,7 +168,7 @@ Keep it under 2 pages; summarize older phases.
 and notices are in Settings > About. Windows Sandbox is not on Windows 11 Home: the owner
 test installs on the build PC. The installer's Authenticode check trusts any certificate
 Windows trusts (no publisher pinning; the minisign key is the firm-only check). The update
-key has no password (can be replaced before the first real release, see admin.md).
+key has no password (can be replaced before the first real release, see admin.md). Owner test fixes: Default apps opens through ShellExecute (explorer.exe opened Documents); notices uses `cargo metadata --offline`, not `--locked` (a version bump changes Cargo.lock). Owner decision: publisher `cjmdevs`, identifier `com.cjmdevs.pdfworkbench` (app data folders follow it).
 **Not verified yet:** real certificate and timestamping, a real share, DISM default
 associations by GPO, a PC without WebView2 (all Phase 10b).
 
