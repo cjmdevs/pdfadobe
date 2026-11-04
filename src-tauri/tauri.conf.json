@@ -4,9 +4,9 @@
   "version": "0.1.0",
   "identifier": "com.mgrcpas.pdfworkbench",
   "build": {
-    "beforeDevCommand": "node scripts/fetch-win-binaries.mjs && npm run dev",
+    "beforeDevCommand": "node scripts/fetch-win-binaries.mjs && node scripts/notices.mjs --dev && npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "node scripts/fetch-win-binaries.mjs && npm run build",
+    "beforeBuildCommand": "node scripts/fetch-win-binaries.mjs && npm run build && node scripts/notices.mjs",
     "frontendDist": "../dist"
   },
   "app": {
@@ -36,7 +36,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["nsis"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -47,7 +47,7 @@
     "fileAssociations": [
       {
         "ext": ["pdf"],
-        "name": "PDF Document",
+        "name": "PDFWorkbench.Document",
         "description": "PDF Document",
         "mimeType": "application/pdf",
         "role": "Viewer"
@@ -56,7 +56,28 @@
     "resources": {
       "vendor/pdfium/": "pdfium/",
       "vendor/qpdf/": "qpdf/",
-      "vendor/tesseract/": "tesseract/"
+      "vendor/tesseract/": "tesseract/",
+      "notices/THIRD-PARTY-NOTICES.txt": "THIRD-PARTY-NOTICES.txt"
+    },
+    "publisher": "MGR CPAs",
+    "copyright": "MGR CPAs",
+    "shortDescription": "PDF Workbench",
+    "longDescription": "PDF editor for MGR CPAs: viewing, page organization, markup, redaction, workpaper tickmarks, forms and OCR.",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "allowDowngrades": true,
+      "signCommand": {
+        "cmd": "node",
+        "args": ["../scripts/sign.mjs", "%1"]
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "./windows/hooks.nsh",
+        "languages": ["English"],
+        "displayLanguageSelector": false
+      }
     }
   }
 }

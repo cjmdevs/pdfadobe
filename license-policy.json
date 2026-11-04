@@ -29,5 +29,43 @@
   "bundledBinaries": {
     "pdfium-binaries chromium/8111": "BSD-3-Clause/Apache-2.0 with permissive third-party code (FreeType FTL, IJG, libpng, zlib, lcms, OpenJPEG, ICU, Boost). Native printing. Fetched by scripts/fetch-win-binaries.mjs (SHA-256 pinned); not scanned by license-check.",
     "qpdf 12.4.2 msvc64": "Apache-2.0. Ships Microsoft Visual C++ runtime DLLs (Microsoft redistributable license, proprietary, not copyleft): approved by the owner 2026-10-22. Fetched by scripts/fetch-win-binaries.mjs (SHA-256 pinned); not scanned by license-check."
+  },
+  "licenseTexts": {
+    "_note": "Phase 10a: packages that ship no license file. THIRD-PARTY-NOTICES.txt uses these reviewed upstream copies (scripts/notices.mjs). Check again when the version changes.",
+    "webview2-com": {
+      "file": "licenses/upstream/webview2-com.txt",
+      "source": "https://github.com/wravery/webview2-rs/blob/main/LICENSE",
+      "checked": "2026-11-04"
+    },
+    "webview2-com-sys": {
+      "file": "licenses/upstream/webview2-com.txt",
+      "source": "https://github.com/wravery/webview2-rs/blob/main/LICENSE",
+      "checked": "2026-11-04"
+    },
+    "webview2-com-macros": {
+      "file": "licenses/upstream/webview2-com.txt",
+      "source": "https://github.com/wravery/webview2-rs/blob/main/LICENSE",
+      "checked": "2026-11-04"
+    },
+    "selectors": {
+      "file": "licenses/upstream/selectors.txt",
+      "source": "https://www.mozilla.org/media/MPL/2.0/index.txt (MPL-2.0 text; servo/stylo has no LICENSE file)",
+      "checked": "2026-11-04"
+    },
+    "alloc-stdlib": {
+      "file": "licenses/upstream/alloc-stdlib.txt",
+      "source": "https://github.com/dropbox/rust-alloc-no-stdlib/blob/master/LICENSE",
+      "checked": "2026-11-04"
+    },
+    "@fluentui/svg-icons": {
+      "file": "licenses/upstream/fluentui-svg-icons.txt",
+      "source": "https://github.com/microsoft/fluentui-system-icons/blob/main/LICENSE",
+      "checked": "2026-11-04"
+    },
+    "@nodable/entities": {
+      "file": "licenses/upstream/nodable-entities.txt",
+      "source": "https://github.com/nodable/val-parsers/blob/main/LICENSE",
+      "checked": "2026-11-04"
+    }
   }
 }

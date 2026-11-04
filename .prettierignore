@@ -6,3 +6,5 @@ tests/corpus/generated
 tests/corpus/out
 tests/corpus/irs
 scripts/tmp
+src-tauri/tests/fixtures
+src-tauri/notices

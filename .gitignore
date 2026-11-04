@@ -44,3 +44,5 @@ tests/corpus/edit/local/
 
 # Docs (owner 2026-10-28): files already tracked stay tracked
 docs/
+src-tauri/notices/
+release/
