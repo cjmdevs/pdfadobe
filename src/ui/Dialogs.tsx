@@ -10,6 +10,9 @@ import { describeOpenError, useWorkbench } from "../app/workbench";
 import { removeRecentFile } from "../app/recent";
 import { CustomizeDialog } from "./CustomizeDialog";
 import { Modal, ModalActions } from "./kit/Dialog";
+import { AcrobatButton } from "./kit/AcrobatButton";
+import { FirstRunDialog } from "./FirstRunDialog";
+import { UpdateDialog } from "./UpdateDialog";
 import { StampPicker } from "./markup/StampPicker";
 import { TickmarkLibrary } from "./flyer/TickmarkLibrary";
 import { StampDetails } from "./flyer/StampDetails";
@@ -64,6 +67,10 @@ function MainDialog() {
           />
         </Modal>
       );
+    case "firstRun":
+      return <FirstRunDialog startAt={dialog.startAt ?? 1} onClose={close} />;
+    case "update":
+      return <UpdateDialog info={dialog.info} onClose={close} />;
     case "settings":
       return (
         <Modal title="Settings" onClose={close}>
@@ -215,6 +222,11 @@ function OpenErrorDialog({
       <p data-testid="open-error-message" data-kind={kind}>
         {message}
       </p>
+      {kind !== "notFound" && (
+        <p>
+          <AcrobatButton path={path} />
+        </p>
+      )}
       {(kind === "locked" || kind === "network" || (kind === "notFound" && path)) && (
         <ModalActions>
           {(kind === "locked" || kind === "network") && (

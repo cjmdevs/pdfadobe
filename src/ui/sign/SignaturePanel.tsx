@@ -5,11 +5,14 @@
 import { useEffect, useState } from "react";
 import { useWorkbench } from "../../app/workbench";
 import { listSignatures, type SignatureInfo } from "../../engine/sign";
+import { AcrobatButton } from "../kit/AcrobatButton";
 import { message } from "./signActions";
 
 export default function SignaturePanel({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
   const storeId = wb.meta[documentId]?.storeId;
+  const docSource = wb.meta[documentId]?.source;
+  const filePath = docSource?.kind === "path" ? docSource.path : null;
   const [loaded, setState] = useState<
     ({ list: SignatureInfo[]; bytes: Uint8Array } | { error: string }) & { key: string }
   >();
@@ -56,7 +59,11 @@ export default function SignaturePanel({ documentId }: { documentId: string }) {
     <section className="signature-panel" aria-label="Signatures" data-testid="signature-panel">
       <h3>Signatures</h3>
       {state === null && <p className="muted">Checking…</p>}
-      {state && "error" in state && <p className="error">{state.error}</p>}
+      {state && "error" in state && (
+        <p className="error">
+          {state.error} <AcrobatButton path={filePath} />
+        </p>
+      )}
       {state && "list" in state && state.list.length === 0 && (
         <p className="muted">This document has no certificate signatures.</p>
       )}

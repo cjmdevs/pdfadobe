@@ -103,6 +103,12 @@ export interface Settings {
   customStampInfo: Record<string, { category: string; name?: string }>;
   /** Saved Header & Footer and Bates setups (Phase 7). */
   headerFooterPresets: HeaderFooterPreset[];
+  /** First-run setup finished or skipped (Phase 10a). */
+  firstRunDone: boolean;
+  /** Firm library folder (Phase 10a): sets the firm tickmark, layout and font paths. */
+  firmLibraryPath: string | null;
+  /** Last automatic update check (ms since 1970), at most one a day. */
+  lastUpdateCheck: number;
 }
 
 /** Settings that belong to one window (backlog B1): extra windows never save them, so
@@ -176,6 +182,9 @@ export const DEFAULT_SETTINGS: Settings = {
   lastSigningCert: null,
   customStampInfo: {},
   headerFooterPresets: [],
+  firstRunDone: false,
+  firmLibraryPath: null,
+  lastUpdateCheck: 0,
 };
 
 const oneOf =
@@ -287,6 +296,15 @@ export function sanitizeSettings(raw: unknown): Settings {
         : d.lastSigningCert,
     customStampInfo: stampInfo(r.customStampInfo),
     headerFooterPresets: sanitizePresets(r.headerFooterPresets),
+    firstRunDone: typeof r.firstRunDone === "boolean" ? r.firstRunDone : d.firstRunDone,
+    firmLibraryPath:
+      typeof r.firmLibraryPath === "string" && r.firmLibraryPath.trim()
+        ? r.firmLibraryPath.slice(0, 1000)
+        : null,
+    lastUpdateCheck:
+      typeof r.lastUpdateCheck === "number" && Number.isFinite(r.lastUpdateCheck)
+        ? r.lastUpdateCheck
+        : d.lastUpdateCheck,
   };
 }
 

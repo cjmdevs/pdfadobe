@@ -25,6 +25,7 @@ import {
   type PathStatus,
   type FontFolders,
   type Platform,
+  type UpdateState,
 } from "./types";
 
 const SETTINGS_KEY = "pdf-workbench.settings";
@@ -363,6 +364,36 @@ export const browserPlatform: Platform = {
   },
   signatures,
   certs,
+  // Phase 10a. Tests drive these through window.__PDFWB_APP__ (see tests/e2e).
+  app: {
+    async version() {
+      return "0.0.0-browser";
+    },
+    async writeCrash(text) {
+      const w = window as unknown as { __PDFWB_CRASHES__?: string[] };
+      (w.__PDFWB_CRASHES__ ??= []).push(text);
+    },
+    async openCrashFolder() {},
+    async openNotices() {},
+    async isDefaultPdfApp() {
+      const w = window as unknown as { __PDFWB_APP__?: { isDefault?: boolean | null } };
+      return w.__PDFWB_APP__?.isDefault ?? null;
+    },
+    async openDefaultAppsSettings() {
+      const w = window as unknown as { __PDFWB_APP__?: { opened?: number } };
+      w.__PDFWB_APP__ ??= {};
+      w.__PDFWB_APP__.opened = (w.__PDFWB_APP__.opened ?? 0) + 1;
+    },
+    async checkUpdate() {
+      const w = window as unknown as { __PDFWB_APP__?: { update?: UpdateState } };
+      return w.__PDFWB_APP__?.update ?? { kind: "off", reason: "dev" };
+    },
+    async installUpdate(version) {
+      const w = window as unknown as { __PDFWB_APP__?: { installed?: string } };
+      w.__PDFWB_APP__ ??= {};
+      w.__PDFWB_APP__.installed = version;
+    },
+  },
   fonts,
   get windows() {
     return fakeWindowsOnce();

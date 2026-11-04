@@ -50,6 +50,13 @@ import { TickLinkRenderer } from "./ui/flyer/TickLinkRenderer";
 
 import { markupConfig } from "./markup/config";
 import { readFirmTickmarks } from "./ui/flyer/flyerFiles";
+import { updateCheckDue } from "./app/firstRun";
+
+/** First-run setup shows in the installed app; browser tests opt in. */
+function firstRunWanted(): boolean {
+  if (platform.kind === "tauri") return true;
+  return (window as unknown as { __PDFWB_FIRSTRUN__?: boolean }).__PDFWB_FIRSTRUN__ === true;
+}
 
 function plugins(settings: Settings) {
   const zoom =
@@ -175,6 +182,16 @@ function Shell({ ready }: { ready: boolean }) {
       // Files from "Open with" come last so they end up active.
       await wb.openPaths(launch);
       document.documentElement.dataset.appReady = "true";
+      // Phase 10a: first-run setup once; otherwise the daily update check.
+      if (WINDOW_LABEL === "main") {
+        if (!wb.settings.firstRunDone && firstRunWanted()) wb.setDialog({ kind: "firstRun" });
+        else if (updateCheckDue(wb.settings.lastUpdateCheck, Date.now())) {
+          void platform.app.checkUpdate().then((s) => {
+            if (s.kind !== "off") wb.updateSettings({ lastUpdateCheck: Date.now() });
+            if (s.kind === "available") wb.setDialog({ kind: "update", info: s.info });
+          });
+        }
+      }
       // Firm default quick toolbar from the network share; the last copy is kept in
       // settings for when the share is unreachable (laptop off the network).
       const layoutPath = wb.settings.firmLayoutPath;

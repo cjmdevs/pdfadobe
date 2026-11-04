@@ -1,6 +1,8 @@
 mod acrobat;
 mod app_windows;
+mod appsvc;
 mod certsign;
+mod crash;
 mod docstore;
 mod external_edit;
 mod fileio;
@@ -15,11 +17,13 @@ mod settings;
 mod signatures;
 mod stamps;
 mod thumbs;
+mod update;
 
 use tauri::Manager;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    crash::install_panic_hook();
     tauri::Builder::default()
         // Must be registered first: a second launch (Explorer "Open with") hands its
         // files to the running window instead of opening another one.
@@ -108,6 +112,14 @@ pub fn run() {
             repair::repair_pdf,
             acrobat::open_in_acrobat,
             acrobat::open_url,
+            crash::crash_write,
+            crash::crash_open_folder,
+            appsvc::app_version,
+            appsvc::default_pdf_app,
+            appsvc::open_default_apps,
+            appsvc::open_notices,
+            update::update_check,
+            update::update_install,
             external_edit::external_edit_start,
             external_edit::external_edit_poll,
             external_edit::external_edit_end,

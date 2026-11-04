@@ -1,10 +1,11 @@
 // Settings (Phase 3, B2): markup author and styles, Home screen start and thumbnails.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAnnotationCapability } from "@embedpdf/plugin-annotation/react";
 import { useWorkbench } from "../app/workbench";
 import { toolDefaults } from "../markup/config";
 import { dropThumbs } from "../app/recent";
-import { platform } from "../platform";
+import { platform, type UpdateState } from "../platform";
+import { describeUpdate } from "./UpdateDialog";
 
 export function SettingsBody() {
   const wb = useWorkbench();
@@ -106,6 +107,69 @@ export function SettingsBody() {
           Reset to firm defaults
         </button>
       </div>
+      <AboutSection />
     </div>
+  );
+}
+
+/** Version, updates, default PDF program, crash reports, notices (Phase 10a). */
+function AboutSection() {
+  const wb = useWorkbench();
+  const [version, setVersion] = useState<string | null>(null);
+  const [isDefault, setIsDefault] = useState<boolean | null>(null);
+  const [update, setUpdate] = useState<UpdateState | null>(null);
+  const [checking, setChecking] = useState(false);
+  useEffect(() => {
+    void platform.app.version().then(setVersion);
+    void platform.app.isDefaultPdfApp().then(setIsDefault);
+  }, []);
+  const check = async () => {
+    setChecking(true);
+    const s = await platform.app.checkUpdate();
+    setChecking(false);
+    setUpdate(s);
+    if (s.kind !== "off") wb.updateSettings({ lastUpdateCheck: Date.now() });
+    if (s.kind === "available") wb.setDialog({ kind: "update", info: s.info });
+  };
+  return (
+    <section className="settings-about" aria-label="About PDF Workbench" data-testid="about">
+      <h3>About PDF Workbench</h3>
+      <p>Version {version ?? "…"}</p>
+      <div className="settings-row">
+        <span>Updates come from the firm's update folder</span>
+        <button type="button" disabled={checking} onClick={() => void check()}>
+          {checking ? "Checking…" : "Check for updates"}
+        </button>
+      </div>
+      {update && (
+        <p className="hint" role="status" data-testid="update-status">
+          {describeUpdate(update)}
+        </p>
+      )}
+      <div className="settings-row">
+        <span>
+          {isDefault === true
+            ? "PDF Workbench opens PDF files"
+            : isDefault === false
+              ? "PDF files open in another program"
+              : "Default PDF program"}
+        </span>
+        <button type="button" onClick={() => wb.setDialog({ kind: "firstRun", startAt: 3 })}>
+          Choose default PDF program…
+        </button>
+      </div>
+      <div className="settings-row">
+        <span>Crash reports (kept on this PC only)</span>
+        <button type="button" onClick={() => void platform.app.openCrashFolder()}>
+          Show folder
+        </button>
+      </div>
+      <div className="settings-row">
+        <span>Licenses of the software PDF Workbench includes</span>
+        <button type="button" onClick={() => void platform.app.openNotices()}>
+          Third-party notices
+        </button>
+      </div>
+    </section>
   );
 }

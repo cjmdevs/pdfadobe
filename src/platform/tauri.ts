@@ -30,6 +30,7 @@ import {
   type Platform,
   type PrintRequest,
   type PrintResult,
+  type UpdateState,
 } from "./types";
 
 /** Rust `FileError` arrives as `{ kind, message }`; anything else becomes "other". */
@@ -329,6 +330,20 @@ export const tauriPlatform: Platform = {
     paths.length ? call<PathStatus[]>("path_status", { paths }) : Promise.resolve([]),
   signatures,
   certs,
+  app: {
+    version: () => call<string>("app_version"),
+    writeCrash: (text) => call<undefined>("crash_write", { text }),
+    openCrashFolder: () => call<undefined>("crash_open_folder"),
+    openNotices: () => call<undefined>("open_notices"),
+    isDefaultPdfApp: () => call<boolean | null>("default_pdf_app").catch(() => null),
+    openDefaultAppsSettings: () => call<undefined>("open_default_apps"),
+    checkUpdate: () =>
+      call<UpdateState>("update_check").catch((e: unknown): UpdateState => ({
+        kind: "bad",
+        message: e instanceof Error ? e.message : String(e),
+      })),
+    installUpdate: (version) => call<undefined>("update_install", { version }),
+  },
   fonts,
 
   takeLaunchPaths: () => call<string[]>("take_launch_paths"),

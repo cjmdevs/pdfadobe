@@ -8,6 +8,7 @@ import { useWorkbench } from "../../app/workbench";
 import { platform, type CertInfo } from "../../platform";
 import { decodePng } from "../../engine/pages/png";
 import { message, signToNewFile, type KeySource } from "./signActions";
+import { AcrobatButton } from "../kit/AcrobatButton";
 import { useSavedSignatures } from "./fillSign";
 
 const REASONS = [
@@ -29,6 +30,8 @@ export function CertSignDialog({
   onClose(): void;
 }) {
   const wb = useWorkbench();
+  const docSource = wb.meta[documentId]?.source;
+  const activePath = docSource?.kind === "path" ? docSource.path : null;
   const [certs, setCerts] = useState<CertInfo[] | null>(null);
   const [listError, setListError] = useState<string | null>(null);
   const [choice, setChoice] = useState<string>("");
@@ -137,7 +140,11 @@ export function CertSignDialog({
       <fieldset disabled={busy}>
         <legend>Certificate</legend>
         {certs === null && !listError && <p className="muted">Looking for certificates…</p>}
-        {listError && <p className="error">{listError}</p>}
+        {listError && (
+          <p className="error">
+            {listError} <AcrobatButton path={activePath} />
+          </p>
+        )}
         {certs?.length === 0 && (
           <p className="muted">
             No signing certificate in your Windows certificate store. Use a .pfx file instead.

@@ -32,10 +32,12 @@ import {
   platform,
   suffixedPath,
   type FileSource,
+  type UpdateInfo,
   type OpenedFile,
 } from "../platform";
 import { flushFormWrites, takeFieldsDeleted } from "./formWrites";
 import { pageOp } from "./pages";
+import { setOpenFiles } from "./crash";
 import { OcrCancelled } from "../engine/ocr/tesseract";
 import { calcs } from "../ui/forms/calcStore";
 import { splitLaunchPage } from "./launchPage";
@@ -102,6 +104,10 @@ export type Dialog =
   /** `documentId`: the open document to start the list with (owner request). */
   | { kind: "combine"; documentId: string | null }
   | { kind: "settings" }
+  /** First-run setup (Phase 10a); step 3 alone from Settings. */
+  | { kind: "firstRun"; startAt?: 1 | 3 }
+  /** An update from the firm's update folder (Phase 10a). */
+  | { kind: "update"; info: UpdateInfo }
   /** Flatten markup to a new file (Phase 3). */
   | { kind: "flatten"; documentId: string; page: number; selectedIds: string[] }
   /** Stamps picker (Phase 3). */
@@ -141,6 +147,9 @@ export interface Toast {
   id: number;
   text: string;
   tone: "info" | "error";
+  /** Error toasts: the file the error is about (default: the active tab's file), for
+   * "Open in Acrobat" (Phase 10a). Null = no file on disk. */
+  path?: string | null;
 }
 
 export interface WorkbenchApi {
@@ -226,7 +235,8 @@ export interface WorkbenchApi {
   dialog: Dialog;
   setDialog(d: Dialog): void;
   toasts: Toast[];
-  toast(text: string, tone?: Toast["tone"]): void;
+  toast(text: string, tone?: Toast["tone"], opts?: { path?: string | null }): void;
+  dismissToast(id: number): void;
   searchOpen: boolean;
   /** Home screen shown over the open tabs (B2; the Home tab). */
   home: boolean;
@@ -356,9 +366,11 @@ export function WorkbenchProvider({
   // Latest values for async flows (open/repair/print run across awaits).
   const metaRef = useRef(meta);
   const settingsRef = useRef(settings);
+  const activeRef = useRef<string | null>(null);
   useLayoutEffect(() => {
     metaRef.current = meta;
     settingsRef.current = settings;
+    activeRef.current = core?.activeDocumentId ?? null;
   });
 
   /**
@@ -491,11 +503,26 @@ export function WorkbenchProvider({
     [changeRecent, makeThumb],
   );
 
-  const toast = useCallback((text: string, tone: Toast["tone"] = "info") => {
-    const id = ++toastSeq;
-    setToasts((t) => [...t, { id, text, tone }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 6000);
+  const dismissToast = useCallback((id: number) => {
+    setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
+  const toast = useCallback(
+    (text: string, tone: Toast["tone"] = "info", opts?: { path?: string | null }) => {
+      const id = ++toastSeq;
+      let path: string | null = null;
+      if (tone === "error") {
+        if (opts && "path" in opts) path = opts.path ?? null;
+        else {
+          const src = activeRef.current ? metaRef.current[activeRef.current]?.source : undefined;
+          path = src?.kind === "path" ? src.path : null;
+        }
+      }
+      setToasts((t) => [...t, { id, text, tone, path }]);
+      // Errors stay longer: they may offer "Open in Acrobat" and have a close button.
+      setTimeout(() => dismissToast(id), tone === "error" ? 15000 : 6000);
+    },
+    [dismissToast],
+  );
 
   /** Shows a store document in a new tab. `bytes` is the viewer's own copy. */
   const addTab = useCallback(
@@ -1217,6 +1244,7 @@ export function WorkbenchProvider({
       return s?.kind === "path" ? s.path : null;
     };
     const openTabs = order.map(pathOf).filter((p): p is string => p !== null);
+    setOpenFiles(openTabs);
     const activeTab = active ? pathOf(active) : null;
     const cur = settingsRef.current;
     if (openTabs.join("\n") !== cur.openTabs.join("\n") || activeTab !== cur.activeTab) {
@@ -1313,6 +1341,7 @@ export function WorkbenchProvider({
       setDialog,
       toasts,
       toast,
+      dismissToast,
       searchOpen,
       home,
       setHome,
@@ -1363,6 +1392,7 @@ export function WorkbenchProvider({
       dialog,
       toasts,
       toast,
+      dismissToast,
       searchOpen,
       home,
       setHome,

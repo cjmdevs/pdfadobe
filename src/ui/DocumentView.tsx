@@ -36,6 +36,7 @@ import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { PdfErrorCode } from "@embedpdf/models";
 import { useWorkbench } from "../app/workbench";
 import { tool } from "../tools/registry";
+import { AcrobatButton } from "./kit/AcrobatButton";
 import { OrganizeView } from "./OrganizeView";
 
 export function DocumentView({ documentId }: { documentId: string }) {
@@ -320,6 +321,7 @@ function OpenFailure({ state }: { state: DocumentState }) {
             Repair a copy…
           </button>
         )}
+        <AcrobatButton path={m?.source.kind === "path" ? m.source.path : null} />
         <button type="button" onClick={() => closeDocument(state.id)}>
           Close
         </button>

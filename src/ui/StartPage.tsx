@@ -17,6 +17,7 @@ import {
 import { TOOLS, isBuilt, type ToolDef } from "../tools/registry";
 import { useNoDocToolContext } from "../tools/useToolContext";
 import { Icon } from "./Icon";
+import { AcrobatButton } from "./kit/AcrobatButton";
 
 export function StartPage() {
   const wb = useWorkbench();
@@ -244,7 +245,7 @@ export function lastOpened(ms: number, now = new Date()): string {
 }
 
 export function Toasts() {
-  const { toasts } = useWorkbench();
+  const { toasts, dismissToast } = useWorkbench();
   return (
     <div className="toasts" aria-live="polite">
       {toasts.map((t) => (
@@ -254,6 +255,14 @@ export function Toasts() {
           role={t.tone === "error" ? "alert" : "status"}
         >
           {t.text}
+          {t.tone === "error" && (
+            <div className="toast-actions">
+              <AcrobatButton path={t.path} />
+              <button type="button" onClick={() => dismissToast(t.id)}>
+                Close
+              </button>
+            </div>
+          )}
         </div>
       ))}
     </div>

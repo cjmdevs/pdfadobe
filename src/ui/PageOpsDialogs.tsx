@@ -25,6 +25,7 @@ import {
   safeFileName,
   type OpenedFile,
 } from "../platform";
+import { AcrobatButton, useActiveFilePath } from "./kit/AcrobatButton";
 import { usePointerDrag } from "./usePointerDrag";
 
 export function FormModal({
@@ -131,9 +132,10 @@ function useScope(pageCount: number, selected: number[]) {
 }
 
 function ErrorText({ text }: { text: string | null }) {
+  const path = useActiveFilePath();
   return text ? (
     <p className="error" role="alert">
-      {text}
+      {text} <AcrobatButton path={path} />
     </p>
   ) : null;
 }

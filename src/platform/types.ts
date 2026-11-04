@@ -129,6 +129,8 @@ export interface Platform {
   signatures: SignatureLibrary;
   /** Signing certificates (Phase 8; Windows: certificate store and .pfx via CNG). */
   certs: CertProvider;
+  /** Installed-app services (Phase 10a): crash reports, default app, updates. */
+  app: AppServices;
   /** Opens a file on disk in Adobe Acrobat or Reader (XFA-only forms, Phase 6). Throws
    * PlatformError("acrobatMissing") when neither is installed. */
   openInAcrobat(path: string): Promise<void>;
@@ -310,4 +312,37 @@ export function safeFileName(name: string): string {
     .replace(/[. ]+$/, "")
     .trim();
   return clean.slice(0, 120) || "Untitled";
+}
+
+/** An update found in the firm's update folder (Phase 10a). */
+export interface UpdateInfo {
+  current: string;
+  version: string;
+  notes: string;
+  /** The firm marked this an older version to go back to. */
+  rollback: boolean;
+}
+
+export type UpdateState =
+  | { kind: "off"; reason: "policy" | "noSource" | "noKey" | "dev" }
+  | { kind: "upToDate"; current: string }
+  | { kind: "available"; info: UpdateInfo }
+  | { kind: "unreachable" }
+  | { kind: "bad"; message: string };
+
+export interface AppServices {
+  version(): Promise<string>;
+  /** Saves one crash report (text already scrubbed by src/app/crash.ts). */
+  writeCrash(text: string): Promise<void>;
+  openCrashFolder(): Promise<void>;
+  /** Opens THIRD-PARTY-NOTICES.txt from the install folder in Notepad. */
+  openNotices(): Promise<void>;
+  /** True/false when Windows says whether PDF Workbench opens .pdf files; null if unknown. */
+  isDefaultPdfApp(): Promise<boolean | null>;
+  /** Opens Settings > Apps > Default apps at PDF Workbench. */
+  openDefaultAppsSettings(): Promise<void>;
+  /** Reads and checks the firm's update manifest. Never throws. */
+  checkUpdate(): Promise<UpdateState>;
+  /** Copies, checks and starts the installer; the app then closes. */
+  installUpdate(version: string): Promise<void>;
 }

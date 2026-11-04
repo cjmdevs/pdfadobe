@@ -526,3 +526,33 @@ kbd {
 .modal-actions {
   display: contents;
 }
+.toast-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.acrobat-escape .hint {
+  margin-left: var(--space-2);
+}
+.settings-about {
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+}
+.first-run ol.steps li {
+  margin-bottom: var(--space-2);
+}
+.update-notes {
+  white-space: pre-wrap;
+  font: inherit;
+  background: var(--bg-sunken);
+  padding: var(--space-3);
+  border-radius: var(--radius);
+  max-height: 200px;
+  overflow: auto;
+}
+.crash-files {
+  text-align: left;
+}
