@@ -187,7 +187,9 @@ function Shell({ ready }: { ready: boolean }) {
         if (!wb.settings.firstRunDone && firstRunWanted()) wb.setDialog({ kind: "firstRun" });
         else if (updateCheckDue(wb.settings.lastUpdateCheck, Date.now())) {
           void platform.app.checkUpdate().then((s) => {
-            if (s.kind !== "off") wb.updateSettings({ lastUpdateCheck: Date.now() });
+            // Only a check that reached the folder counts: an offline laptop tries again next start.
+            if (s.kind === "upToDate" || s.kind === "available")
+              wb.updateSettings({ lastUpdateCheck: Date.now() });
             if (s.kind === "available") wb.setDialog({ kind: "update", info: s.info });
           });
         }

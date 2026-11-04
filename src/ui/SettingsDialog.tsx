@@ -128,7 +128,9 @@ function AboutSection() {
     const s = await platform.app.checkUpdate();
     setChecking(false);
     setUpdate(s);
-    if (s.kind !== "off") wb.updateSettings({ lastUpdateCheck: Date.now() });
+    // Only a check that reached the folder counts: an offline laptop tries again next start.
+    if (s.kind === "upToDate" || s.kind === "available")
+      wb.updateSettings({ lastUpdateCheck: Date.now() });
     if (s.kind === "available") wb.setDialog({ kind: "update", info: s.info });
   };
   return (

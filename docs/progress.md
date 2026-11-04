@@ -5,40 +5,16 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **B2 (Home screen) done 2026-11-03, owner check passed (all 10 steps)** (`docs/testing/b2-test-guide.md`).
-  Plan approved with the recommended answers (Home tab, quick tools Combine + Organize
-  only, no thumbnail for password-protected files, missing local files greyed).
-  - **Home** (`src/ui/StartPage.tsx`): at launch, after the last tab closes, and from the
-    house tab at the left of the tab bar (`TabBar.tsx`; `wb.home` overlays the workspace,
-    the document stays mounted, tool/properties bars are hidden). Open, drop zone (click =
-    Open; dropping works anywhere as before), quick tools = registry tools with
-    `home: true` that are built (a tool needing a document asks for a PDF and opens on it:
-    `pickAndOpen({ tool })`), Recent Files.
-  - **Recent Files** (`src/app/recent.ts`, Node-safe): entries `{ path, opened, pinned,
-    thumb }` (old plain-path lists convert on load); 15 unpinned + up to 20 pinned;
-    pinned first. Every change returns the thumbnail ids it dropped and
-    `wb.changeRecent` deletes them. Reachability by `path_status` (Rust, one thread per
-    path, 2.5 s limit): ok / missing (drive or share answers, file gone) / offline (share,
-    mapped or removable drive unreachable or slow). Offline rows are greyed, a click
-    re-checks quietly; missing rows go through the normal open error with "Remove".
-  - **Thumbnails** (`src-tauri/src/thumbs.rs`): page 1, JPEG at 36 dpi via the page
-    worker's `pageImage`, made on open, Save and Save As; stored only in
-    `%LOCALAPPDATA%\com.mgrcpas.pdfworkbench\thumbnails\<32-hex id>.jpg` (Local, not
-    Roaming; never named after the PDF). Deleted on remove, clear all, falling off the
-    list, and all of them when the setting is turned off; startup sweeps orphans.
-    Encrypted files get none (PDFium can't open them without the password).
-  - **Settings**: `restoreSession` (default off: B2 changes the old always-restore
-    behaviour) and `recentThumbnails` (default on), both in the Settings dialog.
-  - **Tests**: `tests/unit/recent.test.ts`, Rust `thumbs` (ids, store, sweep, roots,
-    missing vs offline incl. `\\localhost\<no share>`), `tests/e2e/home.spec.ts`, a11y
-    keyboard test. Existing e2e adjusted for the Home tab and opt-in restore. Found on the
-    way: save-then-read e2e tests raced the save (worse now the worker also renders a
-    thumbnail); they now wait for the write (`saveNow`). Vitest 755 + 1 skip, Rust 73,
-    e2e 211/212 (the known Edit PDF Shift+arrow flake; fails 2 of 6 on the old code too).
-  - **Deviations/gaps:** a file changed by another program keeps its old thumbnail until
-    opened here again. Recent Files is shared by all windows and the last writer wins
-    (as before). Clear all also removes pinned files. Real network shares: Phase 10.
-    No new dependencies (two Fluent icons from the existing package).
+- **Phase 10a (packaging) built 2026-11-04; owner check pending**
+  (`docs/testing/phase-10a-test-guide.md`, spec and decisions `docs/phases/phase-10a.md`,
+  admin guide `docs/admin.md`). Details in "Phase 10a" below.
+
+- **B2 (Home screen) done 2026-11-03, owner check passed.** Home at launch / after the last
+  tab / house tab; Recent Files (`src/app/recent.ts`: 15 + 20 pinned; reachability by
+  `path_status`: ok / missing / offline greyed); page-1 JPEG thumbnails only in
+  `%LOCALAPPDATA%\com.mgrcpas.pdfworkbench\thumbnails\` (`thumbs.rs`, swept at start);
+  session restore opt-in. Gaps: a file changed elsewhere keeps its old thumbnail; Recent
+  Files last writer wins across windows; Clear all removes pinned too.
 
 - **B7 (UI design pass) done 2026-11-03, owner check passed** (`docs/testing/b7-test-guide.md`).
   Direction "Ledger"; design system `src/ui/theme/tokens.css` + `base.css` (tokens only in
@@ -147,56 +123,64 @@ Keep it under 2 pages; summarize older phases.
   (by design); recalculation is one undo step per field; date formats not validated;
   keystroke filters not enforced; Detect knows blanks, lines and boxes only.
 
-## Phase 9: MCP server (2026-11-02)
+## Phase 10a: packaging (2026-11-04)
 
-Plan approved 2026-11-02 with the recommended answers (`docs/phases/phase-09.md`).
+- **Installer**: NSIS only, `installMode: currentUser` (no admin for install or update),
+  WebView2 `embedBootstrapper`. `src-tauri/windows/hooks.nsh` registers the app for
+  Default apps (HKCU Capabilities, RegisteredApplications, OpenWithProgids; kept during
+  /UPDATE). ProgID is now `PDFWorkbench.Document`. Sidecars stay `bundle.resources`.
+- **Signing**: `bundle.windows.signCommand` = `scripts/sign.mjs` (signtool by
+  `PDFWB_SIGN_THUMBPRINT`, or any tool via `PDFWB_SIGN_COMMAND`); `PDFWB_RELEASE=1`
+  (`npm run release`) makes a missing certificate fail the build. Tauri restores the
+  unsigned exe after packing, so sign.mjs keeps the signed copy in
+  `target/release/signed/` for `verify-signed.mjs`. Release gates: the three version
+  fields agree, `check-payload.mjs` (reads Tauri's generated installer.nsi),
+  `verify-signed.mjs`. With the test certificate Tauri prints "SignTool Error ... root"
+  while pre-checking files; expected.
+- **Notices**: `scripts/notices.mjs` (npm = what the Vite bundle used, from the
+  `bundlePackages` plugin in vite.config.ts; cargo metadata normal deps; sidecars);
+  identical texts once; a dependency without text fails unless `license-policy.json`
+  `licenseTexts` points at a reviewed copy in `licenses/upstream/` (7 today). 302
+  components.
+- **Crash reports** (`src/app/crash.ts`, `crash.rs`): local only, newest 20; messages
+  withheld except JS code errors (quotes, paths, numbers cut); Rust panic messages
+  scrubbed. CrashBoundary screen; Ctrl+Alt+Shift+F11 throws a test error.
+- **Open in Acrobat**: `ui/kit/AcrobatButton.tsx` on every error toast (the toast carries
+  the active file's path), can't-open, damaged file, page-op and signature errors, crash
+  screen; `tests/unit/acrobat-escape.test.ts` fails on new error UI without it (input
+  checks listed as exceptions).
+- **First run** (`FirstRunDialog.tsx`): name, firm library folder (fixed names
+  `tickmarks.json`, `layout.json`, `fonts\` set the existing firm paths), default app via
+  `ms-settings:defaultapps?registeredAppUser=PDF%20Workbench` + UserChoice(Latest) check.
+- **Updates** (`update.rs`, own checker, not tauri-plugin-updater which needs https):
+  folder from HKLM/HKCU `Software\Policies\PDF Workbench\Update` `Source` (or build-time
+  `PDFWB_UPDATE_SOURCE`); `Disabled`=1 turns it off. latest.json and the installer are
+  each signed with `tauri signer` (minisign); public key `src-tauri/update-key.pub` is
+  built in. The installer is copied to Local AppData; SHA-256, minisign and
+  WinVerifyTrust run on the copy; then `/P /R /UPDATE`. Rollback only via a signed
+  `"rollback": true`. Daily check at start (counted only when the folder answered) and
+  Settings > Check for updates. `scripts/update-package.mjs` packages, publishes (json
+  last) and rolls back.
+- **Tests**: Vitest `packaging`, `crash`, `acrobat-escape`; Rust `crash`, `appsvc`,
+  `update` (fixture manifest signed with a throwaway key); e2e `packaging.spec.ts` (11).
 
-- **Server** (`mcp-server/src/`): `@modelcontextprotocol/server` 2.4.0 (SDK v2:
-  `registerTool` with zod v4 `z.object`, `serveStdio`), stdio only. Imports `src/engine`
-  directly. `runtime/` loads PDFium and HarfBuzz from local WASM bytes (`createPdfium` keeps
-  fontFallback: null) and runs qpdf/Tesseract; the Node runners moved here from
-  `tests/helpers` (tests re-export them) and take a job-folder base.
-- **Safety** (`safety/`): `roots.ts` resolves every path with `fs.realpath.native`
-  (junctions, subst, 8.3 names) and requires it inside a configured folder
-  (case-insensitive); relative, `\?\`/`\.\` and `file:stream` paths refused.
-  `writer.ts` is the only writer: copies into `<folder>\_workspace\<date>_<task>\`,
-  publishes to `<folder>\Outputs\` with exclusive create (`name (2).pdf`), creates each
-  folder level and refuses if it resolves elsewhere (junction), masks SSN/EIN/7+ digit
-  runs in every name it creates. qpdf/OCR job folders live inside the task folder, so
-  nothing goes to %TEMP%. `audit.ts`: JSONL per call in `<folder>\_workspace\_audit\`
-  (tool, tier, paths, pages, outputs, time, Windows user, ok/error name; never text or
-  error messages); a call whose audit line cannot be written is refused.
-- **Tools**: 16 Tier A (list_pdfs, get_info, open_in_app, merge, split, rotate, reorder,
-  extract_pages, insert_pages, add_bookmarks, ocr, optimize, add_bates, add_header_footer,
-  add_watermark, redact_patterns); 4 Tier B registered only when
-  `HKLM\Software\Policies\PDF Workbench\MCP` `AllowContentToClaude` = DWORD 1 (read via
-  `reg.exe`). Calls run one at a time (PDFium is single-threaded). Password-protected
-  files are refused for changes; signed inputs get a warning. Errors shown to Claude are
-  fixed texts or engine messages that hold no document data.
-- **redact_patterns**: page-text hits (padded 1 pt) plus form-field values matching the
-  patterns (whole widget marked), then `redactDocument` (leak scan must pass). Counts per
-  page only.
-- **open_in_app**: starts PDF Workbench with `<file> --page=N`; `launch.rs` appends
-  `|page=N` to the path, `openPaths` splits it (`src/app/launchPage.ts`) and uses the
-  restore-page hook.
-- **Packaging**: `npm run mcp:build` (esbuild bundle + wasm + sidecars +
-  THIRD-PARTY-LICENSES.txt, manifest 0.3, `mcpb validate` + `pack`):
-  `mcp-server/dist/pdf-workbench.mcpb`, 23 MB packed / 54 MB unpacked. Settings: shared
-  folders (directory, multiple) and optional app path.
-- **Tests**: `mcp-tools` (every tool via in-memory client), `mcp-safety` (path attacks,
-  junctions, output/task names, before/after snapshot of the whole sandbox, Tier B absent
-  when off and headed/audited B when on), `mcp-network` (all Node network APIs trapped in
-  process), `mcp-stdio` (built bundle in plain Node with `--import block-net.mjs`),
-  `npm run mcp:inspect` (MCP Inspector CLI, every Tier A tool but open_in_app, on the bundle).
+**Deviations:** there is no Help menu, so Check for updates, default app, crash folder
+and notices are in Settings > About. Windows Sandbox is not on Windows 11 Home: the owner
+test installs on the build PC. The installer's Authenticode check trusts any certificate
+Windows trusts (no publisher pinning; the minisign key is the firm-only check). The update
+key has no password (can be replaced before the first real release, see admin.md).
+**Not verified yet:** real certificate and timestamping, a real share, DISM default
+associations by GPO, a PC without WebView2 (all Phase 10b).
 
-**Deviations:** manifest 0.3 (mcpb 2.1.2 also knows 0.4; the spec page calls 0.3 current).
-`list_pdfs` skips `_workspace` unless asked and never follows links. `split` by bookmarks
-names files after bookmark titles (masked). Tier B `read_text` is capped at 20 pages per
-call. `get_info` also reports `needs_password` and `has_signatures`. Inspector skips
-open_in_app (it would launch the app); Vitest covers it with a stub launcher.
-**Not verified yet:** installing the .mcpb in Claude Desktop and Claude Desktop's own
-Node (owner test); a real UNC share (Phase 10); open_in_app on an already-open tab or a
-tab in another window (activates it, does not jump to the page).
+## Phase 9: MCP server (2026-11-02, summary)
+
+`mcp-server/` on `@modelcontextprotocol/server` 2.4.0, stdio, imports `src/engine`.
+Safety in code: `roots.ts` (realpath, configured folders only), `writer.ts` (copies to
+`_workspace\<date>_<task>\`, publishes to `Outputs\`, masks SSN/EIN in names),
+`audit.ts` (JSONL, no text). 16 Tier A tools; 4 Tier B only with HKLM
+`Software\Policies\PDF Workbench\MCP` `AllowContentToClaude`=1. `npm run mcp:build`
+makes `mcp-server/dist/pdf-workbench.mcpb`. Not verified: Claude Desktop install, a real
+share.
 
 ## Earlier detail: Phase 8 (summary)
 
@@ -245,6 +229,11 @@ into the .mcpb.** Dev only: @modelcontextprotocol/client 2.4.0 (Apache-2.0),
 2.13.0 (Apache-2.0 + MIT for older code; package.json says "SEE LICENSE IN LICENSE", so
 `license-policy.json` records the LICENSE file). No new crates.
 
+**Phase 10a: crates minisign-verify 0.3.0 (MIT, no dependencies), base64 0.22.1 and
+sha2 0.10.9 (MIT OR Apache-2.0, both already in the tree); the `windows` crate gains
+`Win32_Security_WinTrust`. No new npm packages.** Build tools only: Windows SDK signtool,
+NSIS (Tauri's cached copy).
+
 ## Known gaps / notes for later phases
 
 - **Edit PDF:** a hard line break after a box's widest line reads back as a wrap (PDFs
@@ -276,6 +265,12 @@ into the .mcpb.** Dev only: @modelcontextprotocol/client 2.4.0 (Apache-2.0),
   (left as text), and leading-zero codes / 8+ digit runs stay text. Excel's Power Query
   PDF import (option B) was not built. Office conversions cannot be cancelled. Users
   must have desktop Office; web-only Office shows "needs Microsoft Word".
+- **Phase 10b** (work PC, installed app only): real code signing certificate
+  (`PDFWB_SIGN_THUMBPRINT` + `PDFWB_SIGN_TIMESTAMP_URL`), the firm's update share and
+  library folder, default app by GPO, a PC without WebView2, everything marked "real
+  share" above. Raise the version in package.json, tauri.conf.json and Cargo.toml
+  together (release checks). Keep `%USERPROFILE%\.pdfworkbench\update-signing.key` backed
+  up.
 - **Phase 9:** redact_patterns finds only text-layer and form-field matches (scans need
   ocr first; numbers inside images are missed) and refuses when the leak scan fails, so
   the person redacts in the app. The audit log can grow without limit (one file a

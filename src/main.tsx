@@ -20,6 +20,15 @@ window.addEventListener("dragstart", (e) => e.preventDefault(), true);
 // through CrashBoundary. Nothing leaves the computer.
 const version = await platform.app.version().catch(() => "unknown");
 const recordCrash = installCrashHandlers(window, version, (text) => platform.app.writeCrash(text));
+// Ctrl+Alt+Shift+F11 throws a test error, so an admin can check that crash reports are
+// written (docs/admin.md). It changes nothing else.
+window.addEventListener("keydown", (e) => {
+  if (e.key === "F11" && e.ctrlKey && e.altKey && e.shiftKey) {
+    setTimeout(() => {
+      throw new Error("PDF Workbench test crash (Ctrl+Alt+Shift+F11)");
+    });
+  }
+});
 
 // Load settings before the first render so the initial zoom, theme and layout are right.
 const settings = sanitizeSettings(await platform.loadSettings().catch(() => null));

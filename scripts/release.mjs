@@ -15,7 +15,7 @@
 //    key exists (PDFWB_UPDATE_KEY or %USERPROFILE%\.pdfworkbench\update-signing.key).
 
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,6 +25,22 @@ const env = { ...process.env, PDFWB_RELEASE: "1" };
 
 if (!env.PDFWB_SIGN_THUMBPRINT && !env.PDFWB_SIGN_COMMAND) {
   console.error("release: set PDFWB_SIGN_THUMBPRINT or PDFWB_SIGN_COMMAND (see docs/admin.md)");
+  process.exit(1);
+}
+
+// The installer name comes from tauri.conf.json, the version the app reports (and
+// compares updates against) from Cargo.toml: they must agree with package.json.
+const versions = {
+  "package.json": JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version,
+  "src-tauri/tauri.conf.json": JSON.parse(
+    readFileSync(join(root, "src-tauri", "tauri.conf.json"), "utf8"),
+  ).version,
+  "src-tauri/Cargo.toml": /^version = "([^"]+)"/m.exec(
+    readFileSync(join(root, "src-tauri", "Cargo.toml"), "utf8"),
+  )?.[1],
+};
+if (new Set(Object.values(versions)).size !== 1) {
+  console.error(`release: versions differ: ${JSON.stringify(versions)}`);
   process.exit(1);
 }
 

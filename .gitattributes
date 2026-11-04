@@ -10,3 +10,6 @@
 *.wasm binary
 *.dll binary
 *.exe binary
+
+# Signed test fixtures: the signature covers the exact bytes.
+src-tauri/tests/fixtures/** binary
