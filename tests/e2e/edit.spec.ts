@@ -562,13 +562,14 @@ test.describe("Edit PDF", () => {
       const [x, y] = await centre(page);
       await page.mouse.move(x, y);
       await page.mouse.down();
-      await page.mouse.move(x + 40, y + 30, { steps: 5 });
+      // Up, so the corner handle stays on screen (B8: the menu bar takes a row).
+      await page.mouse.move(x + 40, y - 30, { steps: 5 });
       await expect(frame(page)).toHaveClass(/dragging/);
       await page.mouse.up();
       await settled(page);
       const moved = (await page.getByTestId("edit-image").boundingBox())!;
       expect(moved.x - before.x).toBeCloseTo(40, -1);
-      expect(moved.y - before.y).toBeCloseTo(30, -1);
+      expect(moved.y - before.y).toBeCloseTo(-30, -1);
       await expect(frame(page)).toBeVisible(); // still selected
 
       const se = (await page.locator("[data-handle=se]").boundingBox())!;

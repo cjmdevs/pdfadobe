@@ -1,13 +1,12 @@
 // Remembered between sessions: theme, last zoom, open tabs (when restore is on), view mode.
 // (Window size/position is remembered by tauri-plugin-window-state in the Windows app.)
-import { P, boot, expect, openPaths, test, waitForPainted } from "./fixtures";
+import { P, boot, expect, menu, openPaths, test, waitForPainted } from "./fixtures";
 
 test.describe("persistence", () => {
   test("light / dark theme toggles and survives a restart", async ({ page }) => {
     await boot(page, { settings: { theme: "light" } });
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-    const toggle = page.getByRole("button", { name: /^Theme:/ });
-    await toggle.click(); // light -> dark
+    await menu(page, "View", "Theme", "Dark");
     await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
     const bg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
     expect(bg).toBe("rgb(26, 27, 25)");

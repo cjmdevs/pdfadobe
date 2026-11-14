@@ -17,6 +17,7 @@ import {
   waitForPainted,
   type Page,
   saveNow,
+  openPreferences,
 } from "./fixtures";
 
 const tb = (page: Page, name: string) =>
@@ -427,11 +428,11 @@ test.describe("markup", () => {
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
 
-    await page.getByRole("button", { name: "Settings…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Settings" });
-    await expect(dlg.getByLabel("Author name")).toHaveAttribute("placeholder", "Jane Smith");
-    await dlg.getByLabel("Author name").fill("J. Partner");
-    await dlg.getByLabel("Author name").press("Enter");
+    const dlg = await openPreferences(page, "Commenting");
+    const name = dlg.getByLabel("Author name for comments");
+    await expect(name).toHaveAttribute("placeholder", "Jane Smith");
+    await name.fill("J. Partner");
+    await name.press("Enter");
     await dlg.getByRole("button", { name: "Close" }).click();
 
     await tb(page, "Ellipse").click();

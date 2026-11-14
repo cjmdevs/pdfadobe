@@ -252,6 +252,20 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
       ];
     };
     const drawCorner = (pos: { x: number; y: number }) => snap.point(pos, objects(null));
+    /** Where a dragged image goes; moves of unrotated images snap (B8). */
+    const placeImage = (
+      g: { img: EditImage; handle: Handle | "move"; from: Pt },
+      pos: { x: number; y: number },
+      shiftKey: boolean,
+    ) => {
+      const now = dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), free(shiftKey));
+      if (g.handle !== "move" || Math.abs(now.rotation) >= 0.01) return { now, guides: [] };
+      const s2 = snap.move(placeBox(now), objects(g.img));
+      return {
+        now: { ...now, cx: s2.box.x + now.width / 2, cy: H() - s2.box.y - now.height / 2 },
+        guides: s2.guides,
+      };
+    };
     return register({
       onPointerMove: (pos, evt) => {
         if (inEditor(evt.target) && !latest.current.press) return;
@@ -294,13 +308,8 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           }
           setPress({ ...pr, dx, dy, moving });
         } else if (g) {
-          let now = dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), free(evt.shiftKey));
-          // Moves of unrotated images snap; resizes and rotations show their size.
-          if (g.handle === "move" && Math.abs(now.rotation) < 0.01) {
-            const s2 = snap.move(placeBox(now), objects(g.img));
-            now = { ...now, cx: s2.box.x + now.width / 2, cy: H() - s2.box.y - now.height / 2 };
-            snap.show(s2.box, s2.guides, false);
-          } else if (g.handle !== "rotate") snap.show(placeBox(now), [], true);
+          const { now, guides } = placeImage(g, pos, evt.shiftKey);
+          if (g.handle !== "rotate") snap.show(placeBox(now), guides, g.handle !== "move");
           setImgDrag({ ...g, now });
         } else if (d) {
           const p = drawCorner(pos);
@@ -450,10 +459,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         if (g) {
           evt.releasePointerCapture?.();
           setImgDrag(null);
-          // What was shown while dragging (snapped), else from the release point.
-          const now =
-            latest.current.imgDrag?.now ??
-            dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), free(evt.shiftKey));
+          const { now } = placeImage(g, pos, evt.shiftKey);
           const p = g.img.placement;
           const changed =
             Math.hypot(now.cx - p.cx, now.cy - p.cy) > 0.5 ||

@@ -59,7 +59,15 @@ if (typeof window !== "undefined") {
     (e) => {
       if (e.key !== " " || e.ctrlKey || e.altKey || e.metaKey) return;
       if (document.querySelector("dialog[open]")) return;
-      if (typingOrPressing(e.target)) return;
+      if (typingOrPressing(e.target) || typingOrPressing(document.activeElement)) return;
+      // Text being edited on the page (Edit PDF, a text comment) takes its keys from the
+      // page itself, so focus alone cannot tell: a space typed there stays a space.
+      if (
+        document.querySelector(
+          "[data-testid=edit-editor], .edit-layer.editing, [contenteditable=true]",
+        )
+      )
+        return;
       // Holding Space repeats keydown: never let it page down (Acrobat: Space = hand).
       e.preventDefault();
       if (!space) {

@@ -30,6 +30,7 @@ import { stampPlacement } from "../ui/markup/stampPlacement";
 import { FLYER_MODE, flyerPlacement } from "../ui/flyer/flyerStore";
 import { Guard } from "../ui/Guard";
 import { matchShortcut, type Command } from "./shortcuts";
+import { commandSearchShown } from "../ui/menus/CommandSearch";
 import { useNav } from "./useNav";
 import { platform } from "../platform";
 import { useWorkbench } from "./workbench";
@@ -88,7 +89,14 @@ export function Commands() {
         void wb.pickAndOpen();
         return true;
       case "help":
-        wb.setDialog({ kind: "shortcuts" });
+        wb.setDialog({ kind: "help" });
+        return true;
+      case "preferences":
+        wb.setDialog({ kind: "settings" });
+        return true;
+      case "commandSearch":
+        if (commandSearchShown()) document.dispatchEvent(new Event("pdfwb:command-search"));
+        else wb.setDialog({ kind: "commandSearch" });
         return true;
       case "escape":
         if (wb.dialog) wb.setDialog(null);

@@ -37,8 +37,10 @@ import { Sidebar } from "./ui/Sidebar";
 import { StartPage, Toasts } from "./ui/StartPage";
 import { Guard } from "./ui/Guard";
 import { TabBar } from "./ui/TabBar";
+import { MenuBarHost } from "./ui/menus/MenuBarHost";
 import { TooltipLayer } from "./ui/kit/Tooltip";
 import { parseFirmLayout } from "./tools/registry";
+import { parseFirmTopBar } from "./app/topBar";
 import { ToolToolbar, Toolbar } from "./ui/Toolbar";
 import { ToolsPane } from "./ui/ToolsPane";
 import { PropertiesBar } from "./ui/markup/PropertiesBar";
@@ -201,8 +203,10 @@ function Shell({ ready }: { ready: boolean }) {
       if (layoutPath) {
         try {
           const file = await platform.readPath(layoutPath);
+          const text = new TextDecoder().decode(file.bytes);
           wb.updateSettings({
-            firmLayoutCache: parseFirmLayout(new TextDecoder().decode(file.bytes)),
+            firmLayoutCache: parseFirmLayout(text),
+            firmTopBarCache: parseFirmTopBar(text),
           });
         } catch {
           wb.toast(
@@ -263,6 +267,7 @@ function Shell({ ready }: { ready: boolean }) {
       }}
       onDrop={onDrop}
     >
+      <MenuBarHost />
       <TabBar />
       <Guard resetKey={loadedId} fallback={<Toolbar documentId={null} />}>
         <Toolbar documentId={loadedId} />

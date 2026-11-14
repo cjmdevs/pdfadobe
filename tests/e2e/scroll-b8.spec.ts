@@ -1,6 +1,6 @@
 // B8: horizontal scrolling: a scrollbar when the page is wider than the view, Shift+wheel
 // scrolls sideways, holding Space or the Hand tool pans.
-import { P, boot, expect, openPaths, test, waitForPainted, type Page } from "./fixtures";
+import { P, boot, expect, menu, openPaths, test, waitForPainted, type Page } from "./fixtures";
 
 const vp = (page: Page) => page.getByTestId("viewport");
 const scrollPos = (page: Page) =>
@@ -62,9 +62,7 @@ test.describe("horizontal scrolling (B8)", () => {
 
   test("the Hand tool pans until another tool starts", async ({ page }) => {
     await zoomedIn(page);
-    const hand = page.getByRole("button", { name: "Hand tool (hold Space)" });
-    await hand.click();
-    await expect(hand).toHaveAttribute("aria-pressed", "true");
+    await menu(page, "View", "Hand tool");
     const b = (await vp(page).boundingBox())!;
     const before = await scrollPos(page);
     await page.mouse.move(b.x + 400, b.y + 300);
@@ -77,6 +75,14 @@ test.describe("horizontal scrolling (B8)", () => {
       .getByTestId("tool-toolbar")
       .getByRole("button", { name: "Rectangle", exact: true })
       .click();
-    await expect(hand).toHaveAttribute("aria-pressed", "false");
+    await page
+      .getByRole("menubar", { name: "Menu bar" })
+      .getByRole("menuitem", { name: "View", exact: true })
+      .click();
+    await expect(page.getByRole("menuitemcheckbox", { name: "Hand tool" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+    await page.keyboard.press("Escape");
   });
 });

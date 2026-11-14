@@ -100,8 +100,11 @@ for (const scale of [1.25, 1.5])
     const fits = () =>
       page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
     expect(await fits()).toBe(true);
-    // The main toolbar wraps instead of hiding its last buttons.
-    await expect(page.getByRole("button", { name: "Tools pane", exact: true })).toBeInViewport();
+    // B8: what does not fit the top bar goes into its » menu, which stays on screen.
+    const more = page.getByTestId("top-bar-more");
+    const tools = page.getByRole("button", { name: "Tools pane", exact: true });
+    if (await tools.count()) await expect(tools).toBeInViewport();
+    else await expect(more).toBeInViewport();
     // The busiest tool toolbar drops to icons instead of running off the screen.
     await page.getByRole("button", { name: "Workpaper Tools", exact: true }).click();
     const bar = page.getByTestId("tool-toolbar");
@@ -110,7 +113,7 @@ for (const scale of [1.25, 1.5])
     await expect(close).toBeInViewport();
     expect(await fits()).toBe(true);
     // A dialog fits on screen with its buttons visible.
-    await page.getByRole("button", { name: "Settings…", exact: true }).click();
+    await page.keyboard.press("Control+k");
     const dlg = page.locator("dialog[open]");
     await expect(dlg.getByRole("button", { name: "Close" })).toBeInViewport();
   });

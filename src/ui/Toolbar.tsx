@@ -7,6 +7,10 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { CommandSearch } from "./menus/CommandSearch";
+import { ContextMenu } from "./kit/Menu";
+import { useBarEntries } from "./topbar/barEntries";
+import { BAR_SPACER, barItem, effectiveLayout } from "../app/topBar";
 import { panStore, useHandTool } from "./Pan";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
@@ -15,10 +19,8 @@ import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
 import { ZOOM_PRESETS, parsePercent, percentToScale, scaleToPercent } from "../app/zoom";
 import {
-  DEFAULT_QUICK_TOOLBAR,
   QUICK_DIVIDER,
   actionEnabled,
-  cleanQuickToolbar,
   menuItems,
   resolveAction,
   tool,
@@ -76,145 +78,30 @@ function ToolButton({
 const NEXT_THEME: Record<Theme, Theme> = { system: "light", light: "dark", dark: "system" };
 
 /**
- * Top bar (backlog B4, docs/reference/acrobat-workspace.png): file actions, then the quick
- * toolbar (page navigation, zoom, pinned tools), then view settings and the Tools pane
- * toggle. One row, like the reference.
+ * Top bar (backlog B4, B8): one row of items in the user's order (Window > Customize top
+ * bar), else the firm default, else the built-in one. Items that do not fit the window
+ * go into the » menu at the end, from the right. Items for a document only show while one
+ * is open.
  */
 export function Toolbar({ documentId }: { documentId: string | null }) {
-  const wb = useWorkbench();
-  const { settings, updateSettings } = wb;
-  return (
-    <div className="toolbar" role="toolbar" aria-label="Main toolbar" onKeyDown={onToolbarKeys}>
-      <ToolButton icon="open" label="Open (Ctrl+O)" onClick={() => void wb.pickAndOpen()} />
-      <ToolButton
-        icon="save"
-        label="Save (Ctrl+S)"
-        disabled={!documentId || !wb.editState(documentId).dirty || wb.busy !== null}
-        onClick={() => documentId && void wb.save(documentId)}
-      />
-      <ToolButton
-        icon="print"
-        label="Print (Ctrl+P)"
-        disabled={!documentId}
-        onClick={() =>
-          documentId &&
-          document.dispatchEvent(new CustomEvent("pdfwb:command", { detail: "print" }))
-        }
-      />
-      <ToolButton
-        icon="search"
-        label="Find (Ctrl+F)"
-        pressed={wb.searchOpen}
-        disabled={!documentId}
-        onClick={() => wb.setSearchOpen(!wb.searchOpen)}
-      />
-      {documentId ? <DocTools documentId={documentId} /> : <NoDocQuickTools />}
-      <span className="grow" />
-      {documentId && <ViewSettings />}
-      <ToolButton
-        icon="info"
-        label="Document properties (Ctrl+D)"
-        disabled={!documentId}
-        onClick={() => documentId && wb.setDialog({ kind: "properties", documentId })}
-      />
-      <ToolButton
-        icon="keyboard"
-        label="Keyboard shortcuts (F1)"
-        onClick={() => wb.setDialog({ kind: "shortcuts" })}
-      />
-      <button
-        type="button"
-        className="tool theme-toggle"
-        aria-label={`Theme: ${settings.theme}`}
-        title={`Theme: ${settings.theme} (click to change)`}
-        onClick={() => updateSettings({ theme: NEXT_THEME[settings.theme] })}
-      >
-        <Icon name="theme" />
-        <span className="theme-label">{settings.theme}</span>
-      </button>
-      <ToolButton
-        icon="settings"
-        label="Settings…"
-        onClick={() => wb.setDialog({ kind: "settings" })}
-      />
-      <ToolButton
-        icon="customize"
-        label="Customize quick tools…"
-        onClick={() => wb.setDialog({ kind: "customize" })}
-      />
-      <ToolButton
-        icon="tools"
-        label="Tools pane"
-        pressed={settings.toolsPaneOpen}
-        onClick={() => updateSettings({ toolsPaneOpen: !settings.toolsPaneOpen })}
-      />
-    </div>
-  );
+  return documentId ? <DocBar documentId={documentId} /> : <NoDocBar />;
 }
 
-/** Hand tool (B8): drag to pan the page; holding Space does the same for a moment. */
-function HandButton() {
-  const on = useHandTool();
-  return (
-    <ToolButton
-      icon="hand"
-      label="Hand tool (hold Space)"
-      pressed={on}
-      onClick={() => panStore.toggleHand()}
-    />
-  );
-}
-
-function ViewSettings() {
-  const { settings, updateSettings } = useWorkbench();
-  return (
-    <>
-      <label className="view-mode">
-        <span className="visually-hidden">Page display</span>
-        <select
-          aria-label="Page display"
-          value={settings.viewMode}
-          onChange={(e) => updateSettings({ viewMode: e.target.value as ViewMode })}
-        >
-          <option value="single">Single page</option>
-          <option value="continuous">Single page continuous</option>
-          <option value="twoUp">Two-up continuous</option>
-        </select>
-      </label>
-      {settings.viewMode === "twoUp" && (
-        <label className="check" title="Show cover page in two-up view">
-          <input
-            type="checkbox"
-            checked={settings.coverPage}
-            onChange={(e) => updateSettings({ coverPage: e.target.checked })}
-          />
-          Cover page
-        </label>
-      )}
-    </>
-  );
-}
-
-function NoDocQuickTools() {
+function NoDocBar() {
   const ctx = useNoDocToolContext();
-  return (
-    <>
-      <span className="sep" />
-      <QuickTools ctx={ctx} />
-    </>
-  );
+  return <TopBar ctx={ctx} documentId={null} />;
 }
 
-function DocTools({ documentId }: { documentId: string }) {
-  const { settings, updateSettings } = useWorkbench();
-  const wb = useWorkbench();
-  const nav = useNav(documentId);
-  const { state: zoom, provides: zoomer } = useZoom(documentId);
+function DocBar({ documentId }: { documentId: string }) {
   const ctx = useDocToolContext(documentId);
-  const st = wb.editState(documentId);
-  const busy = wb.busy !== null;
+  useRememberZoom(documentId);
+  return <TopBar ctx={ctx} documentId={documentId} />;
+}
 
-  // Remember the last zoom (a fit mode or a number) for the next document / session.
+/** Remember the last zoom (a fit mode or a number) for the next document / session. */
+function useRememberZoom(documentId: string) {
+  const { settings, updateSettings } = useWorkbench();
+  const { state: zoom } = useZoom(documentId);
   useEffect(() => {
     const l = zoom.zoomLevel;
     const value =
@@ -227,22 +114,282 @@ function DocTools({ documentId }: { documentId: string }) {
             : null;
     if (value !== null && value !== settings.zoom) updateSettings({ zoom: value });
   }, [zoom.zoomLevel, settings.zoom, updateSettings]);
+}
 
+export function useTopBarLayout() {
+  const { settings } = useWorkbench();
+  return effectiveLayout(settings);
+}
+
+const GAP = 4;
+const slotKey = (id: string, i: number) => (id === QUICK_DIVIDER ? `|${i}` : id);
+const MORE_W = 40;
+
+function TopBar({ ctx, documentId }: { ctx: ToolContext; documentId: string | null }) {
+  const wb = useWorkbench();
+  const layout = useTopBarLayout();
+  const entries = useBarEntries(ctx);
+  const items = layout.bar.filter((id) => {
+    if (id === QUICK_DIVIDER || id === BAR_SPACER) return true;
+    const b = barItem(id);
+    if (b) return !b.docOnly || documentId !== null;
+    const hit = resolveAction(id);
+    return !!hit && !(hit.action.shown && !hit.action.shown());
+  });
+  const key = items.join(",");
+  const box = useRef<HTMLDivElement>(null);
+  const widths = useRef(new Map<string, number>());
+  // How many items fit, measured for this set of items (a new set shows all to measure).
+  const [fitted, setFitted] = useState<{ key: string; hide: number[] }>({ key: "", hide: [] });
+  const hide = new Set(fitted.key === key ? fitted.hide : []);
+  const [more, setMore] = useState<{ x: number; y: number } | null>(null);
+
+  // Window > Reset top bar.
+  useEffect(() => {
+    const reset = () => {
+      wb.updateSettings({ topBar: null, quickToolbar: null });
+      wb.toast("The top bar is back to the default.");
+    };
+    document.addEventListener("pdfwb:reset-top-bar", reset);
+    return () => document.removeEventListener("pdfwb:reset-top-bar", reset);
+  }, [wb]);
+
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    const fit = () => {
+      for (const slot of el.querySelectorAll<HTMLElement>("[data-slot]")) {
+        const id = slot.dataset.slot ?? "";
+        if (id !== BAR_SPACER) widths.current.set(id, slot.offsetWidth);
+      }
+      const cs = getComputedStyle(el);
+      const room = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+      const w = (i: number) => {
+        const id = items[i] ?? "";
+        return id === BAR_SPACER ? 0 : (widths.current.get(slotKey(id, i)) ?? 36) + GAP;
+      };
+      let used = items.reduce((s, _id, i) => s + w(i), 0);
+      if (used <= room) return setFitted({ key, hide: [] });
+      // Tools go first: from the end of the left side (just before the space), then the
+      // right side from its end.
+      const split = items.indexOf(BAR_SPACER);
+      const left = Array.from({ length: Math.max(0, split) }, (_, i) => split - 1 - i);
+      const right = Array.from(
+        { length: items.length - split - 1 },
+        (_, i) => items.length - 1 - i,
+      );
+      const out: number[] = [];
+      used += MORE_W;
+      for (const i of [...left, ...right]) {
+        if (used <= room) break;
+        out.push(i);
+        used -= w(i);
+      }
+      setFitted({ key, hide: out });
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+    // Re-measure when the items change; widths are cached between runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, documentId]);
+
+  const shown = items.map((id, i) => ({ id, i })).filter((x) => !hide.has(x.i));
+  const hidden = items.filter((_id, i) => hide.has(i));
   return (
-    <>
-      <ToolButton
-        icon="undo"
-        label={st.undoLabel ? `Undo ${st.undoLabel} (Ctrl+Z)` : "Undo (Ctrl+Z)"}
-        disabled={!st.undoLabel || busy}
-        onClick={() => wb.undo(documentId)}
-      />
-      <ToolButton
-        icon="redo"
-        label={st.redoLabel ? `Redo ${st.redoLabel} (Ctrl+Y)` : "Redo (Ctrl+Y)"}
-        disabled={!st.redoLabel || busy}
-        onClick={() => wb.redo(documentId)}
-      />
-      <span className="sep" />
+    <div
+      ref={box}
+      className="toolbar"
+      role="toolbar"
+      aria-label="Main toolbar"
+      data-testid="top-bar"
+      onKeyDown={onToolbarKeys}
+    >
+      {shown.map(({ id, i }) => (
+        <span
+          key={slotKey(id, i)}
+          data-slot={slotKey(id, i)}
+          className={id === BAR_SPACER ? "bar-slot grow" : "bar-slot"}
+        >
+          <BarItem id={id} ctx={ctx} documentId={documentId} />
+        </span>
+      ))}
+      {hidden.some((id) => id !== QUICK_DIVIDER) && (
+        <>
+          {!items.includes(BAR_SPACER) && <span className="grow" />}
+          <button
+            type="button"
+            className="tool"
+            aria-label="More tools"
+            title="More tools"
+            aria-haspopup="menu"
+            aria-expanded={more !== null}
+            data-testid="top-bar-more"
+            onClick={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              setMore(more ? null : { x: r.right - 220, y: r.bottom + 2 });
+            }}
+          >
+            <Icon name="more" />
+          </button>
+        </>
+      )}
+      {more && (
+        <ContextMenu
+          x={more.x}
+          y={more.y}
+          label="More tools"
+          items={entries(hidden)}
+          onClose={() => setMore(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function BarItem({
+  id,
+  ctx,
+  documentId,
+}: {
+  id: string;
+  ctx: ToolContext;
+  documentId: string | null;
+}) {
+  const wb = useWorkbench();
+  const { settings, updateSettings } = wb;
+  if (id === QUICK_DIVIDER) return <span className="sep" aria-hidden="true" />;
+  if (id === BAR_SPACER) return null;
+  switch (id) {
+    case "bar:open":
+      return <ToolButton icon="open" label="Open (Ctrl+O)" onClick={() => void wb.pickAndOpen()} />;
+    case "bar:save":
+      return (
+        <ToolButton
+          icon="save"
+          label="Save (Ctrl+S)"
+          disabled={!documentId || !wb.editState(documentId).dirty || wb.busy !== null}
+          onClick={() => documentId && void wb.save(documentId)}
+        />
+      );
+    case "bar:print":
+      return (
+        <ToolButton
+          icon="print"
+          label="Print (Ctrl+P)"
+          disabled={!documentId}
+          onClick={() =>
+            documentId &&
+            document.dispatchEvent(new CustomEvent("pdfwb:command", { detail: "print" }))
+          }
+        />
+      );
+    case "bar:find":
+      return (
+        <ToolButton
+          icon="search"
+          label="Find (Ctrl+F)"
+          pressed={wb.searchOpen}
+          disabled={!documentId}
+          onClick={() => wb.setSearchOpen(!wb.searchOpen)}
+        />
+      );
+    case "bar:undo":
+    case "bar:redo":
+      return documentId ? <UndoRedo documentId={documentId} redo={id === "bar:redo"} /> : null;
+    case "bar:pageNav":
+      return documentId ? <PageNav documentId={documentId} /> : null;
+    case "bar:zoom":
+      return documentId ? <ZoomControls documentId={documentId} /> : null;
+    case "bar:hand":
+      return <HandButton />;
+    case "bar:search":
+      return <CommandSearch ctx={ctx} />;
+    case "bar:viewMode":
+      return <ViewSettings />;
+    case "bar:properties":
+      return (
+        <ToolButton
+          icon="info"
+          label="Document properties (Ctrl+D)"
+          disabled={!documentId}
+          onClick={() => documentId && wb.setDialog({ kind: "properties", documentId })}
+        />
+      );
+    case "bar:help":
+      return (
+        <ToolButton icon="help" label="Help (F1)" onClick={() => wb.setDialog({ kind: "help" })} />
+      );
+    case "bar:theme":
+      return (
+        <button
+          type="button"
+          className="tool theme-toggle"
+          aria-label={`Theme: ${settings.theme}`}
+          title={`Theme: ${settings.theme} (click to change)`}
+          onClick={() => updateSettings({ theme: NEXT_THEME[settings.theme] })}
+        >
+          <Icon name="theme" />
+          <span className="theme-label">{settings.theme}</span>
+        </button>
+      );
+    case "bar:preferences":
+      return (
+        <ToolButton
+          icon="settings"
+          label="Preferences (Ctrl+K)"
+          onClick={() => wb.setDialog({ kind: "settings" })}
+        />
+      );
+    case "bar:customize":
+      return (
+        <ToolButton
+          icon="customize"
+          label="Customize top bar…"
+          onClick={() => wb.setDialog({ kind: "customize" })}
+        />
+      );
+    case "bar:toolsPane":
+      return (
+        <ToolButton
+          icon="tools"
+          label="Tools pane"
+          pressed={settings.toolsPaneOpen}
+          onClick={() => updateSettings({ toolsPaneOpen: !settings.toolsPaneOpen })}
+        />
+      );
+  }
+  const hit = resolveAction(id);
+  if (!hit) return null;
+  return <QuickAction tool={hit.tool} action={hit.action} ctx={ctx} />;
+}
+
+function UndoRedo({ documentId, redo }: { documentId: string; redo: boolean }) {
+  const wb = useWorkbench();
+  const st = wb.editState(documentId);
+  const busy = wb.busy !== null;
+  return redo ? (
+    <ToolButton
+      icon="redo"
+      label={st.redoLabel ? `Redo ${st.redoLabel} (Ctrl+Y)` : "Redo (Ctrl+Y)"}
+      disabled={!st.redoLabel || busy}
+      onClick={() => wb.redo(documentId)}
+    />
+  ) : (
+    <ToolButton
+      icon="undo"
+      label={st.undoLabel ? `Undo ${st.undoLabel} (Ctrl+Z)` : "Undo (Ctrl+Z)"}
+      disabled={!st.undoLabel || busy}
+      onClick={() => wb.undo(documentId)}
+    />
+  );
+}
+
+function PageNav({ documentId }: { documentId: string }) {
+  const nav = useNav(documentId);
+  return (
+    <span className="bar-group">
       <ToolButton
         icon="first"
         label="First page (Home)"
@@ -268,42 +415,71 @@ function DocTools({ documentId }: { documentId: string }) {
         onClick={nav.last}
         disabled={nav.page >= nav.pageCount - 1}
       />
-      <span className="sep" />
+    </span>
+  );
+}
+
+function ZoomControls({ documentId }: { documentId: string }) {
+  const { state: zoom, provides: zoomer } = useZoom(documentId);
+  return (
+    <span className="bar-group">
       <ToolButton icon="zoomOut" label="Zoom out (Ctrl+-)" onClick={() => zoomer?.zoomOut()} />
       <ZoomBox scale={zoom.currentZoomLevel} onZoom={(s) => zoomer?.requestZoom(s)} />
       <ToolButton icon="zoomIn" label="Zoom in (Ctrl+=)" onClick={() => zoomer?.zoomIn()} />
-      <HandButton />
-      <span className="sep" />
-      <QuickTools ctx={ctx} />
-    </>
-  );
-}
-
-/** The pinned tools: the user's list, else the firm default, else the built-in one. */
-export function quickToolbarRefs(settings: {
-  quickToolbar: string[] | null;
-  firmLayoutCache: string[] | null;
-}): string[] {
-  return (
-    cleanQuickToolbar(settings.quickToolbar) ??
-    cleanQuickToolbar(settings.firmLayoutCache) ??
-    DEFAULT_QUICK_TOOLBAR
-  );
-}
-
-function QuickTools({ ctx }: { ctx: ToolContext }) {
-  const { settings } = useWorkbench();
-  return (
-    <span className="quick-tools" role="group" aria-label="Quick tools">
-      {quickToolbarRefs(settings).map((ref, i) => {
-        if (ref === QUICK_DIVIDER)
-          return <span key={`div${i}`} className="sep" aria-hidden="true" />;
-        const hit = resolveAction(ref);
-        if (!hit || (hit.action.shown && !hit.action.shown())) return null;
-        return <QuickAction key={ref} tool={hit.tool} action={hit.action} ctx={ctx} />;
-      })}
     </span>
   );
+}
+
+/** Hand tool (B8): drag to pan the page; holding Space does the same for a moment. */
+function HandButton() {
+  const on = useHandTool();
+  return (
+    <ToolButton
+      icon="hand"
+      label="Hand tool (hold Space)"
+      pressed={on}
+      onClick={() => panStore.toggleHand()}
+    />
+  );
+}
+
+function ViewSettings() {
+  const { settings, updateSettings } = useWorkbench();
+  return (
+    <span className="bar-group">
+      <label className="view-mode">
+        <span className="visually-hidden">Page display</span>
+        <select
+          aria-label="Page display"
+          value={settings.viewMode}
+          onChange={(e) => updateSettings({ viewMode: e.target.value as ViewMode })}
+        >
+          <option value="single">Single page</option>
+          <option value="continuous" title="Single page continuous">
+            Continuous
+          </option>
+          <option value="twoUp" title="Two-up continuous">
+            Two-up
+          </option>
+        </select>
+      </label>
+      {settings.viewMode === "twoUp" && (
+        <label className="check" title="Show cover page in two-up view">
+          <input
+            type="checkbox"
+            checked={settings.coverPage}
+            onChange={(e) => updateSettings({ coverPage: e.target.checked })}
+          />
+          Cover page
+        </label>
+      )}
+    </span>
+  );
+}
+
+/** The pinned tools (Customize dialog, Home screen): the bar's tool actions in order. */
+export function quickToolbarRefs(settings: Parameters<typeof effectiveLayout>[0]): string[] {
+  return effectiveLayout(settings).bar.filter((r) => resolveAction(r) !== null);
 }
 
 /** Quick-toolbar button: names what it acts on ("Rotate left: page 2"). */

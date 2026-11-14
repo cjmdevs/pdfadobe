@@ -2,7 +2,7 @@
 // tab closes and from the Home tab; Recent Files with thumbnails, pin, remove, clear all;
 // offline files greyed out; Open, drop zone, quick tools.
 import { join } from "node:path";
-import { CORPUS, P, boot, expect, openPaths, test, type Page } from "./fixtures";
+import { CORPUS, P, boot, expect, openPaths, openPreferences, test, type Page } from "./fixtures";
 
 const home = (page: Page) => page.getByTestId("start-page");
 const recent = (page: Page) =>
@@ -31,7 +31,7 @@ test.describe("home screen", () => {
 
   test("Settings turns session restore on and survives a restart", async ({ page }) => {
     await boot(page);
-    await page.getByRole("button", { name: "Settings…", exact: true }).click();
+    await openPreferences(page);
     await page.getByLabel("Reopen last session’s files at start").check();
     await page.keyboard.press("Escape");
     await openPaths(page, [P.text]);
@@ -89,7 +89,7 @@ test.describe("home screen", () => {
     await page.keyboard.press("Control+w");
     await expect(page.locator(".recent-thumb img")).toHaveCount(1);
 
-    await page.getByRole("button", { name: "Settings…", exact: true }).click();
+    await openPreferences(page);
     await page.getByLabel("Show page thumbnails in recent files").uncheck();
     await page.keyboard.press("Escape");
     await expect(page.locator(".recent-thumb")).toHaveCount(0);
@@ -102,7 +102,7 @@ test.describe("home screen", () => {
     await openPaths(page, [P.text]);
     await expect(page.getByRole("tab", { name: /text-1p/ })).toBeVisible();
     await page.keyboard.press("Control+w");
-    await page.getByRole("button", { name: "Settings…", exact: true }).click();
+    await openPreferences(page);
     await page.getByLabel("Show page thumbnails in recent files").check();
     await page.keyboard.press("Escape");
     await expect(page.locator(".recent-thumb img")).toHaveCount(0);

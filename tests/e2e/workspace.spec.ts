@@ -1,8 +1,9 @@
 // Backlog B4: Acrobat-style workspace (docs/reference/acrobat-workspace.png): icon rail
 // and panel, Tools pane, tool toolbar, customizable quick toolbar, firm default layout.
-import { P, boot, expect, openPaths, test, waitForPainted, type Page } from "./fixtures";
+import { P, boot, expect, menu, openPaths, test, waitForPainted, type Page } from "./fixtures";
 
-const quick = (page: Page) => page.getByRole("group", { name: "Quick tools" }).getByRole("button");
+/** Tool actions on the top bar (their slots are named "tool.action"). */
+const quick = (page: Page) => page.locator('[data-testid=top-bar] [data-slot*="."] button.tool');
 const quickNames = async (page: Page) =>
   (await quick(page).evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? ""))).map(
     (n) => n.replace(/: .*$/, ""),
@@ -57,28 +58,28 @@ test.describe("workspace", () => {
     await expect(page.getByTestId("organize")).toHaveCount(0);
   });
 
-  test("quick toolbar: remove, add, reorder; saved per user", async ({ page }) => {
+  test("top bar: hide, add, reorder, move into a menu; saved per user (B8)", async ({ page }) => {
     await boot(page);
     await openPaths(page, [P.wpA]);
     await waitForPainted(page, 0);
     expect(await quickNames(page)).toContain("Delete pages");
-    await page.getByRole("button", { name: "Customize quick tools…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Customize quick tools" });
-    const save = dlg.getByRole("button", { name: "Save", exact: true });
+    await menu(page, "Window", "Customize top bar…");
+    const dlg = page.getByRole("dialog", { name: "Customize top bar" });
+    const save = dlg.locator("button[type=submit]");
     await expect(save).toBeDisabled();
-    const strip = dlg.getByRole("list", { name: "Pinned tools" });
+    const strip = dlg.getByRole("list", { name: "Top bar items" });
+    const placeSel = dlg.getByLabel("Put the picked item in");
+    // Hide a tool action.
     await strip.getByRole("button", { name: "Delete pages", exact: true }).click();
-    await dlg.getByRole("button", { name: "Remove from the toolbar" }).click();
+    await placeSel.selectOption("hidden");
     await expect(strip.getByRole("button", { name: "Delete pages", exact: true })).toHaveCount(0);
-    // The last one is picked now: the new tool goes after it.
+    // Add one, drag it to the front, move it right and back, a divider after it.
     await dlg.getByRole("button", { name: "Organize Pages" }).click();
     await dlg.getByRole("button", { name: "Duplicate pages", exact: true }).click();
     await dlg.getByRole("button", { name: "Add Duplicate pages" }).click();
-    // Drag it onto the first item (it stays picked), move it right and back, then a
-    // divider after it.
     const pinned = dlg.getByTestId("pinned");
     const dup = strip.getByRole("button", { name: "Duplicate pages" });
-    await dup.dragTo(pinned.first());
+    await dup.dragTo(pinned.first(), { targetPosition: { x: 2, y: 10 } });
     await expect(pinned.first().getByRole("button")).toHaveAccessibleName("Duplicate pages");
     await expect(dup).toHaveAttribute("aria-pressed", "true");
     await dlg.getByRole("button", { name: "Move right" }).click();
@@ -86,16 +87,48 @@ test.describe("workspace", () => {
     await dlg.getByRole("button", { name: "Move left" }).click();
     await dlg.getByRole("button", { name: "Add divider" }).click();
     await expect(pinned.nth(1).getByRole("button")).toHaveAccessibleName("Divider");
+    // A built-in item into a menu, another one hidden.
+    await dlg.getByLabel("Where Hand tool goes").selectOption("file");
+    await strip.getByRole("button", { name: "Print", exact: true }).click();
+    await placeSel.selectOption("hidden");
     await save.click();
     const names = await quickNames(page);
     expect(names[0]).toBe("Duplicate pages");
     expect(names).not.toContain("Delete pages");
-    await expect(page.getByRole("group", { name: "Quick tools" }).locator(".sep")).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Print (Ctrl+P)" })).toHaveCount(0);
+    await menu(page, "File");
+    await expect(page.getByRole("menu", { name: "File" })).toContainText("Hand tool");
+    await page.keyboard.press("Escape");
     await page.reload();
     await expect(page.locator("html[data-app-ready=true]")).toBeAttached();
     await openPaths(page, [P.wpA]);
     await waitForPainted(page, 0);
     expect((await quickNames(page))[0]).toBe("Duplicate pages");
+    // Reset to default brings everything back.
+    await menu(page, "Window", "Reset top bar");
+    await expect(page.getByRole("button", { name: "Print (Ctrl+P)" })).toBeVisible();
+    expect(await quickNames(page)).toContain("Delete pages");
+  });
+
+  test("a narrow window moves what does not fit into the » menu (B8)", async ({ page }) => {
+    await boot(page);
+    await openPaths(page, [P.wpA]);
+    await waitForPainted(page, 0);
+    await page.setViewportSize({ width: 900, height: 720 });
+    const more = page.getByTestId("top-bar-more");
+    await expect(more).toBeVisible();
+    // Tools go first; the file buttons stay.
+    await expect(page.getByRole("button", { name: "Open (Ctrl+O)" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Delete pages/ })).toHaveCount(0);
+    await more.click();
+    await page
+      .getByRole("menu", { name: "More tools" })
+      .getByRole("menuitem", { name: "Delete pages" })
+      .click();
+    await expect(page.getByRole("dialog", { name: "Delete pages" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await expect(more).toHaveCount(0);
   });
 
   test("firm default layout loads from the share; the last copy is used when offline", async ({
@@ -110,14 +143,14 @@ test.describe("workspace", () => {
     await boot(page);
     await openPaths(page, [P.wpA]);
     await waitForPainted(page, 0);
-    await page.getByRole("button", { name: "Customize quick tools…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Customize quick tools" });
+    await menu(page, "Window", "Customize top bar…");
+    const dlg = page.getByRole("dialog", { name: "Customize top bar" });
     await dlg.getByText("Firm default", { exact: true }).click();
     await dlg.getByLabel("Firm layout file").fill(LAYOUT);
     await dlg.getByRole("button", { name: "Load firm default" }).click();
-    await expect(dlg.getByTestId("customize-note")).toContainText("Loaded the firm default (2");
-    await dlg.getByRole("button", { name: "Use firm default" }).click();
-    await dlg.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(dlg.getByTestId("customize-note")).toContainText("Loaded the firm default");
+    await dlg.getByRole("button", { name: "Reset to default" }).click();
+    await dlg.locator("button[type=submit]").click();
     expect(await quickNames(page)).toEqual(["Extract to new file", "Fit page (Ctrl+0)"]);
 
     // Next start: the share is offline. The cached copy still applies, with a notice.
@@ -129,16 +162,20 @@ test.describe("workspace", () => {
     expect(await quickNames(page)).toEqual(["Extract to new file", "Fit page (Ctrl+0)"]);
   });
 
-  test("save the current toolbar as the firm default file", async ({ page, mockfs }) => {
+  test("save the current top bar as the firm default file", async ({ page, mockfs }) => {
     await boot(page);
-    await page.getByRole("button", { name: "Customize quick tools…" }).click();
-    const dlg = page.getByRole("dialog", { name: "Customize quick tools" });
+    await menu(page, "Window", "Customize top bar…");
+    const dlg = page.getByRole("dialog", { name: "Customize top bar" });
     await dlg.getByText("Firm default", { exact: true }).click();
     await dlg.getByLabel("Firm layout file").fill(LAYOUT);
-    await dlg.getByRole("button", { name: "Save this toolbar as the firm default" }).click();
+    await dlg.getByRole("button", { name: "Save this top bar as the firm default" }).click();
     await expect(dlg.getByTestId("customize-note")).toContainText("Saved");
     const e = mockfs.entries[LAYOUT];
-    expect(e && "bytes" in e && JSON.parse(e.bytes.toString()).version).toBe(1);
+    const json = e && "bytes" in e ? JSON.parse(e.bytes.toString()) : null;
+    // Version 1 (older copies still read the quick tools), plus the whole top bar.
+    expect(json.version).toBe(1);
+    expect(json.quickToolbar).toContain("organize.delete");
+    expect(json.topBar.bar).toContain("bar:open");
   });
 
   test("quick-toolbar Delete asks first; the bookmark toolbar matches the reference", async ({

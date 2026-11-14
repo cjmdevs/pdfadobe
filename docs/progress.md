@@ -5,6 +5,32 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
+- **B8 (UX fixes from owner testing) built 2026-11-13; owner check pending**
+  (`docs/testing/b8-test-guide.md`). Kit adds `Menu.tsx` (menus, right-click menus),
+  `Tooltip.tsx` (one window-wide layer: `title` becomes a styled tip with the shortcut as a
+  key), `DragFeedback.tsx` (DragGhost, BoxReadout, SnapGuides), `snap.ts` (pure).
+  Page clipboard: Rust `pageclip.rs` (memory only, all windows), `pageActions.copy/paste`,
+  `ui/pageMenu.tsx` shared by the thumbnail panel (now selectable, right-click, drag,
+  Delete) and Organize; Page properties dialog. View history `app/viewHistory.ts`
+  (Alt+Left/Right, mouse buttons 3/4; jumps only). Snapping: `ui/dragFeedback.ts` +
+  `DragFeedbackLayer.tsx`; comments snap live by wrapping the annotation plugin's
+  `updateDrag`/`updateResize` (no fork). Panning `ui/Pan.tsx` (Space, Hand tool); styled
+  `::-webkit-scrollbar` so Windows 11 always shows the horizontal bar. Menu bar from
+  `app/appCommands.ts` (`ui/menus/`), Preferences (`ui/prefs/`, labels in
+  `app/prefsIndex.ts`), command search Alt+Q (`app/commandSearch.ts`), Help pages
+  (`ui/help/topics.ts`), F1 = Help, Ctrl+K = Preferences. Top bar layout `app/topBar.ts`
+  (`settings.topBar`, firm file gains optional `topBar` next to v1 `quickToolbar`); overflow
+  » menu hides tools first. Placeholders and `showComingTools` removed.
+  **Deviations:** Help/Theme/Hand/Preferences/Customize are off the default top bar (in
+  menus, with shortcuts) so the default fits 1280 px; Page display labels shortened to
+  "Continuous"/"Two-up"; Settings > About moved to Help > About; thumbnail size setting
+  dropped (EmbedPDF fixes it at start); Page properties has no "has text" line; tickmark
+  placement does not snap (it goes where clicked; placed marks snap like comments);
+  image resize/rotate in Edit PDF shows the readout but snaps only moves of unrotated
+  images. **Gaps:** headless tests cannot see scrollbars (owner check); right-click menus
+  no longer close on scroll; Tooltip layer keeps React state quiet (an extra render broke
+  an Edit PDF replace race, see commit history). No new dependencies.
+
 - **Phase 10a (packaging) done 2026-11-04, owner check passed.**
   (`docs/testing/phase-10a-test-guide.md`, spec and decisions `docs/phases/phase-10a.md`,
   admin guide `docs/admin.md`). Details in "Phase 10a" below.

@@ -123,7 +123,11 @@ test.describe("keyboard shortcuts", () => {
     await expect(page.getByRole("dialog", { name: "Document properties" })).toBeVisible();
     await page.keyboard.press("Escape");
 
+    // B8: F1 opens Help; the shortcut list is linked from it (and in the Help menu).
     await page.keyboard.press("F1");
+    const helpDlg = page.getByRole("dialog", { name: "Help" });
+    await expect(helpDlg.getByTestId("help-page")).toBeVisible();
+    await helpDlg.getByRole("button", { name: "Keyboard shortcuts" }).click();
     const help = page.getByRole("dialog", { name: "Keyboard shortcuts" });
     await expect(help).toContainText("Go to page");
     await expect(help).toContainText("Ctrl+Shift+N");

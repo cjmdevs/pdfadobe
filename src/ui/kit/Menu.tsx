@@ -129,6 +129,7 @@ export function MenuList({
                 type="button"
                 role="menuitem"
                 aria-haspopup="menu"
+                aria-label={it.label}
                 aria-expanded={open === it.id}
                 data-submenu={it.id}
                 disabled={it.disabled}
@@ -169,6 +170,7 @@ export function MenuList({
             type="button"
             role={it.checked === undefined ? "menuitem" : "menuitemcheckbox"}
             aria-checked={it.checked}
+            aria-label={it.label}
             aria-keyshortcuts={it.shortcut}
             className={it.danger ? "danger" : undefined}
             disabled={it.disabled}
@@ -210,7 +212,7 @@ function Flyout({ children }: { children: ReactNode }) {
 
 /**
  * A right-click menu at the pointer, kept inside the window. Closes on a click outside,
- * Escape, scrolling, or when the window loses focus; focus goes back to where it was.
+ * Escape, or when the window loses focus (not on scrolling: lists scroll themselves); focus goes back to where it was.
  */
 export function ContextMenu({
   x,
@@ -249,12 +251,10 @@ export function ContextMenu({
     window.addEventListener("pointerdown", outside, true);
     window.addEventListener("blur", away);
     window.addEventListener("resize", away);
-    document.addEventListener("scroll", away, true);
     return () => {
       window.removeEventListener("pointerdown", outside, true);
       window.removeEventListener("blur", away);
       window.removeEventListener("resize", away);
-      document.removeEventListener("scroll", away, true);
     };
   }, []);
   return createPortal(

@@ -47,6 +47,8 @@ export type Command =
   | "escape"
   | "deleteAnnotation"
   | "help"
+  | "preferences"
+  | "commandSearch"
   | "undo"
   | "redo"
   | "save"
@@ -194,7 +196,13 @@ export const SHORTCUTS: Shortcut[] = [
     keys: ["Delete"],
     source: "windows",
   },
-  { command: "help", label: "Keyboard shortcuts", keys: ["F1"], source: "adobe" },
+  // B8: F1 opens Help (as in Acrobat); Keyboard shortcuts is in the Help menu.
+  { command: "help", label: "Help", keys: ["F1"], source: "adobe" },
+  // Acrobat's Edit > Preferences.
+  { command: "preferences", label: "Preferences", keys: ["Ctrl+K"], source: "adobe" },
+  // B8: search tools, commands and settings. Alt+Q is the Office "Search" box key; no
+  // Acrobat menu or shortcut uses it.
+  { command: "commandSearch", label: "Search commands", keys: ["Alt+Q"], source: "owner" },
   { command: "undo", label: "Undo page change", keys: ["Ctrl+Z"], source: "windows" },
   { command: "redo", label: "Redo page change", keys: ["Ctrl+Y"], source: "owner" },
   { command: "save", label: "Save", keys: ["Ctrl+S"], source: "windows" },

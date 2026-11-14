@@ -357,3 +357,28 @@ export async function idle(page: Page) {
 export function dialogWith(page: Page, testId: string) {
   return page.locator("dialog[open]").filter({ has: page.getByTestId(testId) });
 }
+
+/** Edit > Preferences (Ctrl+K), at a category (B8). */
+export async function openPreferences(page: Page, category?: string) {
+  await page.keyboard.press("Control+k");
+  const dlg = page.getByRole("dialog", { name: "Preferences" });
+  await expect(dlg).toBeVisible();
+  if (category) await dlg.getByRole("tab", { name: category, exact: true }).click();
+  return dlg;
+}
+
+/** Clicks a menu of the menu bar, then an item (B8). Submenus: pass their labels in order. */
+export async function menu(page: Page, top: string, ...items: string[]) {
+  await page
+    .getByRole("menubar", { name: "Menu bar" })
+    .getByRole("menuitem", { name: top, exact: true })
+    .click();
+  for (const it of items)
+    await page
+      .getByRole("menu")
+      .last()
+      .getByRole("menuitem", { name: it, exact: true })
+      .or(page.getByRole("menu").last().getByRole("menuitemcheckbox", { name: it, exact: true }))
+      .first()
+      .click();
+}

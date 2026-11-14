@@ -1,6 +1,7 @@
 // First-run setup (Phase 10a): author name, firm library folder, default PDF program.
 // Windows does not let an app make itself the default, so step 3 opens Windows'
 // Default apps page at PDF Workbench and walks the person through it, then checks.
+import { parseFirmTopBar } from "../app/topBar";
 import { useCallback, useEffect, useState } from "react";
 import { useWorkbench } from "../app/workbench";
 import { LIBRARY_FILES, joinPath, libraryPaths } from "../app/firstRun";
@@ -63,9 +64,11 @@ export function FirstRunDialog({
     }
     try {
       const file = await platform.readPath(paths.firmLayoutPath);
+      const text = new TextDecoder().decode(file.bytes);
       Object.assign(patch, {
         firmLayoutPath: paths.firmLayoutPath,
-        firmLayoutCache: parseFirmLayout(new TextDecoder().decode(file.bytes)),
+        firmLayoutCache: parseFirmLayout(text),
+        firmTopBarCache: parseFirmTopBar(text),
       });
       found.push(LIBRARY_FILES.layout);
     } catch {

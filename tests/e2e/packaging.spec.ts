@@ -1,7 +1,17 @@
 // Phase 10a: first-run setup, update prompt, "Open in Acrobat" on errors, crash reports.
 // The browser platform stands in for Windows: window.__PDFWB_APP__ says whether PDF
 // Workbench is the default PDF program and what the update check finds.
-import { P, boot, expect, openPaths, test, waitForPainted, type Page } from "./fixtures";
+import {
+  P,
+  boot,
+  expect,
+  menu,
+  openPaths,
+  openPreferences,
+  test,
+  waitForPainted,
+  type Page,
+} from "./fixtures";
 
 type AppMock = {
   isDefault?: boolean | null;
@@ -88,10 +98,10 @@ test.describe("first-run setup", () => {
     await expect(dialog).toBeHidden();
   });
 
-  test("Settings reopens the default-app step", async ({ page }) => {
+  test("Help > About reopens the default-app step", async ({ page }) => {
     await mockApp(page, { isDefault: false });
     await boot(page);
-    await page.getByRole("button", { name: "Settings…", exact: true }).click();
+    await menu(page, "Help", "About PDF Workbench");
     const about = page.getByTestId("about");
     await expect(about).toContainText("PDF files open in another program");
     await about.getByRole("button", { name: "Choose default PDF program…" }).click();
@@ -116,7 +126,7 @@ test.describe("updates", () => {
     await expect.poll(async () => (await appState(page)).installed).toBe("0.2.0");
   });
 
-  test("Later waits a day; Settings can check any time", async ({ page }) => {
+  test("Later waits a day; Help > Check for updates checks any time", async ({ page }) => {
     await mockApp(page, { update: available });
     await boot(page, { settings: { firstRunDone: true } });
     await page
@@ -127,8 +137,7 @@ test.describe("updates", () => {
     await expect(page.locator("html[data-app-ready=true]")).toBeAttached({ timeout: 30_000 });
     await expect(page.getByRole("dialog", { name: "Update available" })).toBeHidden();
 
-    await page.getByRole("button", { name: "Settings…", exact: true }).click();
-    await page.getByRole("button", { name: "Check for updates" }).click();
+    await menu(page, "Help", "Check for updates");
     await expect(page.getByRole("dialog", { name: "Update available" })).toBeVisible();
   });
 
@@ -142,12 +151,14 @@ test.describe("updates", () => {
     ).toContainText("go back to PDF Workbench 0.0.9");
   });
 
-  test("refused or unreachable updates are reported in Settings, not offered", async ({ page }) => {
+  test("refused or unreachable updates are reported in Preferences, not offered", async ({
+    page,
+  }) => {
     await mockApp(page, { update: { kind: "bad", message: "the signature does not match" } });
     await boot(page, { settings: { firstRunDone: true } });
     await expect(page.getByRole("dialog", { name: "Update available" })).toBeHidden();
-    await page.getByRole("button", { name: "Settings…", exact: true }).click();
-    await page.getByRole("button", { name: "Check for updates" }).click();
+    const dlg = await openPreferences(page, "Updates");
+    await dlg.getByRole("button", { name: "Check for updates" }).click();
     await expect(page.getByTestId("update-status")).toContainText(
       "The update was refused: the signature does not match",
     );

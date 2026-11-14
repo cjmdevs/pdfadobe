@@ -116,6 +116,27 @@ export interface Settings {
   snapDistance: number;
   /** Show X/Y W/H next to a box while it is dragged. */
   showBoxReadout: boolean;
+  /** The user's top bar (B8, src/app/topBar.ts); null = the firm default. */
+  topBar: StoredTopBar | null;
+  /** Last firm top bar read from the firm layout file. */
+  firmTopBarCache: StoredTopBar | null;
+}
+
+/** Shape only; src/app/topBar.ts cleans the contents when it is used. */
+export interface StoredTopBar {
+  bar: string[];
+  menus: Record<string, string>;
+}
+
+function storedTopBar(v: unknown): StoredTopBar | null {
+  if (!v || typeof v !== "object") return null;
+  const r = v as { bar?: unknown; menus?: unknown };
+  if (!Array.isArray(r.bar)) return null;
+  const menus: Record<string, string> = {};
+  if (r.menus && typeof r.menus === "object")
+    for (const [k, m] of Object.entries(r.menus as Record<string, unknown>))
+      if (typeof m === "string") menus[k] = m;
+  return { bar: r.bar.filter((x): x is string => typeof x === "string"), menus };
 }
 
 /** Settings that belong to one window (backlog B1): extra windows never save them, so
@@ -195,6 +216,8 @@ export const DEFAULT_SETTINGS: Settings = {
   snapToGuides: true,
   snapDistance: 6,
   showBoxReadout: true,
+  topBar: null,
+  firmTopBarCache: null,
 };
 
 const oneOf =
@@ -254,6 +277,8 @@ export function sanitizeSettings(raw: unknown): Settings {
         ? Math.round(r.snapDistance)
         : d.snapDistance,
     showBoxReadout: typeof r.showBoxReadout === "boolean" ? r.showBoxReadout : d.showBoxReadout,
+    topBar: storedTopBar(r.topBar),
+    firmTopBarCache: storedTopBar(r.firmTopBarCache),
     quickToolbar: stringList(r.quickToolbar),
     firmLayoutPath:
       typeof r.firmLayoutPath === "string" && r.firmLayoutPath.trim() ? r.firmLayoutPath : null,

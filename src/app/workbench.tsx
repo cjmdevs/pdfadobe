@@ -7,6 +7,7 @@
 // history; before anything that reads the store's bytes (page operation, save, moving
 // the tab) it is pushed as one "Markup" revision and that history is cleared.
 
+import type { PrefCategory } from "./prefsIndex";
 import {
   createContext,
   useCallback,
@@ -105,7 +106,14 @@ export type Dialog =
   | { kind: "pageProperties"; documentId: string; page: number }
   /** `documentId`: the open document to start the list with (owner request). */
   | { kind: "combine"; documentId: string | null }
-  | { kind: "settings" }
+  /** Preferences (B8); a search result opens a category at one setting. */
+  | { kind: "settings"; category?: PrefCategory | undefined; focus?: string | undefined }
+  /** In-app help (B8), at one topic. */
+  | { kind: "help"; topic?: string | undefined }
+  /** About PDF Workbench (B8); `check` starts an update check. */
+  | { kind: "about"; check?: boolean }
+  /** Alt+Q when the top bar has no search box (B8). */
+  | { kind: "commandSearch" }
   /** First-run setup (Phase 10a); step 3 alone from Settings. */
   | { kind: "firstRun"; startAt?: 1 | 3 }
   /** An update from the firm's update folder (Phase 10a). */

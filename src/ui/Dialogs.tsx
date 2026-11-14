@@ -17,7 +17,10 @@ import { UpdateDialog } from "./UpdateDialog";
 import { StampPicker } from "./markup/StampPicker";
 import { TickmarkLibrary } from "./flyer/TickmarkLibrary";
 import { StampDetails } from "./flyer/StampDetails";
-import { SettingsBody } from "./SettingsDialog";
+import { PreferencesDialog } from "./prefs/PreferencesDialog";
+import { AboutDialog } from "./prefs/AboutDialog";
+import { HelpDialog } from "./help/HelpDialog";
+import { SearchDialog } from "./menus/SearchBox";
 import { FlattenBody } from "./markup/FlattenDialog";
 import { BatchOcr } from "./scan/BatchOcr";
 import { OptimizeDialog } from "./optimize/OptimizeDialog";
@@ -73,11 +76,13 @@ function MainDialog() {
     case "update":
       return <UpdateDialog info={dialog.info} onClose={close} />;
     case "settings":
-      return (
-        <Modal title="Settings" onClose={close}>
-          <SettingsBody />
-        </Modal>
-      );
+      return <PreferencesDialog onClose={close} category={dialog.category} focus={dialog.focus} />;
+    case "help":
+      return <HelpDialog onClose={close} topic={dialog.topic} />;
+    case "about":
+      return <AboutDialog onClose={close} {...(dialog.check ? { check: true } : {})} />;
+    case "commandSearch":
+      return <SearchDialog onClose={close} />;
     case "stamps":
       return (
         <Modal title="Custom stamps" onClose={close}>

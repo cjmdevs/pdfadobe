@@ -2787,3 +2787,276 @@ body.pointer-dragging * {
 .combine-list tr.drop-after td {
   box-shadow: inset 0 -3px 0 var(--accent);
 }
+
+/* ---- B8: menu bar ---- */
+.menubar {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  height: 28px;
+  padding: 0 var(--space-2);
+  background: var(--bg-sunken);
+  flex: none;
+}
+.menubar-item {
+  position: relative;
+  display: flex;
+}
+.menubar-item > button {
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: 0 var(--space-3);
+  min-height: 0;
+  height: 100%;
+  font-size: var(--text-sm);
+}
+.menubar-item > button:hover,
+.menubar-item > button.open,
+.menubar-item > button:focus-visible {
+  background: var(--bg-hover);
+}
+.menubar-item > button u {
+  text-decoration: none;
+}
+.menubar:focus-within .menubar-item > button u,
+body.alt-held .menubar-item > button u {
+  text-decoration: underline;
+}
+.menubar-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 60;
+}
+
+/* ---- B8: command search ---- */
+.command-search {
+  position: relative;
+  width: 120px;
+}
+.command-search input {
+  width: 100%;
+}
+.command-search-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 60;
+  width: max(100%, 420px);
+  max-height: 60vh;
+  overflow-y: auto;
+  margin: 0;
+  padding: var(--space-1) 0;
+  list-style: none;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--elev-2);
+}
+.command-search-list li {
+  display: grid;
+  grid-template-columns: 56px 1fr auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  cursor: default;
+}
+.command-search-list li.active {
+  background: var(--bg-hover);
+}
+.cs-kind,
+.cs-where {
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+.cs-where {
+  text-align: right;
+}
+.cs-none {
+  display: block !important;
+}
+.modal .command-search {
+  flex: none;
+  width: 480px;
+}
+.modal .command-search-list {
+  position: static;
+  width: 100%;
+  margin-top: var(--space-2);
+  box-shadow: none;
+}
+
+/* ---- B8: Preferences ---- */
+.prefs {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: var(--space-4);
+  min-height: 420px;
+  width: min(820px, 80vw);
+}
+.prefs-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-right: 1px solid var(--border);
+  padding-right: var(--space-3);
+}
+.prefs-nav > button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  border-radius: var(--radius-sm);
+}
+.prefs-nav > button.active {
+  background: var(--bg-active);
+  font-weight: var(--weight-strong);
+}
+.prefs-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+}
+.pref-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(200px, 1.2fr);
+  align-items: center;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+}
+.pref-row.found {
+  outline: 2px solid var(--accent);
+}
+.pref-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.pref-control input:not([type="checkbox"]):not([type="color"]),
+.pref-control select {
+  flex: 1;
+  min-width: 0;
+}
+.pref-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.pref-swatches {
+  display: inline-flex;
+  gap: 4px;
+}
+.pref-swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1px solid var(--border-strong);
+}
+.pref-list {
+  margin: 0;
+  padding-left: var(--space-5);
+}
+
+/* ---- B8: Help ---- */
+.help {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--space-4);
+  width: min(900px, 85vw);
+  height: 60vh;
+}
+.help-nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  border-right: 1px solid var(--border);
+  padding-right: var(--space-3);
+  min-height: 0;
+}
+.help-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.help-nav li button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  border-radius: var(--radius-sm);
+}
+.help-nav li button.active {
+  background: var(--bg-active);
+  font-weight: var(--weight-strong);
+}
+.help-page {
+  overflow-y: auto;
+  padding-right: var(--space-3);
+  line-height: var(--leading);
+}
+.help-page h3 {
+  margin-top: 0;
+}
+.help-summary {
+  color: var(--fg-muted);
+}
+.help-page h4 {
+  margin: var(--space-4) 0 var(--space-1);
+}
+
+/* ---- B8: customizable top bar ---- */
+.toolbar {
+  overflow-x: hidden;
+}
+.bar-slot,
+.bar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+}
+.bar-slot.grow {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.pin-strip li.spacer .spacer-mark {
+  color: var(--fg-muted);
+  font-weight: var(--weight-strong);
+}
+.pin-strip li.drop-before {
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+.pin-strip li.drop-after {
+  box-shadow: inset -3px 0 0 var(--accent);
+}
+.place-select {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-left: var(--space-3);
+}
+.off-bar {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-2);
+}
+.off-bar li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.off-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
