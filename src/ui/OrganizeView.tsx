@@ -170,7 +170,10 @@ export function OrganizeView({ documentId }: { documentId: string }) {
             tabIndex={i === focus ? 0 : -1}
             className={`grid-page${selected.has(i) ? " selected" : ""}${drag.source?.includes(i) ? " dragging" : ""}${dropAt === i ? " drop-before" : ""}${dropAt === i + 1 && i === count - 1 ? " drop-after" : ""}`}
             onPointerDown={(e) => startDrag(e, i)}
-            onClick={(e) => select(i, e)}
+            onClick={(e) => {
+              e.currentTarget.focus({ preventScroll: true });
+              select(i, e);
+            }}
             onDoubleClick={() => wb.setActiveTool(documentId, null, i)}
             onContextMenu={(e) => {
               setFocus(i);

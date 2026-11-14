@@ -13,12 +13,24 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { displayKey } from "../../app/shortcuts";
+import { spotlight } from "../spotlight";
 import { tidy, type MenuEntry } from "./menuText";
 
 export type { MenuEntry, MenuItemEntry, SubmenuEntry, DividerEntry } from "./menuText";
 export { tidy } from "./menuText";
 
 const ITEM = "[role^=menuitem]:not(:disabled)";
+
+/** The id of the submenu (at any depth below `items`) that holds `id`, if any. */
+function submenuWith(items: MenuEntry[], id: string): string | undefined {
+  for (const it of items)
+    if (
+      it.kind === "submenu" &&
+      (it.items.some((x) => "id" in x && x.id === id) || submenuWith(it.items, id))
+    )
+      return it.id;
+  return undefined;
+}
 
 function ownItems(menu: HTMLElement): HTMLElement[] {
   return [...menu.querySelectorAll<HTMLElement>(ITEM)].filter(
@@ -34,6 +46,7 @@ export function MenuList({
   onRight,
   focusFirst = true,
   className,
+  highlight,
 }: {
   items: MenuEntry[];
   label: string;
@@ -45,13 +58,23 @@ export function MenuList({
   onRight?: () => void;
   focusFirst?: boolean;
   className?: string;
+  /** An item to point at (command search): its submenu opens and it pulses. */
+  highlight?: string | undefined;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<string | null>(() =>
+    highlight ? (submenuWith(items, highlight) ?? null) : null,
+  );
   const hoverTimer = useRef<number | undefined>(undefined);
   useEffect(() => {
-    if (focusFirst && ref.current) ownItems(ref.current)[0]?.focus();
-  }, [focusFirst]);
+    const menu = ref.current;
+    if (!menu) return;
+    const target = highlight ? ownItems(menu).find((el) => el.dataset.id === highlight) : null;
+    if (target) spotlight(() => target);
+    else if (focusFirst && !(highlight && open)) ownItems(menu)[0]?.focus();
+    // On open only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => () => window.clearTimeout(hoverTimer.current), []);
 
   const onKey = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -132,6 +155,7 @@ export function MenuList({
                 aria-label={it.label}
                 aria-expanded={open === it.id}
                 data-submenu={it.id}
+                data-id={it.id}
                 disabled={it.disabled}
                 onClick={() => setOpen(open === it.id ? null : it.id)}
               >
@@ -146,6 +170,8 @@ export function MenuList({
                   <MenuList
                     items={it.items}
                     label={it.label}
+                    highlight={highlight}
+                    focusFirst={!highlight}
                     onClose={(why) => {
                       setOpen(null);
                       if (why === "run") onClose("run");
@@ -169,6 +195,7 @@ export function MenuList({
             key={it.id}
             type="button"
             role={it.checked === undefined ? "menuitem" : "menuitemcheckbox"}
+            data-id={it.id}
             aria-checked={it.checked}
             aria-label={it.label}
             aria-keyshortcuts={it.shortcut}

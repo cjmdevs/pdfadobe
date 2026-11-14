@@ -77,8 +77,9 @@ export function Sidebar({ documentId }: { documentId: string }) {
 }
 
 /**
- * Pages panel (B8): click selects, Ctrl+click adds or removes, Shift+click selects a run;
- * double-click (or Enter) goes to the page. Right-click opens the page menu; Ctrl+C / X /
+ * Pages panel (B8): click goes to the page and selects it, Ctrl+click adds or removes,
+ * Shift+click selects a run (Enter also goes to the focused page). One outline marks the
+ * selected pages (the current page when none are). Right-click opens the page menu; Ctrl+C / X /
  * V and Delete act on the selection; drag moves the selected pages, with a see-through
  * preview and an insertion line. The selection is the tab's page selection, shared with
  * the Organize grid.
@@ -213,7 +214,7 @@ function Thumbnails({ documentId }: { documentId: string }) {
               aria-current={i === nav.page ? "page" : undefined}
               data-page={i}
               data-testid="thumb"
-              className={`thumb${i === nav.page ? " current" : ""}${on ? " selected" : ""}${
+              className={`thumb${on || (!sel.length && i === nav.page) ? " picked" : ""}${
                 i === focus ? " focus" : ""
               }${drag.source?.includes(i) ? " dragging" : ""}${dropAt === i ? " drop-before" : ""}${
                 dropAt === i + 1 && i === count - 1 ? " drop-after" : ""
@@ -233,8 +234,9 @@ function Thumbnails({ documentId }: { documentId: string }) {
               onClick={(e) => {
                 box.current?.focus({ preventScroll: true });
                 select(i, e);
+                // A plain click also goes to the page (owner, B8); Ctrl / Shift only pick.
+                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) nav.goTo(i);
               }}
-              onDoubleClick={() => nav.goTo(i)}
               onContextMenu={(e) => {
                 box.current?.focus({ preventScroll: true });
                 setFocus(i);

@@ -125,6 +125,17 @@ function Label({ text, mnemonic }: { text: string; mnemonic: string }) {
 export function MenuBar({ extra }: { extra?: (menu: MenuId) => MenuEntry[] }) {
   const entries = useMenuEntries(extra);
   const [open, setOpen] = useState<MenuId | null>(null);
+  const [highlight, setHighlight] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const showItem = (e: Event) => {
+      const { menu, id } = (e as CustomEvent<{ menu: MenuId; id: string }>).detail;
+      rememberFocus();
+      setHighlight(id);
+      setOpen(menu);
+    };
+    document.addEventListener("pdfwb:show-menu-item", showItem);
+    return () => document.removeEventListener("pdfwb:show-menu-item", showItem);
+  }, []);
   /** The bar has keyboard focus without a menu open (after Alt). */
   const [armed, setArmed] = useState(false);
   const bar = useRef<HTMLDivElement>(null);
@@ -136,6 +147,7 @@ export function MenuBar({ extra }: { extra?: (menu: MenuId) => MenuEntry[] }) {
   };
   const show = (id: MenuId | null) => {
     if (id && !open) rememberFocus();
+    setHighlight(undefined);
     setOpen(id);
   };
 
@@ -244,9 +256,12 @@ export function MenuBar({ extra }: { extra?: (menu: MenuId) => MenuEntry[] }) {
           {open === m.id && (
             <Dropdown>
               <MenuList
+                key={highlight ?? ""}
                 items={entries(m.id)}
                 label={m.label}
+                highlight={highlight}
                 onClose={(why) => {
+                  setHighlight(undefined);
                   setOpen(null);
                   setArmed(false);
                   if (why === "escape") focusTop(m.id);

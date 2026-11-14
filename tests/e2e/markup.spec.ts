@@ -52,6 +52,17 @@ test.describe("markup", () => {
     await boot(page);
   });
 
+  test("closing the Comment toolbar stops the Rectangle tool (B8)", async ({ page }) => {
+    await openComment(page, P.text);
+    await tb(page, "Rectangle").click();
+    await expect(tb(page, "Rectangle")).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Close Comment" }).click();
+    await expect(page.getByTestId("tool-toolbar")).toHaveCount(0);
+    await page.keyboard.press("Control+Equal");
+    await drawOnPage(page, [0.2, 0.3], [0.4, 0.4]);
+    await expect(activeTab(page)).not.toContainText("•");
+  });
+
   test("draw a rectangle, restyle it, undo/redo, save: qpdf sees a red-then-blue /Square", async ({
     page,
     mockfs,

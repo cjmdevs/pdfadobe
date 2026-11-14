@@ -224,6 +224,24 @@ function DocCommands({
   const docState = useDocumentState(documentId);
   const doc = docState?.document ?? null;
   const scale = docState?.scale ?? 1;
+
+  // Leaving a tool (its toolbar closed, or another tool opened) stops whatever it was
+  // doing: a markup tool such as Rectangle, a stamp or tickmark waiting to be placed, a
+  // box being drawn (owner, B8). The next click on the page is a plain click again.
+  const activeTool = wb.meta[documentId]?.activeTool ?? null;
+  const lastTool = useRef(activeTool);
+  useEffect(() => {
+    if (lastTool.current === activeTool) return;
+    lastTool.current = activeTool;
+    if (annotState.activeToolId) annots?.setActiveTool(null);
+    if (eraserOn) {
+      stampPlacement.set(null);
+      flyerPlacement.set(null);
+      im?.activateDefaultMode();
+    }
+    // Only when the tool changes; the markup state is read as it is then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTool]);
   const storeId = wb.meta[documentId]?.storeId ?? documentId;
 
   // Previous view / next view (B8): remember the view the reader jumps away from.

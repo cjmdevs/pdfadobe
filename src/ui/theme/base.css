@@ -14,6 +14,13 @@ body {
   background: var(--bg);
   overflow: hidden;
 }
+/* The window never scrolls sideways (B8): "hidden" still lets focus or scrollIntoView
+   shift the whole app left, which cut the menu bar off; "clip" does not. */
+html,
+body,
+#root {
+  overflow: clip;
+}
 button,
 input,
 select,
@@ -750,4 +757,21 @@ kbd {
 .viewport::-webkit-scrollbar-corner,
 .page-grid::-webkit-scrollbar-corner {
   background: var(--bg-sunken);
+}
+
+/* B8: what the command search points at. */
+.spotlight {
+  outline: 3px solid var(--accent) !important;
+  outline-offset: 2px;
+  animation: spotlight-pulse 0.7s ease-in-out 4;
+}
+@keyframes spotlight-pulse {
+  50% {
+    outline-color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spotlight {
+    animation: none;
+  }
 }

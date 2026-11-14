@@ -96,9 +96,50 @@ test.describe("menus, preferences, search, help (B8)", () => {
     await page.keyboard.press("Alt+q");
     await box.fill("bates");
     await expect(list).toContainText("Help");
+    // A menu command is shown in its menu (in its submenu), not run.
+    const zoom = await page.getByLabel("Zoom percentage").inputValue();
     await box.fill("zoom in");
     await page.keyboard.press("Enter");
-    await expect(box).not.toBeFocused();
+    const item = page
+      .getByRole("menu", { name: "Zoom" })
+      .getByRole("menuitem", { name: "Zoom in" });
+    await expect(item).toHaveClass(/spotlight/);
+    await expect(page.getByLabel("Zoom percentage")).toHaveValue(zoom);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    // A tool button is pointed at, not pressed.
+    await page.keyboard.press("Alt+q");
+    await box.fill("rotate right");
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: /^Rotate right/ }).first()).toHaveClass(
+      /spotlight/,
+    );
+    await expect(page.getByRole("button", { name: /^Undo/ })).toBeDisabled();
+  });
+
+  test("Help fits its window without a sideways scrollbar", async ({ page }) => {
+    await page.keyboard.press("F1");
+    const body = page.locator("dialog[open] .modal-body");
+    await expect(page.getByTestId("help-page")).toBeVisible();
+    expect(await body.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Control+k");
+    expect(await body.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  });
+
+  test("the menu bar stays on screen in a narrow window", async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 700 });
+    await page.keyboard.press("Alt+q");
+    await page.getByRole("combobox", { name: /Search tools/ }).fill("print");
+    await page.keyboard.press("Escape");
+    await page.keyboard.press("Escape");
+    await page.getByTestId("top-bar-more").click();
+    await page.keyboard.press("Escape");
+    const file = page
+      .getByRole("menubar", { name: "Menu bar" })
+      .getByRole("menuitem", { name: "File", exact: true });
+    await expect(file).toBeInViewport({ ratio: 1 });
+    expect(await page.evaluate(() => document.documentElement.scrollLeft)).toBe(0);
   });
 
   test("F1 opens Help: one page per feature, with a filter", async ({ page }) => {

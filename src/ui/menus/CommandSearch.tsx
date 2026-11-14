@@ -8,7 +8,8 @@ import { PREFS, PREF_CATEGORIES } from "../../app/prefsIndex";
 import { useWorkbench } from "../../app/workbench";
 import { TOOLS, type ToolContext } from "../../tools/registry";
 import { HELP_TOPICS } from "../help/topics";
-import { useAppCommands } from "./useAppCommands";
+import { appCommand } from "../../app/appCommands";
+import { showMenuItem, spotlight } from "../spotlight";
 
 const KIND_LABEL: Record<SearchItem["kind"], string> = {
   tool: "Tool",
@@ -84,7 +85,6 @@ export function CommandSearch({
   onDone?: () => void;
 }) {
   const wb = useWorkbench();
-  const cmds = useAppCommands();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState(0);
@@ -105,23 +105,40 @@ export function CommandSearch({
     };
   }, []);
 
-  const runTool = (toolId: string, actionId?: string) => {
+  /** Points at a tool in the Tools pane. */
+  const showTool = (name: string) => {
+    if (!wb.settings.toolsPaneOpen) wb.updateSettings({ toolsPaneOpen: true });
+    spotlight(() =>
+      [...document.querySelectorAll<HTMLElement>(".tools-pane .tool-item")].find(
+        (b) => b.getAttribute("aria-label") === name,
+      ),
+    );
+  };
+  /** Points at a tool's button: on the top bar if it is there, else in the tool's own
+   * toolbar (opened, nothing run), else the tool in the Tools pane. */
+  const showAction = (toolId: string, actionId: string) => {
     const t = TOOLS.find((x) => x.id === toolId);
-    if (!t) return;
-    if (t.needsDocument !== false && !ctx.documentId) {
-      wb.toast(`Open a PDF first to use ${t.name}.`);
-      return;
+    const a = t?.toolbar.find((x) => x.id === actionId);
+    if (!t || !a) return;
+    const onBar = document.querySelector(
+      `[data-testid=top-bar] [data-slot="${toolId}.${actionId}"] button`,
+    );
+    if (onBar) return spotlight(() => onBar);
+    if (t.open === "toolbar" && !t.unlisted) {
+      if (!ctx.documentId) {
+        wb.toast(`Open a PDF first, then ${t.name} > ${a.caption ?? a.label}.`);
+        return showTool(t.name);
+      }
+      wb.setActiveTool(ctx.documentId, t.id, ctx.pages[0]);
+      const label = a.label;
+      return spotlight(() =>
+        [...document.querySelectorAll<HTMLElement>("[data-testid=tool-toolbar] button")].find((b) =>
+          (b.getAttribute("aria-label") ?? "").startsWith(label),
+        ),
+      );
     }
-    if (actionId) {
-      const a = t.toolbar.find((x) => x.id === actionId);
-      if (!a) return;
-      if (t.open === "toolbar" && ctx.documentId) wb.setActiveTool(ctx.documentId, t.id);
-      a.run(ctx);
-      return;
-    }
-    if (t.open === "toolbar") {
-      if (ctx.documentId) wb.setActiveTool(ctx.documentId, t.id, ctx.pages[0]);
-    } else t.open(ctx);
+    wb.toast(`${a.caption ?? a.label} is in ${t.unlisted ? "the Edit PDF toolbar" : t.name}.`);
+    if (!t.unlisted) showTool(t.name);
   };
 
   const run = (it: SearchItem) => {
@@ -130,11 +147,12 @@ export function CommandSearch({
     input.current?.blur();
     onDone?.();
     const [kind, rest = ""] = it.id.split(/:(.*)/s);
-    if (kind === "tool") runTool(rest);
+    // Point at it rather than run it (owner, B8): the user clicks it themselves.
+    if (kind === "tool") showTool(TOOLS.find((t) => t.id === rest)?.name ?? "");
     else if (kind === "action") {
-      const [toolId = "", actionId] = rest.split(".");
-      runTool(toolId, actionId);
-    } else if (kind === "cmd") cmds.run(rest);
+      const [toolId = "", actionId = ""] = rest.split(".");
+      showAction(toolId, actionId);
+    } else if (kind === "cmd") showMenuItem(appCommand(rest)?.menu ?? "file", rest);
     else if (kind === "pref") {
       const p = PREFS.find((x) => x.id === rest);
       wb.setDialog({ kind: "settings", category: p?.category, focus: rest });

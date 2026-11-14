@@ -240,13 +240,11 @@
   cursor: default;
   user-select: none;
 }
-.thumb.current .thumb-frame {
+/* One mark only (owner, B8): an outline on the selected pages, no fill. */
+.thumb.picked .thumb-frame {
   outline-color: var(--accent);
 }
-.thumb.selected {
-  background: var(--bg-active);
-}
-.thumb.selected .thumb-label {
+.thumb.picked .thumb-label {
   color: var(--fg);
   font-weight: var(--weight-strong);
 }
@@ -642,8 +640,13 @@
   background: var(--bg-hover);
 }
 .grid-page.selected {
-  background: var(--bg-active);
   border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+/* The keyboard focus follows the click, so it never marks a second page. */
+.grid-page:focus-visible {
+  outline: 2px dashed var(--focus);
+  outline-offset: 2px;
 }
 .grid-page.drop-before::before,
 .grid-page.drop-after::after {
@@ -2890,10 +2893,11 @@ body.alt-held .menubar-item > button u {
 /* ---- B8: Preferences ---- */
 .prefs {
   display: grid;
-  grid-template-columns: 170px 1fr;
+  grid-template-columns: 170px minmax(0, 1fr);
   gap: var(--space-4);
   min-height: 420px;
-  width: min(820px, 80vw);
+  width: 100%;
+  min-width: 0;
 }
 .prefs-nav {
   display: flex;
@@ -2964,9 +2968,9 @@ body.alt-held .menubar-item > button u {
 /* ---- B8: Help ---- */
 .help {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: var(--space-4);
-  width: min(900px, 85vw);
+  width: 100%;
   height: 60vh;
 }
 .help-nav {
@@ -2997,6 +3001,7 @@ body.alt-held .menubar-item > button u {
 }
 .help-page {
   overflow-y: auto;
+  overflow-wrap: anywhere;
   padding-right: var(--space-3);
   line-height: var(--leading);
 }

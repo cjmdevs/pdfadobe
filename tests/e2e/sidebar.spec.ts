@@ -9,19 +9,23 @@ test.describe("navigation pane", () => {
     await waitForPainted(page, 0);
   });
 
-  test("thumbnails render; click selects, double-click jumps to the page (B8)", async ({
-    page,
-  }) => {
+  test("thumbnails render; a click goes to the page and marks only it (B8)", async ({ page }) => {
     const thumbs = page.getByTestId("thumb");
     await expect(thumbs.first()).toBeVisible();
     await expect(thumbs.first().locator("img")).toHaveJSProperty("complete", true);
     const p3 = page.getByRole("option", { name: "Page 3", exact: true });
     await p3.click();
     await expect(p3).toHaveAttribute("aria-selected", "true");
-    expect(await currentPageNumber(page)).toBe(1);
-    await p3.dblclick();
     await expect.poll(() => currentPageNumber(page)).toBe(3);
     await expect(p3).toHaveAttribute("aria-current", "page");
+    // One mark only: no other page is outlined or filled.
+    await expect(page.getByTestId("thumbs").locator(".thumb.picked")).toHaveCount(1);
+    // Ctrl+click picks without moving.
+    await page
+      .getByRole("option", { name: "Page 1", exact: true })
+      .click({ modifiers: ["Control"] });
+    expect(await currentPageNumber(page)).toBe(3);
+    await expect(page.getByTestId("thumbs").locator(".thumb.picked")).toHaveCount(2);
   });
 
   test("bookmarks show the nested outline and navigate", async ({ page }) => {
