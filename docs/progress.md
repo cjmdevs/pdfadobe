@@ -5,6 +5,26 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
+- **B8 code review fixes 2026-11-14, owner check pending**
+  (`docs/testing/b8-review-fixes-test-guide.md`). Ten findings from `/code-review` of B8:
+  leaving a tool only stops what was running before the switch (`app/toolSwitch.ts`;
+  Redact > Draw box from the top bar was disarmed by its own click); the Hand tool ends
+  a drag with no button held, on pointercancel and blur, and ignores scrollbar presses;
+  right-click menus give focus back after an item runs; a jump for Previous view is more
+  than one page step (`isJump`/`pageStep` in `app/viewHistory.ts`; a two-up spread is one
+  step); the top bar observes its items and re-fits when one changes width; Add divider
+  is off where the divider would be dropped (`withDivider` in `app/topBar.ts`); the Snap
+  distance box takes typed numbers (`NumberPref`); `usePointerDrag().pos` is a small store
+  only `DragGhost` reads (lists no longer render per mouse move); comment snapping is
+  typed as a `Pick` of EmbedPDF's `AnnotationPlugin` (2.15.1 has no drag hook, so the wrap
+  stays; it warns and steps aside if the methods are missing); dead exports removed and
+  view history dropped on close. Tests: `tests/e2e/review-b8.spec.ts`,
+  `tests/unit/b8-review.test.ts`, `src/app/topBar.test.ts` (tests that import the tool
+  registry must live under `src/`: `tests/unit` is type-checked without DOM types).
+  **Known:** an item sitting in the » menu keeps its last measured width until the item
+  list changes; the scrollbar part of the Hand tool fix is owner-check only (headless
+  Chromium has no scrollbars). No new dependencies.
+
 - **B8 (UX fixes from owner testing) done 2026-11-13, owner check passed**
   (`docs/testing/b8-test-guide.md`, round 2 `b8-fixes-test-guide.md`). Round 2 (owner):
   a thumbnail click goes to the page; one outline marks selected pages (no fill); closing
