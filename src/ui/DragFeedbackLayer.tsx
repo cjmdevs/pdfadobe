@@ -7,7 +7,8 @@
 import { useEffect, useRef } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { useAnnotation, useAnnotationPlugin } from "@embedpdf/plugin-annotation/react";
-import type { Position, Rect } from "@embedpdf/models";
+import type { AnnotationPlugin } from "@embedpdf/plugin-annotation";
+import type { Rect } from "@embedpdf/models";
 import { useWorkbench } from "../app/workbench";
 import type { Settings } from "../app/settings";
 import { BoxReadout, SnapGuides } from "./kit/DragFeedback";
@@ -55,23 +56,24 @@ interface DocCtx {
 
 const ctxByDoc = new Map<string, DocCtx>();
 
-interface DragPlugin {
-  updateDrag(documentId: string, rawDelta: Position): Position;
-  updateResize(documentId: string, box: Rect): Record<string, Rect>;
-  getDragState(documentId: string): {
-    primaryIds: string[];
-    allParticipantIds: string[];
-    originalRects: Map<string, Rect>;
-  } | null;
-  getResizeState(documentId: string): {
-    primaryIds: string[];
-    allParticipantIds: string[];
-    resizeHandle: string;
-  } | null;
-  onDragChange: (cb: (e: { documentId: string; type: string }) => void) => () => void;
-  onResizeChange: (cb: (e: { documentId: string; type: string }) => void) => () => void;
-  __pwSnap?: boolean;
-}
+/**
+ * What snapping uses from the annotation plugin, typed from EmbedPDF itself: a renamed
+ * method or a changed signature in an upgrade fails the type check instead of quietly
+ * turning snapping off. EmbedPDF 2.15 has no hook to adjust a drag while it happens
+ * (onDragChange / onResizeChange only report it), hence the wrap in `install`.
+ */
+type DragPlugin = Pick<
+  AnnotationPlugin,
+  | "updateDrag"
+  | "updateResize"
+  | "getDragState"
+  | "getResizeState"
+  | "onDragChange"
+  | "onResizeChange"
+>;
+
+/** Plugins already wrapped (or found unfit and left alone). */
+const installed = new WeakSet<object>();
 
 function pageOf(ctx: DocCtx, ids: string[]): number | null {
   for (const v of Object.values(ctx.state.byUid))
@@ -98,8 +100,22 @@ const HANDLES = new Set(["nw", "n", "ne", "e", "se", "s", "sw", "w"]);
 
 /** Wraps the plugin once; the wrapper looks up the document's context each call. */
 function install(plugin: DragPlugin) {
-  if (plugin.__pwSnap) return;
-  plugin.__pwSnap = true;
+  if (installed.has(plugin)) return;
+  installed.add(plugin);
+  // The type check covers the build; this covers a plugin that differs at run time.
+  // Dragging then works as EmbedPDF does it, just without snapping or the readout.
+  const fits = [
+    plugin.updateDrag,
+    plugin.updateResize,
+    plugin.getDragState,
+    plugin.getResizeState,
+    plugin.onDragChange,
+    plugin.onResizeChange,
+  ].every((f) => typeof f === "function");
+  if (!fits) {
+    console.warn("Snap guides for comments are off: the annotation plugin has changed.");
+    return;
+  }
   const drag = plugin.updateDrag.bind(plugin);
   const resize = plugin.updateResize.bind(plugin);
   plugin.updateDrag = (documentId, raw) => {
@@ -180,7 +196,7 @@ export function AnnotationSnap({ documentId }: { documentId: string }) {
   });
   useEffect(() => () => void ctxByDoc.delete(documentId), [documentId]);
   useEffect(() => {
-    if (plugin) install(plugin as unknown as DragPlugin);
+    if (plugin) install(plugin);
   }, [plugin]);
   return null;
 }
