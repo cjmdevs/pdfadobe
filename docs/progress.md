@@ -5,12 +5,13 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **B8 (UX fixes from owner testing) built 2026-11-13; owner check in progress**
+- **B8 (UX fixes from owner testing) done 2026-11-13, owner check passed**
   (`docs/testing/b8-test-guide.md`, round 2 `b8-fixes-test-guide.md`). Round 2 (owner):
   a thumbnail click goes to the page; one outline marks selected pages (no fill); closing
   a tool stops its markup tool/placement; `overflow: clip` on html/body/#root (the app
   was being scrolled left, hiding the menu bar); Alt+Q points at things (`ui/spotlight.ts`,
-  menus open at the item) instead of running them; Help/Preferences fit the dialog. Kit adds `Menu.tsx` (menus, right-click menus),
+  menus open at the item) instead of running them; Help/Preferences fit the dialog. Round 3: kit menus opened off the left edge (the older
+  `.menu` rule overrode their position; fixed with `.menu.kit-menu`). Kit adds `Menu.tsx` (menus, right-click menus),
   `Tooltip.tsx` (one window-wide layer: `title` becomes a styled tip with the shortcut as a
   key), `DragFeedback.tsx` (DragGhost, BoxReadout, SnapGuides), `snap.ts` (pure).
   Page clipboard: Rust `pageclip.rs` (memory only, all windows), `pageActions.copy/paste`,
