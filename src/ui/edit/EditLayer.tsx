@@ -47,6 +47,8 @@ import { TextEditor } from "./TextEditor";
 import { dragPlacement, hitHandle, naturalSize, type Handle, type Pt } from "./imageDrag";
 import { addImageEdit, applyFrame, moveTextBox, placeImageEdit } from "./editActions";
 import { spanBox, usePageSnapper } from "../dragFeedback";
+import { useDragPreview } from "./dragPreview";
+import { shotArea } from "./snapshot";
 import type { Box } from "../kit/snap";
 
 /** Store bytes per loaded document object: one read serves every page of the tab. */
@@ -62,6 +64,13 @@ function contentOf(wb: WorkbenchApi, documentId: string, doc: object) {
 }
 
 type Item = EditTextBox | EditImage;
+
+/** Something lifted off the page by a move: which ("t<box id>" / "i<image id>"), how far. */
+interface Lift {
+  key: string;
+  dx: number;
+  dy: number;
+}
 
 /** A drag shorter than this (points) is a click. */
 const DRAG = 8;
@@ -155,6 +164,11 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     };
   }, [active, doc, documentId, pageIndex, wb, linkOn]);
   const snap = usePageSnapper(documentId, pageIndex);
+  // The dragged text or image itself follows the pointer (a picture of it).
+  const [shot, preview] = useDragPreview(documentId, pageIndex);
+  /** A move just dropped: it stays shown where it landed until the edit is in. */
+  const [held, setHeld] = useState<Lift | null>(null);
+  const holding = useRef<Lift | null>(null);
   const latest = useRef({
     info,
     busy: wb.busy,
@@ -265,6 +279,17 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         now: { ...now, cx: s2.box.x + now.width / 2, cy: H() - s2.box.y - now.height / 2 },
         guides: s2.guides,
       };
+    };
+    /** A dropped move keeps its preview in place until its edit is done (or refused). */
+    const holdUntil = (lift: Lift, done: Promise<unknown>) => {
+      holding.current = lift;
+      setHeld(lift);
+      void done.finally(() => {
+        if (holding.current !== lift) return;
+        holding.current = null;
+        setHeld(null);
+        preview.stop();
+      });
     };
     return register({
       onPointerMove: (pos, evt) => {
@@ -399,6 +424,16 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         }
         editSelection.set(documentId, selectionOf(pageIndex, hit));
         evt.setPointerCapture?.();
+        // A picture of what was pressed, ready if this turns into a move.
+        holding.current = null;
+        setHeld(null);
+        if (i && (handle ?? "move") === "move")
+          preview.start(
+            `${hit.kind === "text" ? "t" : "i"}${hit.id}`,
+            shotArea(hit.rect, i),
+            i.height,
+            latest.current.scale,
+          );
         // Text: a drag moves the box, a click (on release) opens the editor.
         if (hit.kind === "text")
           setPress({
@@ -444,14 +479,19 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           evt.releasePointerCapture?.();
           setPress(null);
           if (pr.moving)
-            void moveTextBox(latest.current.wb, documentId, pageIndex, pr.box, pr.dx, pr.dy);
-          else
+            holdUntil(
+              { key: `t${pr.box.id}`, dx: pr.dx, dy: pr.dy },
+              moveTextBox(latest.current.wb, documentId, pageIndex, pr.box, pr.dx, pr.dy),
+            );
+          else {
+            preview.stop();
             editSession.open(documentId, {
               kind: "box",
               page: pageIndex,
               box: pr.box,
               at: pr.client,
             });
+          }
           return;
         }
         const g = latest.current.imgDrag;
@@ -472,8 +512,16 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
               : g.handle === "rotate"
                 ? "Rotate image"
                 : "Resize image";
-          if (changed)
-            void placeImageEdit(latest.current.wb, documentId, pageIndex, g.img, now, label);
+          if (changed && g.handle === "move")
+            holdUntil(
+              { key: `i${g.img.id}`, dx: now.cx - p.cx, dy: now.cy - p.cy },
+              placeImageEdit(latest.current.wb, documentId, pageIndex, g.img, now, label),
+            );
+          else {
+            preview.stop();
+            if (changed)
+              void placeImageEdit(latest.current.wb, documentId, pageIndex, g.img, now, label);
+          }
           return;
         }
         const d = latest.current.drag;
@@ -525,7 +573,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         });
       },
     });
-  }, [active, register, documentId, pageIndex, snap]);
+  }, [active, register, documentId, pageIndex, snap, preview]);
 
   if (!active || !info) return null;
   const css = (r: Rect): React.CSSProperties => ({
@@ -559,7 +607,29 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           cy: selectedImage.placement.cy + shift.dy,
         }
       : null;
-  const framed = cropped ? null : (imgDrag?.now ?? nudged ?? selectedImage?.placement ?? null);
+  const heldImage =
+    held && selectedImage && held.key === `i${selection?.id}`
+      ? {
+          ...selectedImage.placement,
+          cx: selectedImage.placement.cx + held.dx,
+          cy: selectedImage.placement.cy + held.dy,
+        }
+      : null;
+  const framed = cropped
+    ? null
+    : (imgDrag?.now ?? heldImage ?? nudged ?? selectedImage?.placement ?? null);
+  // What is lifted off the page right now, and how far: a text box or image being
+  // moved, or one just dropped.
+  const lifted: Lift | null = press?.moving
+    ? { key: `t${press.box.id}`, dx: press.dx, dy: press.dy }
+    : imgDrag?.handle === "move"
+      ? {
+          key: `i${imgDrag.img.id}`,
+          dx: imgDrag.now.cx - imgDrag.img.placement.cx,
+          dy: imgDrag.now.cy - imgDrag.img.placement.cy,
+        }
+      : held;
+  const carried = shot && lifted && shot.key === lifted.key && (lifted.dx || lifted.dy);
   // The frame handles are for one box at a time.
   const selectedBox =
     selection?.kind === "text" && selection.page === pageIndex && !several
@@ -576,6 +646,24 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
       }`}
       data-testid="edit-layer"
     >
+      {carried && (
+        <>
+          <div
+            className="edit-drag-origin"
+            data-testid="edit-drag-origin"
+            aria-hidden="true"
+            style={css(shot.rect)}
+          />
+          <img
+            className="edit-drag-shot"
+            data-testid="edit-drag-shot"
+            alt=""
+            draggable={false}
+            src={shot.url}
+            style={css(offset(shot.rect, lifted))}
+          />
+        </>
+      )}
       {info.images.map((img) => (
         <div
           key={`i${img.id}`}
@@ -588,8 +676,12 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
       {info.boxes.map((b) => {
         if (editingHere?.kind === "box" && editingHere.box.id === b.id) return null;
         const f = frameFor(b);
-        const moved = press?.moving && press.box.id === b.id ? press : null;
-        const rect = b === selectedBox && selFrame ? selFrame : offset(frameOf(b, f), moved);
+        const moved = lifted?.key === `t${b.id}` ? lifted : null;
+        const rect = moved
+          ? offset(frameOf(b, f), moved)
+          : b === selectedBox && selFrame
+            ? selFrame
+            : frameOf(b, f);
         const clash = (overflow?.page === pageIndex && overflow.id === b.id) || overfull(b, f);
         const live = moved || (b === selectedBox && (frameDrag || shift));
         return (
@@ -605,7 +697,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           />
         );
       })}
-      {selectedBox && selFrame && !editingHere && !press?.moving && (
+      {selectedBox && selFrame && !editingHere && !press?.moving && !held && (
         <>
           {frameDrag && (
             <div

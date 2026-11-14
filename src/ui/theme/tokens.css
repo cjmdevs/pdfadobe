@@ -49,6 +49,7 @@
   --page-line: rgb(110 110 110 / 0.55);
   --page-field: rgb(204 215 255 / 0.55);
   --page-scrim: rgb(0 0 0 / 0.25);
+  --page-lift: rgb(255 255 255 / 0.72);
   --page-placeholder-bg: rgb(255 248 225 / 0.6);
   --page-placeholder-fg: #6b5a00;
   --page-placeholder-line: #888888;

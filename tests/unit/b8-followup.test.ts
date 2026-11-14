@@ -1,6 +1,13 @@
 // Logic behind the owner findings after the B8 review fixes.
 import { describe, expect, it } from "vitest";
 import { shownSize } from "../../src/app/pageSize";
+import {
+  SHOT_MAX_SCALE,
+  SHOT_PAD,
+  shotArea,
+  shotScale,
+  toPageRect,
+} from "../../src/ui/edit/snapshot";
 import { wheelTurn } from "../../src/app/wheelTurn";
 
 describe("the wheel in Single page view", () => {
@@ -38,5 +45,45 @@ describe("the room a page takes on screen", () => {
     expect(shownSize(letter, 3, 2)).toEqual({ width: 1584, height: 1224 });
     // Page rotation plus view rotation can pass a full turn.
     expect(shownSize(letter, 5, 1)).toEqual({ width: 792, height: 612 });
+  });
+});
+
+describe("the picture of a dragged text box or image", () => {
+  const page = { width: 612, height: 792 };
+
+  it("takes the box plus a little room", () => {
+    expect(shotArea({ l: 100, b: 500, r: 300, t: 540 }, page)).toEqual({
+      l: 100 - SHOT_PAD,
+      b: 500 - SHOT_PAD,
+      r: 300 + SHOT_PAD,
+      t: 540 + SHOT_PAD,
+    });
+  });
+
+  it("stays on the page, and is nothing for a box that is off it", () => {
+    expect(shotArea({ l: -20, b: 780, r: 50, t: 800 }, page)).toEqual({
+      l: 0,
+      b: 778,
+      r: 52,
+      t: 792,
+    });
+    expect(shotArea({ l: 700, b: 10, r: 760, t: 40 }, page)).toBeNull();
+  });
+
+  it("hands the renderer a top-left rectangle", () => {
+    expect(toPageRect({ l: 100, b: 500, r: 300, t: 540 }, 792)).toEqual({
+      origin: { x: 100, y: 252 },
+      size: { width: 200, height: 40 },
+    });
+  });
+
+  it("is drawn at the zoom on screen, up to a cap", () => {
+    expect(shotScale(1.5, 1)).toEqual({ scaleFactor: 1.5, dpr: 1 });
+    expect(shotScale(1.5, 2)).toEqual({ scaleFactor: 1.5, dpr: 2 });
+    // 64x zoom on a 2x screen: capped so the picture stays small.
+    const big = shotScale(64, 2);
+    expect(big.scaleFactor * big.dpr).toBe(SHOT_MAX_SCALE);
+    // A screen density under 1 (browser zoomed out) never blurs it below 1.
+    expect(shotScale(1, 0.5)).toEqual({ scaleFactor: 1, dpr: 1 });
   });
 });

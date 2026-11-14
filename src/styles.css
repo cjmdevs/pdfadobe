@@ -2186,6 +2186,20 @@ body.pointer-dragging * {
   border: 1px dashed var(--accent);
   background: var(--page-accent-tint);
 }
+/* A text box or image being moved: a picture of it follows the pointer, and where it
+   came from is washed out until the move is in. */
+.edit-drag-shot,
+.edit-drag-origin {
+  position: absolute;
+  pointer-events: none;
+  user-select: none;
+}
+.edit-drag-shot {
+  max-width: none;
+}
+.edit-drag-origin {
+  background: var(--page-lift);
+}
 .format-box {
   margin: var(--space-3) 0 0;
   padding: var(--space-2) var(--space-3) var(--space-3);

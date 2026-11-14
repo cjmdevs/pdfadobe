@@ -109,6 +109,25 @@ async function center(page: Page, start: string) {
 }
 
 /** Waits for an edit to finish and the reloaded tab to show its outlines again. */
+/** The drag preview (a picture of what is being moved): where it is, and that it has ink. */
+async function dragShot(page: Page) {
+  const shot = page.getByTestId("edit-drag-shot");
+  await expect(shot).toBeVisible();
+  await expect(shot).toHaveJSProperty("complete", true);
+  const inked = await shot.evaluate((img: HTMLImageElement) => {
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const g = c.getContext("2d")!;
+    g.drawImage(img, 0, 0);
+    const d = g.getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let k = 3; k < d.length; k += 4) if (d[k]! > 0) n++;
+    return n;
+  });
+  return { box: (await shot.boundingBox())!, inked };
+}
+
 async function settled(page: Page) {
   await idle(page);
   await expect(page.getByTestId("edit-layer")).toBeVisible();
@@ -565,6 +584,14 @@ test.describe("Edit PDF", () => {
       // Up, so the corner handle stays on screen (B8: the menu bar takes a row).
       await page.mouse.move(x + 40, y - 30, { steps: 5 });
       await expect(frame(page)).toHaveClass(/dragging/);
+      // The image itself is shown moving, over where it will land.
+      const shot = await dragShot(page);
+      expect(shot.inked).toBeGreaterThan(0);
+      expect(shot.box.x + shot.box.width / 2 - (before.x + before.width / 2)).toBeCloseTo(40, -1);
+      expect(shot.box.y + shot.box.height / 2 - (before.y + before.height / 2)).toBeCloseTo(
+        -30,
+        -1,
+      );
       await page.mouse.up();
       await settled(page);
       const moved = (await page.getByTestId("edit-image").boundingBox())!;
@@ -853,6 +880,51 @@ test.describe("Edit PDF", () => {
       await page.keyboard.press("Control+z");
       await settled(page);
       expect((await rel()).x).toBeCloseTo(before.x, 0);
+    });
+
+    test("a dragged box shows its text moving, not just an outline", async ({ page }) => {
+      await openEdit(page);
+      const start = (await box(page, "We selected sales").boundingBox())!;
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.move(x, y);
+      await page.mouse.down();
+      // A press alone lifts nothing.
+      await expect(page.getByTestId("edit-drag-shot")).toHaveCount(0);
+      await page.mouse.move(x + 40, y + 60, { steps: 8 });
+      const shot = await dragShot(page);
+      expect(shot.inked).toBeGreaterThan(50);
+      // The picture covers the text and sits where the outline is: 40 right, 60 down.
+      const outline = (await box(page, "We selected sales").boundingBox())!;
+      expect(outline.x - start.x).toBeCloseTo(40, -1);
+      expect(outline.y - start.y).toBeCloseTo(60, -1);
+      expect(shot.box.x).toBeLessThanOrEqual(outline.x + 1);
+      expect(shot.box.y).toBeLessThanOrEqual(outline.y + 1);
+      expect(shot.box.x + shot.box.width).toBeGreaterThanOrEqual(outline.x + outline.width - 1);
+      expect(shot.box.y + shot.box.height).toBeGreaterThanOrEqual(outline.y + outline.height - 1);
+      // Where it came from is washed out.
+      const from = (await page.getByTestId("edit-drag-origin").boundingBox())!;
+      expect(from.x).toBeLessThanOrEqual(start.x + 1);
+      expect(from.y).toBeLessThanOrEqual(start.y + 1);
+      // It follows the pointer.
+      await page.mouse.move(x + 90, y + 60, { steps: 4 });
+      await expect
+        .poll(async () => (await page.getByTestId("edit-drag-shot").boundingBox())!.x - shot.box.x)
+        .toBeGreaterThan(40);
+      await page.mouse.up();
+      await settled(page);
+      // Once the move is in, the page shows the real thing and the picture is gone.
+      await expect(page.getByTestId("edit-drag-shot")).toHaveCount(0);
+      await expect(page.getByTestId("edit-drag-origin")).toHaveCount(0);
+    });
+
+    test("a click on text (no drag) shows no drag picture and opens the editor", async ({
+      page,
+    }) => {
+      await openEdit(page);
+      const [x, y] = await center(page, "We selected sales");
+      await page.mouse.click(x, y);
+      await expect(editor(page)).toBeFocused();
+      await expect(page.getByTestId("edit-drag-shot")).toHaveCount(0);
     });
 
     test("arrow keys nudge the selected box (Shift: 10 points)", async ({ page }) => {
