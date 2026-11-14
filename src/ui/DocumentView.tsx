@@ -15,6 +15,7 @@ import { EditLayer } from "./edit/EditLayer";
 import { RedactLayer } from "./redact/RedactLayer";
 import { FieldPlaceLayer } from "./forms/FieldPlaceLayer";
 import { AnnotationSnap, DragFeedbackLayer } from "./DragFeedbackLayer";
+import { PanController } from "./Pan";
 import { FormMode } from "./forms/FormMode";
 import { XfaNotice } from "./forms/XfaNotice";
 import { FormCalc } from "./forms/FormCalc";
@@ -202,6 +203,7 @@ function Viewer({ documentId }: { documentId: string }) {
       <XfaNotice documentId={documentId} />
       <FormCalc documentId={documentId} />
       <AnnotationSnap documentId={documentId} />
+      <PanController documentId={documentId} />
       <Viewport
         documentId={documentId}
         className={settings.formHighlight ? "viewport forms-highlight" : "viewport"}

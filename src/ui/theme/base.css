@@ -716,3 +716,38 @@ kbd {
 .snap-guide.y {
   height: 1px;
 }
+
+/* ---- B8: panning and always-visible scrollbars ---- */
+.viewport.panning,
+.viewport.panning * {
+  cursor: grab !important;
+}
+.viewport.panning.grabbing,
+.viewport.panning.grabbing * {
+  cursor: grabbing !important;
+}
+/* Windows 11 hides overlay scrollbars until hovered; a styled scrollbar is always there,
+   so a page wider than the view always shows that it scrolls sideways. */
+.viewport::-webkit-scrollbar,
+.page-grid::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.viewport::-webkit-scrollbar-track,
+.page-grid::-webkit-scrollbar-track {
+  background: var(--bg-sunken);
+}
+.viewport::-webkit-scrollbar-thumb,
+.page-grid::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: 3px solid var(--bg-sunken);
+  border-radius: 7px;
+}
+.viewport::-webkit-scrollbar-thumb:hover,
+.page-grid::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-muted);
+}
+.viewport::-webkit-scrollbar-corner,
+.page-grid::-webkit-scrollbar-corner {
+  background: var(--bg-sunken);
+}

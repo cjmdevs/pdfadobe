@@ -7,6 +7,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
+import { panStore, useHandTool } from "./Pan";
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import type { Theme, ViewMode } from "../app/settings";
@@ -151,6 +152,19 @@ export function Toolbar({ documentId }: { documentId: string | null }) {
   );
 }
 
+/** Hand tool (B8): drag to pan the page; holding Space does the same for a moment. */
+function HandButton() {
+  const on = useHandTool();
+  return (
+    <ToolButton
+      icon="hand"
+      label="Hand tool (hold Space)"
+      pressed={on}
+      onClick={() => panStore.toggleHand()}
+    />
+  );
+}
+
 function ViewSettings() {
   const { settings, updateSettings } = useWorkbench();
   return (
@@ -258,6 +272,7 @@ function DocTools({ documentId }: { documentId: string }) {
       <ToolButton icon="zoomOut" label="Zoom out (Ctrl+-)" onClick={() => zoomer?.zoomOut()} />
       <ZoomBox scale={zoom.currentZoomLevel} onZoom={(s) => zoomer?.requestZoom(s)} />
       <ToolButton icon="zoomIn" label="Zoom in (Ctrl+=)" onClick={() => zoomer?.zoomIn()} />
+      <HandButton />
       <span className="sep" />
       <QuickTools ctx={ctx} />
     </>

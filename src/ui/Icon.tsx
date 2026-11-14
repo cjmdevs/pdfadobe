@@ -11,6 +11,12 @@ import first from "@fluentui/svg-icons/icons/arrow_previous_20_regular.svg?raw";
 import prev from "@fluentui/svg-icons/icons/arrow_circle_up_20_regular.svg?raw";
 import next from "@fluentui/svg-icons/icons/arrow_circle_down_20_regular.svg?raw";
 import last from "@fluentui/svg-icons/icons/arrow_next_20_regular.svg?raw";
+import hand from "@fluentui/svg-icons/icons/hand_left_20_regular.svg?raw";
+import help from "@fluentui/svg-icons/icons/question_circle_20_regular.svg?raw";
+import cut from "@fluentui/svg-icons/icons/cut_20_regular.svg?raw";
+import paste from "@fluentui/svg-icons/icons/clipboard_paste_20_regular.svg?raw";
+import copy from "@fluentui/svg-icons/icons/copy_20_regular.svg?raw";
+import helpBook from "@fluentui/svg-icons/icons/book_question_mark_20_regular.svg?raw";
 import zoomIn from "@fluentui/svg-icons/icons/zoom_in_20_regular.svg?raw";
 import zoomOut from "@fluentui/svg-icons/icons/zoom_out_20_regular.svg?raw";
 import fitPage from "@fluentui/svg-icons/icons/page_fit_20_regular.svg?raw";
@@ -154,6 +160,12 @@ const SVG = {
   next,
   last,
   zoomIn,
+  hand,
+  help,
+  cut,
+  paste,
+  copy,
+  helpBook,
   zoomOut,
   fitPage,
   fitWidth,
