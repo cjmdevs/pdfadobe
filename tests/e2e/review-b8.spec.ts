@@ -109,4 +109,28 @@ test.describe("B8 review fixes", () => {
     await page.keyboard.press("Alt+ArrowLeft");
     await expect.poll(() => currentPageNumber(page)).toBe(here);
   });
+
+  test("the top bar re-fits when an item gets wider (Cover page in two-up)", async ({ page }) => {
+    await boot(page);
+    await open(page, P.wpA);
+    const bar = page.getByTestId("top-bar");
+    // A window the bar only just fits in.
+    const need = await bar.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      const slots = [...el.querySelectorAll<HTMLElement>("[data-slot]")];
+      return (
+        slots.reduce((s, x) => s + (x.dataset.slot === "bar:spacer" ? 0 : x.offsetWidth + 4), 0) +
+        parseFloat(cs.paddingLeft) +
+        parseFloat(cs.paddingRight)
+      );
+    });
+    await page.setViewportSize({ width: Math.ceil(need) + 20, height: 720 });
+    await expect(page.getByTestId("top-bar-more")).toHaveCount(0);
+    await bar.getByLabel("Page display").selectOption("twoUp");
+    await expect(page.getByTestId("top-bar-more")).toBeVisible();
+    expect(await bar.evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+    // Back to one page a row: everything fits again.
+    await bar.getByLabel("Page display").selectOption("continuous");
+    await expect(page.getByTestId("top-bar-more")).toHaveCount(0);
+  });
 });

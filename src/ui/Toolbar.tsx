@@ -142,6 +142,7 @@ function TopBar({ ctx, documentId }: { ctx: ToolContext; documentId: string | nu
   // How many items fit, measured for this set of items (a new set shows all to measure).
   const [fitted, setFitted] = useState<{ key: string; hide: number[] }>({ key: "", hide: [] });
   const hide = new Set(fitted.key === key ? fitted.hide : []);
+  const hideKey = [...hide].join();
   const [more, setMore] = useState<{ x: number; y: number } | null>(null);
 
   // Window > Reset top bar.
@@ -168,8 +169,14 @@ function TopBar({ ctx, documentId }: { ctx: ToolContext; documentId: string | nu
         const id = items[i] ?? "";
         return id === BAR_SPACER ? 0 : (widths.current.get(slotKey(id, i)) ?? 36) + GAP;
       };
+      // The same answer keeps the same state, so a re-measure that changes nothing does
+      // not render again.
+      const set = (out: number[]) =>
+        setFitted((cur) =>
+          cur.key === key && cur.hide.join() === out.join() ? cur : { key, hide: out },
+        );
       let used = items.reduce((s, _id, i) => s + w(i), 0);
-      if (used <= room) return setFitted({ key, hide: [] });
+      if (used <= room) return set([]);
       // Tools go first: from the end of the left side (just before the space), then the
       // right side from its end.
       const split = items.indexOf(BAR_SPACER);
@@ -185,15 +192,20 @@ function TopBar({ ctx, documentId }: { ctx: ToolContext; documentId: string | nu
         out.push(i);
         used -= w(i);
       }
-      setFitted({ key, hide: out });
+      set(out);
     };
     fit();
+    // Re-fit when the window changes size and when an item on the bar does (the Cover
+    // page box appearing in two-up, the theme name, the zoom box). The space is left out:
+    // it takes up whatever is left over. An item in the » menu keeps its last width.
     const ro = new ResizeObserver(fit);
     ro.observe(el);
+    for (const slot of el.querySelectorAll<HTMLElement>("[data-slot]"))
+      if (slot.dataset.slot !== BAR_SPACER) ro.observe(slot);
     return () => ro.disconnect();
-    // Re-measure when the items change; widths are cached between runs.
+    // Re-measure when the items or the ones shown change; widths are cached between runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, documentId]);
+  }, [key, documentId, hideKey]);
 
   const shown = items.map((id, i) => ({ id, i })).filter((x) => !hide.has(x.i));
   const hidden = items.filter((_id, i) => hide.has(i));
