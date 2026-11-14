@@ -8,7 +8,14 @@ import {
   useActiveDocument,
   useDocumentManagerCapability,
 } from "@embedpdf/plugin-document-manager/react";
-import { MENUS, MENU_ROWS, shortcutKey, type MenuId, type MenuRow } from "../../app/appCommands";
+import {
+  EDIT_KEYS,
+  MENUS,
+  MENU_ROWS,
+  shortcutKey,
+  type MenuId,
+  type MenuRow,
+} from "../../app/appCommands";
 import { useWorkbench } from "../../app/workbench";
 import { MenuList, type MenuEntry } from "../kit/Menu";
 import { HELP_TOPICS } from "../help/topics";
@@ -97,18 +104,13 @@ function rowEntries(
   const entry: MenuEntry = {
     id: r.id,
     label: r.label,
-    shortcut: shortcutKey(r.shortcut) ?? EDIT_SHORTCUT[r.id],
+    shortcut: shortcutKey(r.shortcut) ?? EDIT_KEYS[r.id],
     disabled: !s.enabled,
     checked: r.check ? !!s.checked : undefined,
     run: () => cmds.run(r.id),
   };
   return r.divider ? [{ kind: "divider" }, entry] : [entry];
 }
-
-const EDIT_SHORTCUT: Record<string, string> = {
-  "edit.cut": "Ctrl+X",
-  "edit.paste": "Ctrl+V",
-};
 
 function Label({ text, mnemonic }: { text: string; mnemonic: string }) {
   const i = text.toLowerCase().indexOf(mnemonic);
@@ -202,9 +204,13 @@ export function MenuBar({ extra }: { extra?: (menu: MenuId) => MenuEntry[] }) {
     const outside = (e: PointerEvent) => {
       if (!bar.current?.contains(e.target as Node)) setOpen(null);
     };
+    const away = () => setOpen(null);
     window.addEventListener("pointerdown", outside, true);
-    window.addEventListener("blur", () => setOpen(null), { once: true });
-    return () => window.removeEventListener("pointerdown", outside, true);
+    window.addEventListener("blur", away);
+    return () => {
+      window.removeEventListener("pointerdown", outside, true);
+      window.removeEventListener("blur", away);
+    };
   }, [open]);
 
   return (

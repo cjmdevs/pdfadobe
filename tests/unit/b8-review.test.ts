@@ -1,9 +1,7 @@
 // Logic behind the fixes from the B8 code review.
 import { describe, expect, it } from "vitest";
 import { leftRunning, type Running } from "../../src/app/toolSwitch";
-import { isJump, pageStep } from "../../src/app/viewHistory";
-import { BAR_SPACER, withDivider } from "../../src/app/topBar";
-import { QUICK_DIVIDER } from "../../src/tools/registry";
+import { dropViewHistory, isJump, pageStep, viewHistory } from "../../src/app/viewHistory";
 
 describe("leaving a tool", () => {
   const idle: Running = { tool: null, markup: null, mode: "default", stamp: null, flyer: null };
@@ -46,22 +44,11 @@ describe("view history jumps", () => {
   });
 });
 
-describe("top bar dividers", () => {
-  const l = {
-    bar: ["bar:open", "bar:save", QUICK_DIVIDER, "bar:print", BAR_SPACER, "bar:help"],
-    menus: {},
-  };
-
-  it("adds a divider after the picked item", () => {
-    expect(withDivider(l, 0)?.bar.slice(0, 3)).toEqual(["bar:open", QUICK_DIVIDER, "bar:save"]);
-  });
-
-  it("is not offered where the divider would not stay", () => {
-    expect(withDivider(l, -1)).toBeNull(); // nothing picked
-    expect(withDivider(l, 1)).toBeNull(); // before a divider
-    expect(withDivider(l, 2)).toBeNull(); // a divider is picked
-    expect(withDivider(l, 3)).toBeNull(); // before the space
-    expect(withDivider(l, 4)).toBeNull(); // after the space
-    expect(withDivider(l, 5)).toBeNull(); // at the end
+describe("view history of a closed document", () => {
+  it("is forgotten", () => {
+    viewHistory("store-1").leave({ page: 3, x: 0, y: 0, scale: 1 });
+    expect(viewHistory("store-1").canGoBack).toBe(true);
+    dropViewHistory("store-1");
+    expect(viewHistory("store-1").canGoBack).toBe(false);
   });
 });

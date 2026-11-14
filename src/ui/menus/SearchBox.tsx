@@ -15,17 +15,6 @@ function NoDocSearch({ onDone }: { onDone?: () => void }) {
   return <CommandSearch ctx={ctx} autoFocus={!!onDone} {...(onDone ? { onDone } : {})} />;
 }
 
-/** In the top bar. */
-export function SearchBox({ documentId }: { documentId: string | null }) {
-  return documentId ? (
-    <Guard resetKey={documentId} fallback={<NoDocSearch />}>
-      <DocSearch key={documentId} documentId={documentId} />
-    </Guard>
-  ) : (
-    <NoDocSearch />
-  );
-}
-
 /** Alt+Q when the top bar has no search box (it was removed or is in the overflow menu). */
 export function SearchDialog({ onClose }: { onClose: () => void }) {
   const loadedId = useLoadedDocumentId();

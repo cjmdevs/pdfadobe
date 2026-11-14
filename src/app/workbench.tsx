@@ -8,6 +8,7 @@
 // the tab) it is pushed as one "Markup" revision and that history is cleared.
 
 import type { PrefCategory } from "./prefsIndex";
+import { dropViewHistory } from "./viewHistory";
 import {
   createContext,
   useCallback,
@@ -708,6 +709,7 @@ export function WorkbenchProvider({
         const sid = metaRef.current[id]?.storeId;
         if (!sid) continue;
         unsigned.current.delete(sid);
+        dropViewHistory(sid);
         void queued(sid, () => platform.docs.release(sid)).catch(() => undefined);
       }
       forget(ids);
@@ -720,6 +722,9 @@ export function WorkbenchProvider({
     (ids: string[]) => {
       for (const id of ids) {
         docs?.closeDocument(id);
+        // Previous / next view is per window: it does not follow the tab.
+        const sid = metaRef.current[id]?.storeId;
+        if (sid) dropViewHistory(sid);
       }
       forget(ids);
       // An extra window closes once its last tab has left (like a browser).

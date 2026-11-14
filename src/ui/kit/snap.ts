@@ -144,6 +144,3 @@ export function snapPoint(
   if (hy) guides.push(guide("y", hy.at, at, hy.line));
   return { x, y, guides };
 }
-
-/** Screen pixels within which an edge snaps. */
-export const SNAP_PX = 6;

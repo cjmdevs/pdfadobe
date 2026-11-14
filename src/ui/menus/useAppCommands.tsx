@@ -159,8 +159,7 @@ export function useAppCommands() {
 
   const run = (id: string) => {
     const d = appCommand(id);
-    if (id in EDIT_KEYS && id !== "edit.copy") return runEdit(id);
-    if (id === "edit.copy") return runEdit(id);
+    if (id in EDIT_KEYS) return runEdit(id);
     switch (id) {
       case "file.home":
         return wb.setHome(true);

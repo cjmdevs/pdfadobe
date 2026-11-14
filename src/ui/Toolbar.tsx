@@ -489,11 +489,6 @@ function ViewSettings() {
   );
 }
 
-/** The pinned tools (Customize dialog, Home screen): the bar's tool actions in order. */
-export function quickToolbarRefs(settings: Parameters<typeof effectiveLayout>[0]): string[] {
-  return effectiveLayout(settings).bar.filter((r) => resolveAction(r) !== null);
-}
-
 /** Quick-toolbar button: names what it acts on ("Rotate left: page 2"). */
 function QuickAction({
   tool,
