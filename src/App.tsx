@@ -37,6 +37,7 @@ import { Sidebar } from "./ui/Sidebar";
 import { StartPage, Toasts } from "./ui/StartPage";
 import { Guard } from "./ui/Guard";
 import { TabBar } from "./ui/TabBar";
+import { TooltipLayer } from "./ui/kit/Tooltip";
 import { parseFirmLayout } from "./tools/registry";
 import { ToolToolbar, Toolbar } from "./ui/Toolbar";
 import { ToolsPane } from "./ui/ToolsPane";
@@ -326,6 +327,7 @@ function Shell({ ready }: { ready: boolean }) {
       {ready && <TickLinkRenderer />}
       <Dialogs />
       <Toasts />
+      <TooltipLayer />
       {/* EmbedPDF auto-mounts its PrintFrame and CopyToClipboard utilities; mounting them
           again here would print and copy twice. */}
     </div>

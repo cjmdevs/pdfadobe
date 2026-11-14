@@ -1,8 +1,7 @@
 // Right-hand Tools pane (backlog B4): search box and the list of tools from the registry.
 // Clicking a tool opens its toolbar above the page (or runs it, e.g. Combine Files).
-// Tools that are not built yet are hidden unless "Show tools that are coming later" is on.
 import { lazy, Suspense, useState, type ReactNode } from "react";
-import { TOOLS, comingLabel, isBuilt, type ToolContext, type ToolDef } from "../tools/registry";
+import { TOOLS, type ToolContext, type ToolDef } from "../tools/registry";
 import { useDocToolContext, useNoDocToolContext } from "../tools/useToolContext";
 import { Icon } from "./Icon";
 
@@ -33,13 +32,11 @@ function matches(t: ToolDef, q: string): boolean {
 }
 
 function Pane({ ctx }: { ctx: ToolContext }) {
-  const { settings, updateSettings, meta, setActiveTool } = ctx.wb;
+  const { updateSettings, meta, setActiveTool } = ctx.wb;
   const [query, setQuery] = useState("");
   const active = ctx.documentId ? meta[ctx.documentId]?.activeTool : null;
   const panel = active && ctx.documentId ? PANELS.get(active)?.(ctx.documentId) : null;
-  const shown = TOOLS.filter(
-    (t) => !t.unlisted && (isBuilt(t) || settings.showComingTools) && matches(t, query),
-  );
+  const shown = TOOLS.filter((t) => !t.unlisted && matches(t, query));
 
   const open = (t: ToolDef) => {
     if (t.open !== "toolbar") return t.open(ctx);
@@ -75,9 +72,8 @@ function Pane({ ctx }: { ctx: ToolContext }) {
       )}
       <ul className="tool-list">
         {shown.map((t) => {
-          const built = isBuilt(t);
           const needsDoc = t.needsDocument !== false;
-          const disabled = !built || (needsDoc && !ctx.documentId);
+          const disabled = needsDoc && !ctx.documentId;
           return (
             <li key={t.id}>
               <button
@@ -86,30 +82,19 @@ function Pane({ ctx }: { ctx: ToolContext }) {
                 aria-pressed={t.open === "toolbar" ? active === t.id : undefined}
                 aria-label={t.name}
                 disabled={disabled}
-                title={built ? t.description : `${t.description}. ${comingLabel(t)}.`}
+                title={t.description}
                 onClick={() => open(t)}
               >
-                <span className="tool-icon" style={{ color: built ? t.color : undefined }}>
+                <span className="tool-icon" style={{ color: t.color }}>
                   <Icon name={t.icon} />
                 </span>
-                <span className="tool-name">
-                  {t.name}
-                  {!built && <span className="tool-coming">{comingLabel(t)}</span>}
-                </span>
+                <span className="tool-name">{t.name}</span>
               </button>
             </li>
           );
         })}
         {!shown.length && <li className="muted pad">No tools match.</li>}
       </ul>
-      <label className="tools-option small">
-        <input
-          type="checkbox"
-          checked={settings.showComingTools}
-          onChange={(e) => updateSettings({ showComingTools: e.target.checked })}
-        />{" "}
-        Show tools that are coming later
-      </label>
     </aside>
   );
 }

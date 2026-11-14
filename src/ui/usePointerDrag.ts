@@ -7,6 +7,8 @@ import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } f
 export interface PointerDrag<S> {
   /** What is being dragged, once the pointer has moved past the threshold. */
   source: S | null;
+  /** Pointer position (client coordinates) while dragging, for a DragGhost (B8). */
+  pos: { x: number; y: number } | null;
   /** Call from onPointerDown of a draggable element. */
   start(e: ReactPointerEvent, source: S): void;
 }
@@ -22,6 +24,7 @@ export function usePointerDrag<S>(handlers: {
   disabled?: boolean;
 }): PointerDrag<S> {
   const [source, setSource] = useState<S | null>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const h = useRef(handlers);
   useEffect(() => {
     h.current = handlers;
@@ -44,6 +47,7 @@ export function usePointerDrag<S>(handlers: {
         document.body.classList.add("pointer-dragging");
       }
       ev.preventDefault();
+      setPos({ x: ev.clientX, y: ev.clientY });
       h.current.onMove(s, under(ev), ev);
     };
     const up = (ev: PointerEvent) => {
@@ -68,6 +72,7 @@ export function usePointerDrag<S>(handlers: {
       window.removeEventListener("keydown", key, true);
       document.body.classList.remove("pointer-dragging");
       setSource(null);
+      setPos(null);
       cleanup.current = null;
     };
     cleanup.current?.();
@@ -76,7 +81,7 @@ export function usePointerDrag<S>(handlers: {
     window.addEventListener("pointerup", up, true);
     window.addEventListener("keydown", key, true);
   };
-  return { source, start };
+  return { source, pos, start };
 }
 
 function swallow(e: Event) {

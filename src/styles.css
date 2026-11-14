@@ -960,15 +960,6 @@ body.pointer-dragging * {
   display: flex;
   flex-direction: column;
 }
-.tool-coming {
-  font-size: var(--text-xs);
-  color: var(--fg-muted);
-}
-.tools-option {
-  padding: var(--space-3) var(--space-3);
-  border-top: 1px solid var(--border);
-  color: var(--fg-muted);
-}
 .organize-status {
   gap: var(--space-5);
 }

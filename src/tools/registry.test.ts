@@ -4,8 +4,6 @@ import {
   DEFAULT_QUICK_TOOLBAR,
   TOOLS,
   cleanQuickToolbar,
-  comingLabel,
-  isBuilt,
   parseFirmLayout,
   pinnableActions,
   resolveAction,
@@ -22,19 +20,12 @@ describe("tool registry", () => {
   it("the default quick toolbar only uses built tools", () => {
     for (const r of DEFAULT_QUICK_TOOLBAR) {
       const hit = resolveAction(r);
-      expect(hit !== null && isBuilt(hit.tool), r).toBe(true);
+      expect(hit, r).not.toBeNull();
     }
   });
 
-  it("unbuilt tools say when they come and cannot run", () => {
-    // Since Phase 8 every tool is built; a stand-in checks the label.
-    const planned = TOOLS.filter((t) => !isBuilt(t));
-    const sample = TOOLS[0];
-    if (sample) planned.push({ ...sample, comingIn: "later" });
-    for (const t of planned) {
-      expect(comingLabel(t)).toMatch(/^Coming in/);
-      expect(comingLabel({ ...t, comingIn: 7 })).toBe("Coming in Phase 7");
-    }
+  it('no tool carries a "coming later" placeholder (B8)', () => {
+    for (const t of TOOLS) expect("comingIn" in t, t.id).toBe(false);
   });
 
   it("cleans saved toolbars: drops unknown, unbuilt and duplicate entries", () => {

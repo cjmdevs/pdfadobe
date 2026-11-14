@@ -556,3 +556,157 @@ kbd {
 .crash-files {
   text-align: left;
 }
+
+/* ---- B8 kit: menus, tooltips, drag feedback ---- */
+.kit-menu {
+  position: static;
+  min-width: 220px;
+  padding: var(--space-1) 0;
+  box-shadow: var(--elev-2);
+}
+.kit-menu > button,
+.kit-sub > button {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--control-h);
+  padding: 0 var(--space-3) 0 var(--space-2);
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  white-space: nowrap;
+}
+.kit-menu > button:hover:not(:disabled),
+.kit-menu > button:focus-visible,
+.kit-sub > button:hover:not(:disabled),
+.kit-sub > button[aria-expanded="true"] {
+  background: var(--bg-hover);
+}
+.kit-menu > button.danger {
+  color: var(--danger);
+}
+.kit-check {
+  text-align: center;
+  color: var(--accent);
+}
+.kit-key,
+.kit-arrow {
+  color: var(--fg-muted);
+  font-family: var(--font);
+  font-size: var(--text-xs);
+  padding-left: var(--space-4);
+}
+.kit-sub {
+  position: relative;
+}
+.kit-flyout-host {
+  position: absolute;
+  left: 100%;
+  top: calc(-1 * var(--space-1));
+  z-index: 61;
+}
+.kit-flyout-host.flip {
+  left: auto;
+  right: 100%;
+}
+.context-menu-host {
+  z-index: 60;
+}
+.kit-tooltip {
+  position: fixed;
+  z-index: 70;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 320px;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--fg);
+  color: var(--bg);
+  font-size: var(--text-xs);
+  box-shadow: var(--elev-1);
+  pointer-events: none;
+}
+.kit-tooltip.above {
+  transform: translate(-50%, -100%);
+}
+.kit-tooltip .kit-key {
+  color: inherit;
+  opacity: 0.75;
+  padding-left: 0;
+}
+.drag-ghost {
+  position: fixed;
+  z-index: 70;
+  pointer-events: none;
+  opacity: 0.6;
+  max-width: 220px;
+  padding: var(--space-1) var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  box-shadow: var(--elev-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drag-ghost img {
+  display: block;
+  max-width: 96px;
+  max-height: 120px;
+}
+.drag-ghost-count {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  min-width: 20px;
+  padding: 0 var(--space-1);
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-size: var(--text-xs);
+  text-align: center;
+}
+.insert-line {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--accent);
+  border-radius: 2px;
+}
+.insert-line.horizontal {
+  left: 4px;
+  right: 4px;
+  height: 3px;
+}
+.box-readout {
+  position: absolute;
+  z-index: 25;
+  display: flex;
+  gap: var(--space-2);
+  padding: 1px var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--fg);
+  color: var(--bg);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.snap-guide {
+  position: absolute;
+  z-index: 24;
+  pointer-events: none;
+  background: var(--page-accent);
+}
+.snap-guide.x {
+  width: 1px;
+}
+.snap-guide.y {
+  height: 1px;
+}

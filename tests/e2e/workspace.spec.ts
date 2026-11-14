@@ -34,11 +34,11 @@ test.describe("workspace", () => {
     await expect(page.getByRole("complementary", { name: "Tools pane" })).toBeVisible();
   });
 
-  test("every tool is built (Phase 8): none is greyed as coming later", async ({ page }) => {
+  test("no placeholders (B8): no coming-later tools or setting", async ({ page }) => {
     await boot(page);
     const tools = page.getByRole("complementary", { name: "Tools pane" });
     await expect(tools.getByRole("button", { name: "Protect", exact: true })).toHaveCount(1);
-    await tools.getByLabel("Show tools that are coming later").check();
+    await expect(tools.getByText(/coming later/i)).toHaveCount(0);
     await expect(tools.getByText(/Coming in/)).toHaveCount(0);
   });
 

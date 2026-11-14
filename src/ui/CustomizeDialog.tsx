@@ -10,8 +10,6 @@ import { PlatformError, platform } from "../platform";
 import {
   QUICK_DIVIDER,
   TOOLS,
-  comingLabel,
-  isBuilt,
   parseFirmLayout,
   resolveAction,
   type FirmLayout,
@@ -103,7 +101,7 @@ export function CustomizeDialog({ onClose }: { onClose: () => void }) {
   const picked = at !== null ? refs[at] : undefined;
   const pickedLabel =
     picked === QUICK_DIVIDER ? "divider" : picked ? resolveAction(picked)?.action.label : "";
-  const groups = TOOLS.filter((t) => t.toolbar.length && (isBuilt(t) || settings.showComingTools));
+  const groups = TOOLS.filter((t) => t.toolbar.length);
 
   return (
     <FormModal
@@ -214,7 +212,6 @@ export function CustomizeDialog({ onClose }: { onClose: () => void }) {
                 <li key={t.id} role="treeitem" aria-expanded={open} aria-selected={false}>
                   <button type="button" className="tree-head" onClick={() => toggle(t.id)}>
                     <span aria-hidden="true">{open ? "▾" : "▸"}</span> {name}
-                    {!isBuilt(t) && <span className="tool-coming"> · {comingLabel(t)}</span>}
                   </button>
                   {open && (
                     <ul role="group">
@@ -228,7 +225,7 @@ export function CustomizeDialog({ onClose }: { onClose: () => void }) {
                               type="button"
                               className="available-action"
                               aria-pressed={choice === ref}
-                              disabled={pinned || !isBuilt(t)}
+                              disabled={pinned}
                               onClick={() => setChoice(ref)}
                               onDoubleClick={() => {
                                 insert(ref);

@@ -14,7 +14,7 @@ import {
   MAX_PINNED,
   type RecentFile,
 } from "../app/recent";
-import { TOOLS, isBuilt, type ToolDef } from "../tools/registry";
+import { TOOLS, type ToolDef } from "../tools/registry";
 import { useNoDocToolContext } from "../tools/useToolContext";
 import { Icon } from "./Icon";
 import { AcrobatButton } from "./kit/AcrobatButton";
@@ -23,7 +23,7 @@ export function StartPage() {
   const wb = useWorkbench();
   const { settings, pickAndOpen } = wb;
   const ctx = useNoDocToolContext();
-  const quick = TOOLS.filter((t) => t.home && isBuilt(t));
+  const quick = TOOLS.filter((t) => t.home);
 
   const runTool = (t: ToolDef) => {
     if (t.needsDocument === false && t.open !== "toolbar") t.open(ctx);

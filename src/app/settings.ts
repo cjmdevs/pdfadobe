@@ -41,8 +41,6 @@ export interface Settings {
   bookmarkDragMovesPages: boolean;
   /** Right-hand Tools pane shown. */
   toolsPaneOpen: boolean;
-  /** Show tools that are not built yet, greyed out ("Coming in Phase N"). */
-  showComingTools: boolean;
   /** The user's own quick toolbar ("tool.action" refs); null = the firm default. */
   quickToolbar: string[] | null;
   /** Firm default layout file on the network share (JSON), or null. */
@@ -142,7 +140,6 @@ export const DEFAULT_SETTINGS: Settings = {
   printAutoRotate: true,
   bookmarkDragMovesPages: true,
   toolsPaneOpen: true,
-  showComingTools: false,
   quickToolbar: null,
   firmLayoutPath: null,
   firmLayoutCache: null,
@@ -237,7 +234,6 @@ export function sanitizeSettings(raw: unknown): Settings {
         ? r.bookmarkDragMovesPages
         : d.bookmarkDragMovesPages,
     toolsPaneOpen: typeof r.toolsPaneOpen === "boolean" ? r.toolsPaneOpen : d.toolsPaneOpen,
-    showComingTools: typeof r.showComingTools === "boolean" ? r.showComingTools : d.showComingTools,
     quickToolbar: stringList(r.quickToolbar),
     firmLayoutPath:
       typeof r.firmLayoutPath === "string" && r.firmLayoutPath.trim() ? r.firmLayoutPath : null,

@@ -291,11 +291,6 @@ export interface ToolDef {
   /** Icon colour in the Tools pane: a CSS colour, normally a --tint-* theme token. */
   color: string;
   description: string;
-  /**
-   * null: built. A number: the phase that builds it ("Coming in Phase N"). "later": not
-   * scheduled yet. Unbuilt tools are hidden unless the "show coming tools" setting is on.
-   */
-  comingIn: number | "later" | null;
   /** "toolbar": opening shows the tool's toolbar above the page; or run once (dialogs). */
   open: "toolbar" | ((ctx: ToolContext) => void);
   /** Opening needs a document (default true). */
@@ -423,7 +418,6 @@ export const TOOLS: ToolDef[] = [
     icon: "organize",
     color: "var(--tint-green)",
     description: "Reorder, rotate, insert, extract, replace, split, crop pages",
-    comingIn: null,
     home: true,
     open: "toolbar",
     view: "pages",
@@ -435,7 +429,6 @@ export const TOOLS: ToolDef[] = [
     icon: "combine",
     color: "var(--tint-violet)",
     description: "Merge PDFs and scans into one PDF, with a bookmark per file",
-    comingIn: null,
     home: true,
     needsDocument: false,
     open: (c) => c.wb.setDialog({ kind: "combine", documentId: c.documentId }),
@@ -447,7 +440,6 @@ export const TOOLS: ToolDef[] = [
     icon: "fitPage",
     color: "var(--tint-slate)",
     description: "Zoom commands",
-    comingIn: null,
     unlisted: true,
     open: "toolbar",
     toolbar: [
@@ -482,7 +474,6 @@ export const TOOLS: ToolDef[] = [
     icon: "editPdf",
     color: "var(--tint-rose)",
     description: "Edit text and images on the page",
-    comingIn: null,
     open: "toolbar",
     panel: () => import("../ui/edit/EditPanel"),
     toolbar: [
@@ -594,7 +585,6 @@ export const TOOLS: ToolDef[] = [
     icon: "comment",
     color: "var(--tint-amber)",
     description: "Sticky notes, highlights, text boxes, shapes, drawing",
-    comingIn: null,
     open: "toolbar",
     toolbar: MARKUP_TOOLS.map((m): ToolAction => ({
       id: m.id,
@@ -684,7 +674,6 @@ export const TOOLS: ToolDef[] = [
     icon: "stamp",
     color: "var(--tint-violet)",
     description: "Dynamic, Sign Here and Standard Business stamps, and your own image stamps",
-    comingIn: null,
     open: "toolbar",
     toolbar: [
       // Acrobat's Stamp toolbar (B6): the Stamp menu, the palette, custom stamps.
@@ -725,7 +714,6 @@ export const TOOLS: ToolDef[] = [
     icon: "signature",
     color: "var(--tint-orange)",
     description: "Sign with your saved signature or initials; add text, check marks and dates",
-    comingIn: null,
     open: "toolbar",
     toolbar: [
       {
@@ -789,7 +777,6 @@ export const TOOLS: ToolDef[] = [
     icon: "certificate",
     color: "var(--tint-teal)",
     description: "Digitally sign with a certificate; see the signatures in a document",
-    comingIn: null,
     open: "toolbar",
     panel: () => import("../ui/sign/SignaturePanel"),
     toolbar: [
@@ -821,7 +808,6 @@ export const TOOLS: ToolDef[] = [
     icon: "protect",
     color: "var(--tint-blue)",
     description: "Passwords and permissions (AES-256), or remove security",
-    comingIn: null,
     open: "toolbar",
     toolbar: [
       {
@@ -846,14 +832,12 @@ export const TOOLS: ToolDef[] = [
       },
     ],
   },
-  // ---- Not built yet: hidden unless "Show tools that are coming later" is on. ----
   {
     id: "flyer",
     name: "Workpaper Tools",
     icon: "tickmark",
     color: "var(--tint-amber)",
     description: "Tickmarks, sign-off stamps, connectors, notes, calculator tape (PDFlyer-style)",
-    comingIn: null,
     open: "toolbar",
     panel: () => import("../ui/flyer/StampSummaryPanel"),
     toolbar: [
@@ -1026,7 +1010,6 @@ export const TOOLS: ToolDef[] = [
     icon: "redact",
     color: "var(--tint-rose)",
     description: "Permanently remove sensitive content",
-    comingIn: null,
     open: "toolbar",
     panel: () => import("../ui/redact/RedactPanel"),
     toolbar: [
@@ -1085,7 +1068,6 @@ export const TOOLS: ToolDef[] = [
     icon: "form",
     color: "var(--tint-violet)",
     description: "Fill, check and reset form fields",
-    comingIn: null,
     open: "toolbar",
     panel: () => import("../ui/forms/FormsPanel"),
     toolbar: [
@@ -1160,7 +1142,6 @@ export const TOOLS: ToolDef[] = [
     icon: "form",
     color: "var(--tint-violet)",
     description: "Add, move and set up form fields",
-    comingIn: null,
     open: "toolbar",
     panel: () => import("../ui/forms/PreparePanel"),
     toolbar: [
@@ -1203,7 +1184,6 @@ export const TOOLS: ToolDef[] = [
     icon: "ocr",
     color: "var(--tint-green)",
     description: "Make scanned pages searchable, straighten scans, Bates numbers",
-    comingIn: null,
     open: "toolbar",
     panel: () => import("../ui/scan/ScanPanel"),
     // Like Acrobat's Scan & OCR toolbar (docs/reference/image_5.png).
@@ -1297,7 +1277,6 @@ export const TOOLS: ToolDef[] = [
     icon: "optimize",
     color: "var(--tint-orange)",
     description: "Reduce file size: smaller images, subset fonts, no unused objects",
-    comingIn: null,
     open: (c) => {
       if (c.documentId) c.wb.setDialog({ kind: "optimize", documentId: c.documentId });
     },
@@ -1320,7 +1299,6 @@ export const TOOLS: ToolDef[] = [
     color: "var(--tint-rose)",
     description:
       "PDFs from Word, Excel, PowerPoint or scanned images; a whole folder, or several files combined into one",
-    comingIn: null,
     needsDocument: false,
     open: (c) => c.wb.setDialog({ kind: "createPdf" }),
     toolbar: [
@@ -1340,7 +1318,6 @@ export const TOOLS: ToolDef[] = [
     icon: "exportFile",
     color: "var(--tint-blue)",
     description: "To Word, Excel, PNG or JPEG images, or a .txt file",
-    comingIn: null,
     open: (c) => {
       if (c.documentId) c.wb.setDialog({ kind: "exportPdf", documentId: c.documentId });
     },
@@ -1361,8 +1338,6 @@ export const TOOLS: ToolDef[] = [
   decorTool("background", "background", "Background", "fill"),
   decorTool("bates", "bates", "Bates numbering", "bates"),
 ];
-
-export const isBuilt = (t: ToolDef) => t.comingIn === null;
 
 type DecorWhat = "header" | "bates" | "watermark" | "background";
 
@@ -1392,7 +1367,6 @@ function decorTool(id: string, what: DecorWhat, name: string, icon: IconName): T
     icon,
     color: "var(--tint-green)",
     description: name,
-    comingIn: null,
     unlisted: true,
     open: (c) => items[0]?.run(c),
     toolbar: items.map((it) => ({
@@ -1413,11 +1387,10 @@ function organizeAction(id: string): ToolAction {
 }
 
 /**
- * An Edit toolbar button for a later phase's tool (`toolId`): hidden until that tool
- * is built; then it opens the tool, and its arrow lists the tool's own actions.
+ * An Edit toolbar button for another tool (`toolId`): it opens the tool, and its arrow lists the tool's own actions.
  */
 function phase7Action(toolId: string, caption: string, icon: IconName): ToolAction {
-  const target = () => TOOLS.find((t) => t.id === toolId && isBuilt(t));
+  const target = () => TOOLS.find((t) => t.id === toolId);
   // A tool that opens a dialog runs here; a toolbar tool takes over the toolbar.
   const open = (c: ToolContext) => {
     const t = target();
@@ -1446,12 +1419,6 @@ function phase7Action(toolId: string, caption: string, icon: IconName): ToolActi
   };
 }
 
-export function comingLabel(t: ToolDef): string {
-  return typeof t.comingIn === "number"
-    ? `Coming in Phase ${t.comingIn}`
-    : "Coming in a later phase";
-}
-
 export function tool(id: string): ToolDef | undefined {
   return TOOLS.find((t) => t.id === id);
 }
@@ -1464,8 +1431,7 @@ export function resolveAction(ref: string): { tool: ToolDef; action: ToolAction 
   return t && a ? { tool: t, action: a } : null;
 }
 
-export function actionEnabled(t: ToolDef, a: ToolAction, ctx: ToolContext): boolean {
-  if (!isBuilt(t)) return false;
+export function actionEnabled(_tool: ToolDef, a: ToolAction, ctx: ToolContext): boolean {
   return a.enabled ? a.enabled(ctx) : hasDoc(ctx) && ctx.pages.length > 0;
 }
 
@@ -1504,7 +1470,7 @@ export function cleanQuickToolbar(refs: unknown): string[] | null {
     }
     if (typeof r !== "string" || out.includes(r)) continue;
     const hit = resolveAction(r);
-    if (hit && isBuilt(hit.tool)) out.push(r);
+    if (hit) out.push(r);
   }
   if (out.at(-1) === QUICK_DIVIDER) out.pop();
   return out;
