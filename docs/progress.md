@@ -5,7 +5,7 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **B8 follow-up (owner findings from that check) 2026-11-14, owner check pending**
+- **B8 follow-up (owner findings from that check) 2026-11-14, owner check passed**
   (`docs/testing/b8-followup-test-guide.md`). (1) Single page view: EmbedPDF's `Rotate`
   places the page absolutely with no size (the Scroller sizes it in the other views), so
   the viewport had nothing to scroll and a zoomed page spilled over the panels; the page
