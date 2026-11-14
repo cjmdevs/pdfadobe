@@ -4,6 +4,7 @@
 // another one); a click on an annotation attaches that end to it. With the calculator, a
 // click on an amount sends it, and foot/cross-foot drags around amounts, then takes the
 // total; a calculator tape is placed once.
+import { spanBox, usePageSnapper } from "../dragFeedback";
 import { useEffect, useRef, useState } from "react";
 import { plural } from "../kit/text";
 import { useDocumentState } from "@embedpdf/core/react";
@@ -215,6 +216,8 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
       live = false;
     };
   }, [wantsNumbers, wb, documentId, pageIndex]);
+  // The footing area shows its size while dragged (B8); tickmarks go exactly where clicked.
+  const snap = usePageSnapper(documentId, pageIndex);
   const latest = useRef({ scope, im, pageSize, state, wb, doc });
   useEffect(() => {
     latest.current = { scope, im, pageSize, state, wb, doc };
@@ -228,10 +231,12 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
         if (dragRef.current) {
           dragRef.current = { ...dragRef.current, to: pos };
           setDrag(dragRef.current);
+          snap.show(spanBox(dragRef.current.from, pos), [], true);
         }
       },
       onPointerLeave: () => setCursor(null),
       onPointerUp: () => {
+        snap.clear();
         const d0 = dragRef.current;
         dragRef.current = null;
         setDrag(null);
@@ -414,7 +419,7 @@ export function FlyerLayer({ documentId, pageIndex }: { documentId: string; page
           .catch(fail);
       },
     });
-  }, [active, register, pageIndex, documentId]);
+  }, [active, register, pageIndex, documentId, snap]);
 
   // Footing in progress or done on this page: the selected amounts and the total.
   const marks =

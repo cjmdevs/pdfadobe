@@ -46,6 +46,8 @@ import { cropRect, dragEdge, edgeAt, frameOf, overfull, partOf, type Edge } from
 import { TextEditor } from "./TextEditor";
 import { dragPlacement, hitHandle, naturalSize, type Handle, type Pt } from "./imageDrag";
 import { addImageEdit, applyFrame, moveTextBox, placeImageEdit } from "./editActions";
+import { spanBox, usePageSnapper } from "../dragFeedback";
+import type { Box } from "../kit/snap";
 
 /** Store bytes per loaded document object: one read serves every page of the tab. */
 const bytesFor = new WeakMap<object, Promise<Uint8Array | null>>();
@@ -152,6 +154,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
       live = false;
     };
   }, [active, doc, documentId, pageIndex, wb, linkOn]);
+  const snap = usePageSnapper(documentId, pageIndex);
   const latest = useRef({
     info,
     busy: wb.busy,
@@ -228,6 +231,27 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
     /** Corners keep proportions unless Shift (the other way round when unlocked). */
     const free = (shiftKey: boolean) => (editOptions.get().lockAspect ? shiftKey : !shiftKey);
     const sid = () => latest.current.wb.meta[documentId]?.storeId;
+    // Drag feedback (B8): boxes in page points with a top-left origin, like the readout.
+    const H = () => latest.current.info?.height ?? 0;
+    const toBox = (r: Rect): Box => ({ x: r.l, y: H() - r.t, w: r.r - r.l, h: r.t - r.b });
+    const placeBox = (p: Placement): Box => ({
+      x: p.cx - p.width / 2,
+      y: H() - (p.cy + p.height / 2),
+      w: p.width,
+      h: p.height,
+    });
+    /** Other text boxes and images on the page, as snap targets. */
+    const objects = (skip: unknown): Box[] => {
+      const i = latest.current.info;
+      if (!i) return [];
+      return [
+        ...i.boxes
+          .filter((b) => b !== skip)
+          .map((b) => toBox(frameOf(b, frameSettings.get(sid(), pageIndex, b)))),
+        ...i.images.filter((m) => m !== skip).map((m) => placeBox(m.placement)),
+      ];
+    };
+    const drawCorner = (pos: { x: number; y: number }) => snap.point(pos, objects(null));
     return register({
       onPointerMove: (pos, evt) => {
         if (inEditor(evt.target) && !latest.current.press) return;
@@ -246,20 +270,43 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         const pr = latest.current.press;
         if (f) {
           const start = frameOf(f.box, frameSettings.get(sid(), pageIndex, f.box));
-          setFrameDrag({ ...f, now: dragEdge(start, f.edge, pdf(pos)) });
+          const raw = dragEdge(start, f.edge, pdf(pos));
+          const s2 = snap.resize(toBox(raw), f.edge, objects(f.box));
+          const now = {
+            l: s2.box.x,
+            r: s2.box.x + s2.box.w,
+            t: H() - s2.box.y,
+            b: H() - s2.box.y - s2.box.h,
+          };
+          setFrameDrag({ ...f, now });
+          snap.show(s2.box, s2.guides, true);
         } else if (pr) {
           const p = pdf(pos);
-          const dx = p.x - pr.from.x;
-          const dy = p.y - pr.from.y;
+          let dx = p.x - pr.from.x;
+          let dy = p.y - pr.from.y;
           const moving = pr.moving || Math.hypot(dx, dy) * latest.current.scale >= DRAG_PX;
+          if (moving) {
+            const start = toBox(frameOf(pr.box, frameSettings.get(sid(), pageIndex, pr.box)));
+            const s2 = snap.move({ ...start, x: start.x + dx, y: start.y - dy }, objects(pr.box));
+            dx = s2.box.x - start.x;
+            dy = start.y - s2.box.y;
+            snap.show(s2.box, s2.guides, false);
+          }
           setPress({ ...pr, dx, dy, moving });
-        } else if (g)
-          setImgDrag({
-            ...g,
-            now: dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), free(evt.shiftKey)),
-          });
-        else if (d) setDrag({ ...d, x1: pos.x, y1: pos.y });
-        else if (pendingImage.get(documentId)) setGhost(pdf(pos));
+        } else if (g) {
+          let now = dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), free(evt.shiftKey));
+          // Moves of unrotated images snap; resizes and rotations show their size.
+          if (g.handle === "move" && Math.abs(now.rotation) < 0.01) {
+            const s2 = snap.move(placeBox(now), objects(g.img));
+            now = { ...now, cx: s2.box.x + now.width / 2, cy: H() - s2.box.y - now.height / 2 };
+            snap.show(s2.box, s2.guides, false);
+          } else if (g.handle !== "rotate") snap.show(placeBox(now), [], true);
+          setImgDrag({ ...g, now });
+        } else if (d) {
+          const p = drawCorner(pos);
+          setDrag({ ...d, x1: p.x, y1: p.y });
+          snap.show(spanBox({ x: d.x0, y: d.y0 }, p), p.guides, true);
+        } else if (pendingImage.get(documentId)) setGhost(pdf(pos));
         else setHover(addText.get(documentId) ? null : at(pos));
       },
       onPointerLeave: () => {
@@ -282,7 +329,10 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           );
           if (hit)
             linkMode.setCurrent(documentId, { page: pageIndex, ref: hit.ref, rect: hit.rect });
-          else setDrag({ kind: "link", x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
+          else {
+            const p0 = drawCorner(pos);
+            setDrag({ kind: "link", x0: p0.x, y0: p0.y, x1: p0.x, y1: p0.y });
+          }
           return;
         }
         // Cropping: only the crop handles work (Apply or Cancel in the panel ends it).
@@ -299,7 +349,8 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         }
         if (pendingImage.get(documentId) || addText.get(documentId)) {
           const kind = pendingImage.get(documentId) ? "image" : "text";
-          setDrag({ kind, x0: pos.x, y0: pos.y, x1: pos.x, y1: pos.y });
+          const p0 = drawCorner(pos);
+          setDrag({ kind, x0: p0.x, y0: p0.y, x1: p0.x, y1: p0.y });
           return;
         }
         const i = latest.current.info;
@@ -351,8 +402,12 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           });
         else setImgDrag({ img: hit, handle: handle ?? "move", from: pdf(pos), now: hit.placement });
       },
-      onPointerUp: (pos, evt) => {
+      onPointerUp: (rawPos, evt) => {
         if (inEditor(evt.target) && !latest.current.press && !latest.current.drag) return;
+        snap.clear();
+        // A drawn box ends where the (snapped) corner was shown.
+        const dr = latest.current.drag;
+        const pos = dr ? { x: dr.x1, y: dr.y1 } : rawPos;
         if (latest.current.cropDrag) {
           evt.releasePointerCapture?.();
           setCropDrag(null);
@@ -395,13 +450,10 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         if (g) {
           evt.releasePointerCapture?.();
           setImgDrag(null);
-          const now = dragPlacement(
-            g.img.placement,
-            g.handle,
-            g.from,
-            pdf(pos),
-            free(evt.shiftKey),
-          );
+          // What was shown while dragging (snapped), else from the release point.
+          const now =
+            latest.current.imgDrag?.now ??
+            dragPlacement(g.img.placement, g.handle, g.from, pdf(pos), free(evt.shiftKey));
           const p = g.img.placement;
           const changed =
             Math.hypot(now.cx - p.cx, now.cy - p.cy) > 0.5 ||
@@ -467,7 +519,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         });
       },
     });
-  }, [active, register, documentId, pageIndex]);
+  }, [active, register, documentId, pageIndex, snap]);
 
   if (!active || !info) return null;
   const css = (r: Rect): React.CSSProperties => ({

@@ -11,6 +11,7 @@ import { PdfAnnotationSubtype, type PdfStampAnnoObject, type Position } from "@e
 import { useWorkbench } from "../../app/workbench";
 import { STAMP_MODE } from "../../markup/config";
 import { stampPlacement, usePendingStamp } from "./stampPlacement";
+import { usePageSnapper } from "../dragFeedback";
 
 export function StampLayer({ documentId, pageIndex }: { documentId: string; pageIndex: number }) {
   const wb = useWorkbench();
@@ -23,6 +24,7 @@ export function StampLayer({ documentId, pageIndex }: { documentId: string; page
   const pageSize = doc?.document?.pages[pageIndex]?.size;
   const stamp = usePendingStamp();
   const [cursor, setCursor] = useState<Position | null>(null);
+  const snap = usePageSnapper(documentId, pageIndex);
   const latest = useRef({ scope, im, pageSize, author: wb.author, toast: wb.toast });
   useEffect(() => {
     latest.current = { scope, im, pageSize, author: wb.author, toast: wb.toast };
@@ -31,10 +33,21 @@ export function StampLayer({ documentId, pageIndex }: { documentId: string; page
   useEffect(() => {
     if (!active) return;
     return register({
-      onPointerMove: (pos) => setCursor(pos),
-      onPointerLeave: () => setCursor(null),
-      onPointerDown: (pos) => {
+      onPointerMove: (pos) => {
         const s = stampPlacement.get();
+        if (!s) return setCursor(pos);
+        const c = snap.centred(pos, s.width, s.height);
+        setCursor(c);
+        snap.show(c.box, c.guides, false);
+      },
+      onPointerLeave: () => {
+        setCursor(null);
+        snap.clear();
+      },
+      onPointerDown: (raw) => {
+        const s = stampPlacement.get();
+        snap.clear();
+        const pos = s ? snap.centred(raw, s.width, s.height) : raw;
         const { scope: sc, im: m, pageSize: size, author, toast } = latest.current;
         if (!s || !sc || !size) return;
         stampPlacement.set(null);
@@ -69,7 +82,7 @@ export function StampLayer({ documentId, pageIndex }: { documentId: string; page
           );
       },
     });
-  }, [active, register, pageIndex]);
+  }, [active, register, pageIndex, snap]);
 
   if (!active || !cursor || !stamp) return null;
   return (

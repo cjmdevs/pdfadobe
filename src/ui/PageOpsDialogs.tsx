@@ -27,6 +27,7 @@ import {
 } from "../platform";
 import { AcrobatButton, useActiveFilePath } from "./kit/AcrobatButton";
 import { usePointerDrag } from "./usePointerDrag";
+import { DragGhost } from "./kit/DragFeedback";
 
 export function FormModal({
   title,
@@ -746,10 +747,12 @@ export function CombineDialog({
     const v = under?.closest<HTMLElement>("[data-row]")?.dataset.row;
     return v === undefined ? null : Number(v);
   };
+  const [overRow, setOverRow] = useState<number | null>(null);
   const drag = usePointerDrag<number>({
-    onMove: () => undefined,
-    onCancel: () => undefined,
+    onMove: (_from, under) => setOverRow(rowAt(under)),
+    onCancel: () => setOverRow(null),
     onDrop: (from, under) => {
+      setOverRow(null);
       const to = rowAt(under);
       if (to !== null && to !== from) moveItem(from, to);
     },
@@ -897,7 +900,15 @@ export function CombineDialog({
               key={it.key}
               data-testid="combine-item"
               data-row={i}
-              className={drag.source === i ? "dragging" : undefined}
+              className={
+                drag.source === i
+                  ? "dragging"
+                  : drag.source !== null && overRow === i
+                    ? drag.source < i
+                      ? "drop-after"
+                      : "drop-before"
+                    : undefined
+              }
               onPointerDown={(e) => drag.start(e, i)}
             >
               <td>{i + 1}</td>
@@ -958,6 +969,9 @@ export function CombineDialog({
           )}
         </tbody>
       </table>
+      {drag.source !== null && (
+        <DragGhost pos={drag.pos}>{items[drag.source]?.name ?? ""}</DragGhost>
+      )}
       <div className="field-row">
         <label>
           <input type="checkbox" checked={perFile} onChange={(e) => setPerFile(e.target.checked)} />{" "}

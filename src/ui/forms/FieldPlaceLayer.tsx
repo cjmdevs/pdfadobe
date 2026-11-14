@@ -12,6 +12,7 @@ import { useWorkbench } from "../../app/workbench";
 import { DEFAULT_SIZE } from "../../engine/forms";
 import { placeField } from "./prepareActions";
 import { FIELD_MODE, prepare, usePrepare } from "./prepareStore";
+import { usePageSnapper } from "../dragFeedback";
 
 export function FieldPlaceLayer({
   documentId,
@@ -29,6 +30,7 @@ export function FieldPlaceLayer({
   const pageSize = doc?.document?.pages[pageIndex]?.size;
   const { pending } = usePrepare(documentId);
   const [cursor, setCursor] = useState<Position | null>(null);
+  const snap = usePageSnapper(documentId, pageIndex);
   const latest = useRef({ wb, pageSize, im });
   useEffect(() => {
     latest.current = { wb, pageSize, im };
@@ -37,10 +39,21 @@ export function FieldPlaceLayer({
   useEffect(() => {
     if (!active) return;
     return register({
-      onPointerMove: (pos) => setCursor(pos),
-      onPointerLeave: () => setCursor(null),
-      onPointerDown: (pos) => {
+      onPointerMove: (pos) => {
+        const k = prepare.pending(documentId);
+        if (!k) return setCursor(pos);
+        const c = snap.centred(pos, DEFAULT_SIZE[k].w, DEFAULT_SIZE[k].h);
+        setCursor(c);
+        snap.show(c.box, c.guides, false);
+      },
+      onPointerLeave: () => {
+        setCursor(null);
+        snap.clear();
+      },
+      onPointerDown: (raw) => {
         const kind = prepare.pending(documentId);
+        snap.clear();
+        const pos = kind ? snap.centred(raw, DEFAULT_SIZE[kind].w, DEFAULT_SIZE[kind].h) : raw;
         const { wb: w, pageSize: size, im: m } = latest.current;
         if (!kind || !size) return;
         prepare.arm(documentId, null);
@@ -54,7 +67,7 @@ export function FieldPlaceLayer({
         void placeField(w, documentId, kind, pageIndex, { l: x, b: t - fh, r: x + fw, t });
       },
     });
-  }, [active, register, documentId, pageIndex]);
+  }, [active, register, documentId, pageIndex, snap]);
 
   if (!active || !pending || !cursor) return null;
   const { w, h } = DEFAULT_SIZE[pending];

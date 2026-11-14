@@ -9,6 +9,8 @@ import {
 import type { Position } from "@embedpdf/models";
 import { useWorkbench } from "../../app/workbench";
 import { SIGN_BOX_MODE } from "../../markup/config";
+import { spanBox, usePageSnapper } from "../dragFeedback";
+import type { Guide } from "../kit/snap";
 
 const USUAL = { width: 220, height: 60 };
 
@@ -22,6 +24,8 @@ export function SignBoxLayer({ documentId, pageIndex }: { documentId: string; pa
   const pageSize = doc?.document?.pages[pageIndex]?.size;
   const [drag, setDrag] = useState<{ a: Position; b: Position } | null>(null);
   const start = useRef<Position | null>(null);
+  const snap = usePageSnapper(documentId, pageIndex);
+  const startGuides = useRef<Guide[]>([]);
   const latest = useRef({ wb, im, pageSize });
   useEffect(() => {
     latest.current = { wb, im, pageSize };
@@ -30,19 +34,26 @@ export function SignBoxLayer({ documentId, pageIndex }: { documentId: string; pa
   useEffect(() => {
     if (!active) return;
     return register({
-      onPointerDown: (pos) => {
+      onPointerDown: (raw) => {
+        const pos = snap.point(raw);
+        startGuides.current = pos.guides;
         start.current = pos;
         setDrag({ a: pos, b: pos });
       },
-      onPointerMove: (pos) => {
+      onPointerMove: (raw) => {
         const a = start.current;
-        if (a) setDrag({ a, b: pos });
+        if (!a) return;
+        const pos = snap.point(raw);
+        setDrag({ a, b: pos });
+        snap.show(spanBox(a, pos), [...startGuides.current, ...pos.guides], true);
       },
-      onPointerUp: (pos) => {
+      onPointerUp: (raw) => {
         const { wb: w, im: m, pageSize: size } = latest.current;
         const a = start.current;
+        const pos = a ? snap.point(raw) : raw;
         start.current = null;
         setDrag(null);
+        snap.clear();
         if (!a || !size) return;
         let x = Math.min(a.x, pos.x);
         let y = Math.min(a.y, pos.y);
@@ -65,7 +76,7 @@ export function SignBoxLayer({ documentId, pageIndex }: { documentId: string; pa
         });
       },
     });
-  }, [active, register, documentId, pageIndex]);
+  }, [active, register, documentId, pageIndex, snap]);
 
   if (!active || !drag) return null;
   const left = Math.min(drag.a.x, drag.b.x);

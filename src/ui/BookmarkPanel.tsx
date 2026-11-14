@@ -34,6 +34,7 @@ import { useNav } from "../app/useNav";
 import { useWorkbench } from "../app/workbench";
 import { Icon, type IconName } from "./Icon";
 import { usePointerDrag } from "./usePointerDrag";
+import { DragGhost } from "./kit/DragFeedback";
 
 type Drop = { path: OutlinePath; zone: "before" | "after" | "inside" };
 
@@ -57,6 +58,7 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [renaming, setRenaming] = useState<OutlinePath | null>(null);
   const [drop, setDrop] = useState<Drop | null>(null);
+  const [ghost, setGhost] = useState("");
   // Pointer-event drag (see usePointerDrag). Handlers run at event time, after render.
   const drag = usePointerDrag<OutlinePath>({
     disabled: wb.busy !== null,
@@ -297,7 +299,11 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
             style={{ paddingLeft: (level - 1) * 14 }}
             data-testid="bookmark"
             data-path={k}
-            onPointerDown={(e) => renaming === null && drag.start(e, path)}
+            onPointerDown={(e) => {
+              if (renaming !== null) return;
+              setGhost(b.title);
+              drag.start(e, path);
+            }}
           >
             {kids.length ? (
               <button
@@ -356,6 +362,7 @@ export function BookmarkPanel({ documentId }: { documentId: string }) {
 
   return (
     <div className="bookmarks">
+      {drag.source && <DragGhost pos={drag.pos}>{ghost}</DragGhost>}
       {/* Like docs/reference/acrobat-workspace.png: options menu, delete, new bookmark,
           new bookmark from selection. Less common actions live in the options menu. */}
       <div className="bm-tools" role="toolbar" aria-label="Bookmarks">

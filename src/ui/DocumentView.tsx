@@ -14,6 +14,7 @@ import { StampsPalette } from "./markup/StampsPalette";
 import { EditLayer } from "./edit/EditLayer";
 import { RedactLayer } from "./redact/RedactLayer";
 import { FieldPlaceLayer } from "./forms/FieldPlaceLayer";
+import { AnnotationSnap, DragFeedbackLayer } from "./DragFeedbackLayer";
 import { FormMode } from "./forms/FormMode";
 import { XfaNotice } from "./forms/XfaNotice";
 import { FormCalc } from "./forms/FormCalc";
@@ -200,6 +201,7 @@ function Viewer({ documentId }: { documentId: string }) {
       <FormMode documentId={documentId} />
       <XfaNotice documentId={documentId} />
       <FormCalc documentId={documentId} />
+      <AnnotationSnap documentId={documentId} />
       <Viewport
         documentId={documentId}
         className={settings.formHighlight ? "viewport forms-highlight" : "viewport"}
@@ -286,6 +288,7 @@ function PageLayers({
         <RedactLayer documentId={documentId} pageIndex={pageIndex} />
         <FieldPlaceLayer documentId={documentId} pageIndex={pageIndex} />
         <SignBoxLayer documentId={documentId} pageIndex={pageIndex} />
+        <DragFeedbackLayer documentId={documentId} pageIndex={pageIndex} />
       </PagePointerProvider>
     </Rotate>
   );

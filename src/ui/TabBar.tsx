@@ -11,6 +11,7 @@ import { useWorkbench } from "../app/workbench";
 import { platform } from "../platform";
 import { Icon } from "./Icon";
 import { usePointerDrag } from "./usePointerDrag";
+import { DragGhost } from "./kit/DragFeedback";
 
 const outsideWindow = (e: PointerEvent) =>
   e.clientX < 0 ||
@@ -181,6 +182,7 @@ export function TabBar() {
           </button>
         </div>
       )}
+      {drag.source && <DragGhost pos={drag.pos}>{meta[drag.source]?.name ?? "Document"}</DragGhost>}
     </div>
   );
 }

@@ -684,6 +684,12 @@ kbd {
   right: 4px;
   height: 3px;
 }
+.drag-feedback-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 24;
+}
 .box-readout {
   position: absolute;
   z-index: 25;

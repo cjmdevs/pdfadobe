@@ -11,6 +11,8 @@ import type { Position } from "@embedpdf/models";
 import { useWorkbench } from "../../app/workbench";
 import { MARK_COLOR, addMark, marksOf } from "./marks";
 import { REDACT_MODE, redactMarks, useRedactVersion } from "./redactStore";
+import { spanBox, usePageSnapper } from "../dragFeedback";
+import type { Guide } from "../kit/snap";
 
 export function RedactLayer({ documentId, pageIndex }: { documentId: string; pageIndex: number }) {
   const wb = useWorkbench();
@@ -22,6 +24,9 @@ export function RedactLayer({ documentId, pageIndex }: { documentId: string; pag
   useRedactVersion();
   const [drag, setDrag] = useState<{ from: Position; to: Position } | null>(null);
   const dragRef = useRef<{ from: Position; to: Position } | null>(null);
+  const snap = usePageSnapper(documentId, pageIndex);
+  /** Guides the start corner snapped to, kept on screen for the whole drag. */
+  const startGuides = useRef<Guide[]>([]);
   const latest = useRef({ scope, wb });
   useEffect(() => {
     latest.current = { scope, wb };
@@ -31,18 +36,23 @@ export function RedactLayer({ documentId, pageIndex }: { documentId: string; pag
     if (!active) return;
     return register({
       onPointerDown: (pos) => {
-        dragRef.current = { from: pos, to: pos };
+        const p = snap.point(pos);
+        startGuides.current = p.guides;
+        dragRef.current = { from: p, to: p };
         setDrag(dragRef.current);
       },
       onPointerMove: (pos) => {
         if (!dragRef.current) return;
-        dragRef.current = { ...dragRef.current, to: pos };
+        const p = snap.point(pos);
+        dragRef.current = { ...dragRef.current, to: p };
         setDrag(dragRef.current);
+        snap.show(spanBox(dragRef.current.from, p), [...startGuides.current, ...p.guides], true);
       },
       onPointerUp: () => {
         const d = dragRef.current;
         dragRef.current = null;
         setDrag(null);
+        snap.clear();
         const { scope: sc, wb: w } = latest.current;
         if (!d || !sc) return;
         const width = Math.abs(d.to.x - d.from.x);
@@ -55,7 +65,7 @@ export function RedactLayer({ documentId, pageIndex }: { documentId: string; pag
         addMark(sc, documentId, pageIndex, [rect], { source: "manual" }, w.author);
       },
     });
-  }, [active, register, documentId, pageIndex]);
+  }, [active, register, documentId, pageIndex, snap]);
 
   const marks = marksOf(Object.values(state.byUid).map((t) => t.object)).filter(
     (m) => m.pageIndex === pageIndex,

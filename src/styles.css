@@ -2779,3 +2779,11 @@ body.pointer-dragging * {
 .redact-panel [data-testid="redact-apply"] {
   align-self: stretch;
 }
+
+/* B8: insertion line in the Combine Files list. */
+.combine-list tr.drop-before td {
+  box-shadow: inset 0 3px 0 var(--accent);
+}
+.combine-list tr.drop-after td {
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
