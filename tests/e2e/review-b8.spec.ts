@@ -86,7 +86,7 @@ test.describe("B8 review fixes", () => {
     await expect(thumbs(page)).toHaveCount(4);
   });
 
-  test("two-up: Next page is not a jump for Previous view; Go to page is", async ({ page }) => {
+  test("two-up: Next page is not a jump for Previous view; First page is", async ({ page }) => {
     await boot(page, { settings: { viewMode: "twoUp" } });
     await open(page, P.nav);
     const next = page.getByRole("button", { name: /^Next page/ });
@@ -99,11 +99,9 @@ test.describe("B8 review fixes", () => {
     await page.keyboard.press("Alt+ArrowLeft");
     await page.waitForTimeout(300);
     expect(await currentPageNumber(page)).toBe(here);
-    const box = page.getByLabel("Page number");
-    await box.fill("9");
-    await box.press("Enter");
-    // The last spread cannot scroll all the way up: any page well past `here` will do.
-    await expect.poll(() => currentPageNumber(page)).toBeGreaterThan(here + 2);
+    // First page is asked for: that is a jump, and Previous view comes back here.
+    await page.getByRole("button", { name: /^First page/ }).click();
+    await expect.poll(() => currentPageNumber(page)).toBe(1);
     await page.waitForTimeout(600);
     await page.getByTestId("viewport").click({ position: { x: 5, y: 5 } });
     await page.keyboard.press("Alt+ArrowLeft");
