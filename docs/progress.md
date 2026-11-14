@@ -5,7 +5,27 @@ Keep it under 2 pages; summarize older phases.
 
 ## Current status
 
-- **B8 code review fixes 2026-11-14, owner check pending**
+- **B8 follow-up (owner findings from that check) 2026-11-14, owner check pending**
+  (`docs/testing/b8-followup-test-guide.md`). (1) Single page view: EmbedPDF's `Rotate`
+  places the page absolutely with no size (the Scroller sizes it in the other views), so
+  the viewport had nothing to scroll and a zoomed page spilled over the panels; the page
+  now sits in a sized box (`SinglePageBox` in `DocumentView.tsx`, `app/pageSize.ts`).
+  (2) There the wheel turns the page once there is nothing left to scroll
+  (`ui/SinglePageWheel.tsx`, `app/wheelTurn.ts`; one turn per 150 ms; Ctrl/Shift+wheel
+  left alone). (3) A narrow window: `.doc-area` keeps `--doc-min-w` (240 px) and clips;
+  the side panels shrink (`flex: 0 1 auto`, `overflow-x: clip`) instead of pushing it to
+  zero. (4) Edit PDF: a moved text box or image shows a picture of itself following the
+  pointer (`edit/dragPreview.ts`, `edit/snapshot.ts`: `renderPageRect` with a transparent
+  background, object URL in memory only, revoked on drop) and stays where it was dropped
+  until the edit resolves; the selected box's outline now moves too (it used to stay put).
+  Resize and rotate still show the frame only. Tests: `tests/e2e/b8-followup.spec.ts`,
+  `tests/e2e/edit.spec.ts` (drag picture), `tests/unit/b8-followup.test.ts`. No new
+  dependencies. **E2E on the build PC:** scattered boot timeouts whose trace shows
+  `net::ERR_NETWORK_CHANGED` are the PC's Wi-Fi re-authenticating (Chromium drops its
+  requests to the local dev server); rerun those with `npx playwright test --last-failed`
+  or run with Wi-Fi off. The push for this item was a full run plus that rerun.
+
+- **B8 code review fixes 2026-11-14, owner check passed**
   (`docs/testing/b8-review-fixes-test-guide.md`). Ten findings from `/code-review` of B8:
   leaving a tool only stops what was running before the switch (`app/toolSwitch.ts`;
   Redact > Draw box from the top bar was disarmed by its own click); the Hand tool ends
