@@ -26,6 +26,8 @@ export type Command =
   | "firstPage"
   | "lastPage"
   | "goToPage"
+  | "prevView"
+  | "nextView"
   | "zoomIn"
   | "zoomOut"
   | "fitPage"
@@ -115,6 +117,10 @@ export const SHORTCUTS: Shortcut[] = [
     source: "adobe",
   },
   { command: "goToPage", label: "Go to page", keys: ["Ctrl+Shift+N"], source: "adobe" },
+  // B8: Acrobat's View > Page Navigation > Previous/Next View; also the mouse's back and
+  // forward buttons.
+  { command: "prevView", label: "Previous view", keys: ["Alt+ArrowLeft"], source: "adobe" },
+  { command: "nextView", label: "Next view", keys: ["Alt+ArrowRight"], source: "adobe" },
   { command: "zoomIn", label: "Zoom in", keys: ["Ctrl+Equal", "Ctrl+NumpadAdd"], source: "adobe" },
   {
     command: "zoomOut",

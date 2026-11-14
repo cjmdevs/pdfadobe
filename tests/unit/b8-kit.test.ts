@@ -93,3 +93,19 @@ describe("menus", () => {
     expect(tidy(items).map((i) => (i.kind === "divider" ? "-" : i.id))).toEqual(["a", "-", "b"]);
   });
 });
+
+describe("view history", () => {
+  it("goes back and forward through jumps; a new jump clears forward", async () => {
+    const { ViewHistory } = await import("../../src/app/viewHistory");
+    const h = new ViewHistory();
+    const v = (page: number) => ({ page, x: 0, y: page * 100, scale: 1 });
+    h.leave(v(0));
+    h.leave(v(4));
+    expect(h.goBack(v(9))).toEqual(v(4));
+    expect(h.goBack(v(4))).toEqual(v(0));
+    expect(h.goBack(v(0))).toBeNull();
+    expect(h.goForward(v(0))).toEqual(v(4));
+    h.leave(v(4));
+    expect(h.canGoForward).toBe(false);
+  });
+});

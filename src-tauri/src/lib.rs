@@ -10,6 +10,7 @@ mod fonts;
 mod launch;
 mod ocr_job;
 mod office;
+mod pageclip;
 mod print;
 mod qpdf_job;
 mod repair;
@@ -41,6 +42,7 @@ pub fn run() {
         .manage(ocr_job::OcrJobs::default())
         .manage(launch::PendingPaths::default())
         .manage(docstore::DocStore::default())
+        .manage(pageclip::PageClip::default())
         .manage(app_windows::Windows::default())
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::Focused(true) => {
@@ -124,6 +126,9 @@ pub fn run() {
             external_edit::external_edit_poll,
             external_edit::external_edit_end,
             print::print_pdf,
+            pageclip::page_clip_set,
+            pageclip::page_clip_info,
+            pageclip::page_clip_get,
             docstore::doc_create,
             docstore::doc_push,
             docstore::doc_info,

@@ -9,16 +9,19 @@ test.describe("navigation pane", () => {
     await waitForPainted(page, 0);
   });
 
-  test("thumbnails render and jump to their page", async ({ page }) => {
+  test("thumbnails render; click selects, double-click jumps to the page (B8)", async ({
+    page,
+  }) => {
     const thumbs = page.getByTestId("thumb");
     await expect(thumbs.first()).toBeVisible();
     await expect(thumbs.first().locator("img")).toHaveJSProperty("complete", true);
-    await page.getByRole("button", { name: "Page 3", exact: true }).click();
+    const p3 = page.getByRole("option", { name: "Page 3", exact: true });
+    await p3.click();
+    await expect(p3).toHaveAttribute("aria-selected", "true");
+    expect(await currentPageNumber(page)).toBe(1);
+    await p3.dblclick();
     await expect.poll(() => currentPageNumber(page)).toBe(3);
-    await expect(page.getByRole("button", { name: "Page 3", exact: true })).toHaveAttribute(
-      "aria-current",
-      "page",
-    );
+    await expect(p3).toHaveAttribute("aria-current", "page");
   });
 
   test("bookmarks show the nested outline and navigate", async ({ page }) => {

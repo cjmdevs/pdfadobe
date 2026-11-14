@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { useDocumentState } from "@embedpdf/core/react";
 import { moveOrder, titleFromFileName, type Margins, type QuarterTurns } from "../engine/pages";
 import { formatRanges } from "../engine/pages/ranges";
+import { platform } from "../platform";
 import { pageOp } from "./pages";
 import { useWorkbench } from "./workbench";
 
@@ -93,6 +94,40 @@ export function usePageActions(documentId: string) {
           targets[0],
           targets,
         ),
+      /** Pages onto the page clipboard (B8), shared by every tab and window. */
+      copy: async (pages: number[]): Promise<boolean> => {
+        if (!pages.length) return false;
+        const bytes = await wb.docBytes(documentId);
+        if (!bytes) return false;
+        try {
+          const sorted = [...pages].sort((a, b) => a - b);
+          const out = await pageOp("extractPages", bytes, sorted);
+          await platform.pageClipboard.set(out, { count: sorted.length, source: name });
+          wb.toast(`Copied ${plural(sorted.length, "page")}.`);
+          return true;
+        } catch (e) {
+          wb.toast(`Copy failed: ${e instanceof Error ? e.message : String(e)}`, "error");
+          return false;
+        }
+      },
+      /** Paste the page clipboard so its first page becomes page `at` (0-based). */
+      paste: async (at: number) => {
+        const [info, clip] = await Promise.all([
+          platform.pageClipboard.info(),
+          platform.pageClipboard.get(),
+        ]);
+        if (!info || !clip) {
+          wb.toast("There are no copied pages to paste.", "error");
+          return;
+        }
+        const where = Math.max(0, Math.min(pageCount, at));
+        await run(
+          `Paste ${plural(info.count, "page")}`,
+          (b) => pageOp("insertPages", b, clip, range(0, info.count), where),
+          where,
+          range(where, info.count),
+        );
+      },
       /** Selected pages as a new, unsaved document in a new tab. */
       extract: async (pages: number[]) => {
         const bytes = await wb.docBytes(documentId);

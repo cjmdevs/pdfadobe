@@ -34,6 +34,7 @@ import { useNav } from "./useNav";
 import { platform } from "../platform";
 import { useWorkbench } from "./workbench";
 import { ACTUAL_SIZE_SCALE } from "./zoom";
+import { isRestoring, markRestoring, takeJump, viewHistory, type View } from "./viewHistory";
 
 function isEditable(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false;
@@ -160,10 +161,25 @@ export function Commands() {
       if (cmd && runRef.current(cmd)) e.preventDefault();
     };
     const onCommand = (e: Event) => runRef.current((e as CustomEvent<Command>).detail);
+    // Mouse back / forward buttons: previous / next view (B8). WebView2 would otherwise
+    // treat them as browser history navigation.
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 3 || e.button === 4) e.preventDefault();
+    };
+    const onMouseUp = (e: MouseEvent) => {
+      if (e.button !== 3 && e.button !== 4) return;
+      e.preventDefault();
+      if (!document.querySelector("dialog[open]"))
+        runRef.current(e.button === 3 ? "prevView" : "nextView");
+    };
+    window.addEventListener("mousedown", onMouseDown, true);
+    window.addEventListener("mouseup", onMouseUp, true);
     window.addEventListener("keydown", onKey);
     document.addEventListener("pdfwb:command", onCommand);
     return () => {
       window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onMouseDown, true);
+      window.removeEventListener("mouseup", onMouseUp, true);
       document.removeEventListener("pdfwb:command", onCommand);
     };
   }, []);
@@ -197,7 +213,43 @@ function DocCommands({
     imState.activeMode === FLYER_MODE ||
     imState.activeMode === REDACT_MODE ||
     imState.activeMode === FIELD_MODE;
-  const doc = useDocumentState(documentId)?.document ?? null;
+  const docState = useDocumentState(documentId);
+  const doc = docState?.document ?? null;
+  const scale = docState?.scale ?? 1;
+  const storeId = wb.meta[documentId]?.storeId ?? documentId;
+
+  // Previous view / next view (B8): remember the view the reader jumps away from.
+  const currentView = (): View => {
+    const m = viewport?.forDocument(documentId).getMetrics();
+    return { page: nav.page, x: m?.scrollLeft ?? 0, y: m?.scrollTop ?? 0, scale };
+  };
+  const settled = useRef<View | null>(null);
+  const viewRef = useRef(currentView);
+  useLayoutEffect(() => {
+    viewRef.current = currentView;
+  });
+  useEffect(() => {
+    // The first page shown is the starting view, even if the reader jumps right away.
+    settled.current ??= viewRef.current();
+    const t = window.setTimeout(() => {
+      const now = viewRef.current();
+      const before = settled.current;
+      const jumped = takeJump();
+      if (before && before.page !== now.page && !isRestoring())
+        if (jumped || Math.abs(now.page - before.page) > 1) viewHistory(storeId).leave(before);
+      settled.current = now;
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [nav.page, storeId]);
+  const restore = (v: View) => {
+    markRestoring();
+    const vp = viewport?.forDocument(documentId);
+    if (vp && wb.settings.viewMode !== "single" && Math.abs(v.scale - scale) < 1e-6)
+      vp.scrollTo({ x: v.x, y: v.y });
+    else nav.goTo(v.page);
+    settled.current = v;
+  };
+
   /** Resolves when the last Ctrl+A selection is in place. */
   const pendingSelect = useRef<Promise<unknown>>(Promise.resolve());
 
@@ -300,6 +352,13 @@ function DocCommands({
       case "goToPage":
         focusAndSelect("page-input");
         break;
+      case "prevView":
+      case "nextView": {
+        const h = viewHistory(storeId);
+        const v = cmd === "prevView" ? h.goBack(currentView()) : h.goForward(currentView());
+        if (v) restore(v);
+        break;
+      }
       case "zoomIn":
         zoom?.zoomIn();
         break;

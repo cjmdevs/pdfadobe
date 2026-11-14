@@ -41,9 +41,14 @@ export function TooltipLayer() {
   useEffect(() => {
     let timer: number | undefined;
     let current: HTMLElement | null = null;
+    // Only touch React state when a tip is (about to be) on screen: this layer listens to
+    // every pointer and key event in the window.
+    let shown = false;
     const hide = () => {
       window.clearTimeout(timer);
       current = null;
+      if (!shown) return;
+      shown = false;
       setTip(null);
     };
     const show = (el: HTMLElement, delay: number) => {
@@ -55,6 +60,7 @@ export function TooltipLayer() {
         if (current !== el || !el.isConnected) return;
         const r = el.getBoundingClientRect();
         const above = r.bottom + 40 > window.innerHeight;
+        shown = true;
         setTip({ text, x: r.left + r.width / 2, y: above ? r.top - 6 : r.bottom + 6, above });
       }, delay);
     };

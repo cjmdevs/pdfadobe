@@ -8,6 +8,7 @@ import { sanitizeStampTemplates, sanitizeTickmarks } from "../flyer/library";
 import { DEFAULT_CALC, sanitizeCalc, type CalcSettings } from "../flyer/calc";
 import { sanitizePresets, type HeaderFooterPreset } from "../engine/decorate";
 import { samePath, sanitizeRecent, type RecentFile } from "./recent";
+import { isUnits, type Units } from "./units";
 
 export { samePath };
 
@@ -107,6 +108,14 @@ export interface Settings {
   firmLibraryPath: string | null;
   /** Last automatic update check (ms since 1970), at most one a day. */
   lastUpdateCheck: number;
+  /** Units for the box readout and Page properties (B8). */
+  units: Units;
+  /** Boxes snap to page edges and nearby objects while dragged (B8; Alt turns it off). */
+  snapToGuides: boolean;
+  /** Snap distance in screen pixels. */
+  snapDistance: number;
+  /** Show X/Y W/H next to a box while it is dragged. */
+  showBoxReadout: boolean;
 }
 
 /** Settings that belong to one window (backlog B1): extra windows never save them, so
@@ -182,6 +191,10 @@ export const DEFAULT_SETTINGS: Settings = {
   firstRunDone: false,
   firmLibraryPath: null,
   lastUpdateCheck: 0,
+  units: "in",
+  snapToGuides: true,
+  snapDistance: 6,
+  showBoxReadout: true,
 };
 
 const oneOf =
@@ -234,6 +247,13 @@ export function sanitizeSettings(raw: unknown): Settings {
         ? r.bookmarkDragMovesPages
         : d.bookmarkDragMovesPages,
     toolsPaneOpen: typeof r.toolsPaneOpen === "boolean" ? r.toolsPaneOpen : d.toolsPaneOpen,
+    units: isUnits(r.units) ? r.units : d.units,
+    snapToGuides: typeof r.snapToGuides === "boolean" ? r.snapToGuides : d.snapToGuides,
+    snapDistance:
+      typeof r.snapDistance === "number" && r.snapDistance >= 2 && r.snapDistance <= 20
+        ? Math.round(r.snapDistance)
+        : d.snapDistance,
+    showBoxReadout: typeof r.showBoxReadout === "boolean" ? r.showBoxReadout : d.showBoxReadout,
     quickToolbar: stringList(r.quickToolbar),
     firmLayoutPath:
       typeof r.firmLayoutPath === "string" && r.firmLayoutPath.trim() ? r.firmLayoutPath : null,

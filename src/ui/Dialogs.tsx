@@ -9,6 +9,7 @@ import { useNav } from "../app/useNav";
 import { describeOpenError, useWorkbench } from "../app/workbench";
 import { removeRecentFile } from "../app/recent";
 import { CustomizeDialog } from "./CustomizeDialog";
+import { PagePropertiesDialog } from "./PageProperties";
 import { Modal, ModalActions } from "./kit/Dialog";
 import { AcrobatButton } from "./kit/AcrobatButton";
 import { FirstRunDialog } from "./FirstRunDialog";
@@ -126,6 +127,10 @@ function MainDialog() {
           pages={dialog.pages}
           onClose={close}
         />
+      );
+    case "pageProperties":
+      return (
+        <PagePropertiesDialog documentId={dialog.documentId} page={dialog.page} onClose={close} />
       );
     case "combine":
       return <CombineDialog startWith={dialog.documentId} onClose={close} />;

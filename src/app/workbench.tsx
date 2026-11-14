@@ -101,6 +101,8 @@ export type Dialog =
   /** Ctrl+Q with unsaved documents in any window. */
   | { kind: "quit"; docs: DocInfo[] }
   | { kind: "pageOp"; op: PageOpDialog; documentId: string; pages: number[] }
+  /** One page's size, rotation and comments (B8). */
+  | { kind: "pageProperties"; documentId: string; page: number }
   /** `documentId`: the open document to start the list with (owner request). */
   | { kind: "combine"; documentId: string | null }
   | { kind: "settings" }

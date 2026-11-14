@@ -31,6 +31,8 @@ import {
   type PrintRequest,
   type PrintResult,
   type UpdateState,
+  PageClipInfo,
+  PageClipboard,
 } from "./types";
 
 /** Rust `FileError` arrives as `{ kind, message }`; anything else becomes "other". */
@@ -113,6 +115,19 @@ const docs: DocStore = {
   },
   dirty: () => call<DocInfo[]>("doc_dirty"),
   findPath: (path) => call<DocInfo | null>("doc_find_path", { path }),
+};
+
+const pageClipboard: PageClipboard = {
+  set: async (bytes, info) => {
+    await call("page_clip_set", bytes, {
+      headers: { "x-clip": encodeURIComponent(JSON.stringify(info)) },
+    });
+  },
+  info: () => call<PageClipInfo | null>("page_clip_info"),
+  get: async () => {
+    const b = new Uint8Array(await call<ArrayBuffer>("page_clip_get"));
+    return b.length ? b : null;
+  },
 };
 
 async function step(id: string, redo: boolean) {
@@ -323,6 +338,7 @@ export const tauriPlatform: Platform = {
   qpdf,
   ocr,
   docs,
+  pageClipboard,
   windows,
   stamps,
   thumbs,

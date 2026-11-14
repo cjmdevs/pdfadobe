@@ -228,8 +228,51 @@
   box-shadow: var(--elev-page);
   outline: 3px solid transparent;
 }
+.thumbs-box {
+  height: 100%;
+  outline: none;
+}
+.thumbs-box:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+.thumb {
+  cursor: default;
+  user-select: none;
+}
 .thumb.current .thumb-frame {
   outline-color: var(--accent);
+}
+.thumb.selected {
+  background: var(--bg-active);
+}
+.thumb.selected .thumb-label {
+  color: var(--fg);
+  font-weight: var(--weight-strong);
+}
+.thumbs-box:focus-visible .thumb.focus .thumb-label {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+  border-radius: var(--radius-sm);
+}
+.thumb.dragging {
+  opacity: 0.45;
+}
+.thumb.drop-before::before,
+.thumb.drop-after::after {
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.thumb.drop-before::before {
+  top: 1px;
+}
+.thumb.drop-after::after {
+  bottom: -4px;
 }
 .thumb-frame img {
   width: 100%;

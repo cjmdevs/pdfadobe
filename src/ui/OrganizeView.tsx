@@ -1,5 +1,6 @@
 // Organize Pages: a grid of page thumbnails. Select with click / Ctrl+click / Shift+click /
-// Ctrl+A, drag to reorder. The tool's toolbar (src/tools/registry.ts, shown by the shell)
+// Ctrl+A, drag to reorder (see-through preview, insertion line). Right-click, Ctrl+C / X /
+// V and Delete work as in the thumbnail panel (B8, src/ui/pageMenu.tsx). The tool's toolbar (src/tools/registry.ts, shown by the shell)
 // acts on the selection, which lives in the tab's state (DocMeta.pageSelection). Every
 // change is one undoable step (Ctrl+Z / Ctrl+Y).
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
@@ -8,6 +9,10 @@ import { useThumbnailCapability } from "@embedpdf/plugin-thumbnail/react";
 import { usePageActions } from "../app/pageActions";
 import { useWorkbench } from "../app/workbench";
 import { usePointerDrag } from "./usePointerDrag";
+import { useNav } from "../app/useNav";
+import { ContextMenu, useContextMenu } from "./kit/Menu";
+import { DragGhost, autoScroll } from "./kit/DragFeedback";
+import { usePageCommands } from "./pageMenu";
 
 export function OrganizeView({ documentId }: { documentId: string }) {
   const wb = useWorkbench();
@@ -29,6 +34,10 @@ export function OrganizeView({ documentId }: { documentId: string }) {
   const [focus, setFocus] = useState(restored ?? 0);
   const [dropAt, setDropAt] = useState<number | null>(null);
   const grid = useRef<HTMLDivElement>(null);
+  const [ghost, setGhost] = useState<string | null>(null);
+  const nav = useNav(documentId);
+  const cmds = usePageCommands(documentId, count, nav.page);
+  const menu = useContextMenu<number[]>();
 
   useEffect(() => {
     if (!stored) wb.setPageSelection(documentId, initial);
@@ -65,6 +74,7 @@ export function OrganizeView({ documentId }: { documentId: string }) {
   };
 
   const onKey = (e: KeyboardEvent) => {
+    if (cmds.onKey(e, sel)) return;
     const cols = Math.max(
       1,
       Math.round(
@@ -85,9 +95,11 @@ export function OrganizeView({ documentId }: { documentId: string }) {
     else if (e.key === "End") move(count - 1);
     else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
       setSelected(new Set(Array.from({ length: count }, (_, i) => i)));
-    } else if (e.key === "Delete" && has && !busy) void actions.remove(sel);
-    else if (e.key === "Escape" && has) setSelected(new Set());
-    else if (e.key === "Enter") wb.setActiveTool(documentId, null, focus);
+    } else if (e.key === "Escape" && has) setSelected(new Set());
+    else if ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu") {
+      const el = grid.current?.querySelector(`[data-page="${focus}"]`);
+      if (el) menu.openAt(el, has ? sel : [focus]);
+    } else if (e.key === "Enter") wb.setActiveTool(documentId, null, focus);
     else return;
     e.preventDefault();
     e.stopPropagation();
@@ -105,7 +117,10 @@ export function OrganizeView({ documentId }: { documentId: string }) {
   };
   const drag = usePointerDrag<number[]>({
     disabled: busy,
-    onMove: (_pages, under, e) => setDropAt(dropIndex(under, e.clientX)),
+    onMove: (_pages, under, e) => {
+      setDropAt(dropIndex(under, e.clientX));
+      autoScroll(grid.current, e.clientY);
+    },
     onCancel: () => setDropAt(null),
     onDrop: (pages, under, e) => {
       setDropAt(null);
@@ -118,6 +133,7 @@ export function OrganizeView({ documentId }: { documentId: string }) {
     },
   });
   const startDrag = (e: React.PointerEvent, i: number) => {
+    setGhost(e.currentTarget.querySelector("img")?.src ?? null);
     drag.start(e, selected.has(i) ? sel : [i]);
   };
 
@@ -129,7 +145,7 @@ export function OrganizeView({ documentId }: { documentId: string }) {
           {has ? `${sel.length} of ${count} selected` : `${count} pages`}
         </span>
         <span className="muted small">
-          Click, Ctrl+click or Shift+click to select; drag to move; Delete removes.
+          Click, Ctrl+click or Shift+click to select; drag to move; right-click for more.
         </span>
       </div>
       <div
@@ -139,6 +155,9 @@ export function OrganizeView({ documentId }: { documentId: string }) {
         aria-multiselectable="true"
         aria-label="Pages"
         onKeyDown={onKey}
+        onContextMenu={(e) => {
+          if (!(e.target as Element).closest("[data-page]")) menu.open(e, []);
+        }}
       >
         {Array.from({ length: count }, (_, i) => (
           <div
@@ -153,12 +172,35 @@ export function OrganizeView({ documentId }: { documentId: string }) {
             onPointerDown={(e) => startDrag(e, i)}
             onClick={(e) => select(i, e)}
             onDoubleClick={() => wb.setActiveTool(documentId, null, i)}
+            onContextMenu={(e) => {
+              setFocus(i);
+              const on = selected.has(i);
+              if (!on) {
+                setAnchor(i);
+                setSelected(new Set([i]));
+              }
+              menu.open(e, on ? sel : [i]);
+            }}
           >
             <Thumb documentId={documentId} index={i} />
             <span className="grid-label">{i + 1}</span>
           </div>
         ))}
       </div>
+      {drag.source && (
+        <DragGhost pos={drag.pos} count={drag.source.length}>
+          {ghost ? <img src={ghost} alt="" /> : <span>Page {(drag.source[0] ?? 0) + 1}</span>}
+        </DragGhost>
+      )}
+      {menu.state && (
+        <ContextMenu
+          x={menu.state.x}
+          y={menu.state.y}
+          label="Page menu"
+          items={cmds.menu(menu.state.data)}
+          onClose={menu.close}
+        />
+      )}
     </div>
   );
 }

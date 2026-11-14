@@ -59,6 +59,20 @@ export interface PrintRequest {
 
 export type PrintResult = { status: "printed"; pages: number } | { status: "cancelled" };
 
+/** Pages on the in-app page clipboard (B8). */
+export interface PageClipInfo {
+  count: number;
+  /** Name of the document they came from. */
+  source: string;
+}
+
+export interface PageClipboard {
+  set(bytes: Uint8Array, info: PageClipInfo): Promise<void>;
+  info(): Promise<PageClipInfo | null>;
+  /** The copied pages as a PDF, or null when nothing was copied. */
+  get(): Promise<Uint8Array | null>;
+}
+
 export interface Platform {
   readonly kind: "tauri" | "browser";
   /** Native open dialog (multi-select). Empty array when cancelled. `images` also offers JPG/PNG/TIFF. */
@@ -114,6 +128,8 @@ export interface Platform {
   ocr: Ocr;
   /** Per-document state shared by all windows (backlog B1). */
   docs: DocStore;
+  /** Copied or cut pages (B8), shared by every window; memory only. */
+  pageClipboard: PageClipboard;
   /** Several windows; null where there is only one (browser). */
   windows: AppWindows | null;
   /** The user's custom stamp images (Phase 3). */

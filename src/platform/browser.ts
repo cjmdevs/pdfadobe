@@ -26,6 +26,8 @@ import {
   type FontFolders,
   type Platform,
   type UpdateState,
+  PageClipInfo,
+  PageClipboard,
 } from "./types";
 
 const SETTINGS_KEY = "pdf-workbench.settings";
@@ -95,6 +97,16 @@ function download(name: string, bytes: ArrayBuffer) {
 }
 
 const docs = new MemoryDocStore();
+
+// Page clipboard (B8): one window in the browser build, so module memory is enough.
+let clip: { bytes: Uint8Array; info: PageClipInfo } | null = null;
+const pageClipboard: PageClipboard = {
+  set: async (bytes, info) => {
+    clip = { bytes: bytes.slice(), info: { ...info } };
+  },
+  info: async () => (clip ? { ...clip.info } : null),
+  get: async () => (clip ? clip.bytes.slice() : null),
+};
 
 /**
  * E2E stand-in for other windows (the browser has one). Enabled when a test sets
@@ -349,6 +361,7 @@ export const browserPlatform: Platform = {
     },
   },
   docs,
+  pageClipboard,
   stamps,
   thumbs,
   // Playwright's mock file system answers: 404 = missing, a "network" error = offline.

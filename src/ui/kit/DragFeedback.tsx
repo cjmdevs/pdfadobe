@@ -92,3 +92,11 @@ export function SnapGuides({ guides, scale }: { guides: Guide[]; scale: number }
     </>
   );
 }
+
+/** Scrolls a list while a drag is near its top or bottom edge. */
+export function autoScroll(el: Element | null, y: number) {
+  if (!el) return;
+  const r = el.getBoundingClientRect();
+  if (y < r.top + 32) el.scrollTop -= 14;
+  else if (y > r.bottom - 32) el.scrollTop += 14;
+}
