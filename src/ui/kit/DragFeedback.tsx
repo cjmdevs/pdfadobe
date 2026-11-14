@@ -1,9 +1,10 @@
 // Drag feedback (B8): a see-through copy of what is being dragged that follows the
 // pointer, the X/Y W/H readout next to a box on the page, and snap guide lines.
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { formatLength, type Units } from "../../app/units";
 import type { Box, Guide } from "./snap";
+import type { PointerPos } from "../usePointerDrag";
 
 /** Follows the pointer (fixed position), never catches the pointer itself. */
 export function DragGhost({
@@ -11,18 +12,20 @@ export function DragGhost({
   children,
   count,
 }: {
-  pos: { x: number; y: number } | null;
+  pos: PointerPos;
   children: ReactNode;
   /** Shows a badge when more than one item is dragged. */
   count?: number;
 }) {
-  if (!pos) return null;
+  // Only the ghost follows the pointer; whoever renders it does not render per move.
+  const at = useSyncExternalStore(pos.subscribe, pos.get);
+  if (!at) return null;
   return createPortal(
     <div
       className="drag-ghost"
       data-testid="drag-ghost"
       aria-hidden="true"
-      style={{ left: pos.x + 12, top: pos.y + 12 }}
+      style={{ left: at.x + 12, top: at.y + 12 }}
     >
       {children}
       {count !== undefined && count > 1 && <span className="drag-ghost-count">{count}</span>}
