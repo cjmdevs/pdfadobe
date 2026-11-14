@@ -5,6 +5,7 @@ import {
   useDocumentManagerCapability,
 } from "@embedpdf/plugin-document-manager/react";
 import type { DocumentState } from "@embedpdf/core";
+import { useDocumentState } from "@embedpdf/core/react";
 import { AnnotationLayer } from "@embedpdf/plugin-annotation/react";
 import { LinkBorders } from "./LinkBorders";
 import { EraserLayer } from "./markup/EraserLayer";
@@ -16,6 +17,7 @@ import { RedactLayer } from "./redact/RedactLayer";
 import { FieldPlaceLayer } from "./forms/FieldPlaceLayer";
 import { AnnotationSnap, DragFeedbackLayer } from "./DragFeedbackLayer";
 import { PanController } from "./Pan";
+import { SinglePageWheel } from "./SinglePageWheel";
 import { FormMode } from "./forms/FormMode";
 import { XfaNotice } from "./forms/XfaNotice";
 import { FormCalc } from "./forms/FormCalc";
@@ -36,6 +38,7 @@ import { Viewport, useViewportCapability } from "@embedpdf/plugin-viewport/react
 import { ZoomMode } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { PdfErrorCode } from "@embedpdf/models";
+import { shownSize } from "../app/pageSize";
 import { useWorkbench } from "../app/workbench";
 import { tool } from "../tools/registry";
 import { AcrobatButton } from "./kit/AcrobatButton";
@@ -204,6 +207,7 @@ function Viewer({ documentId }: { documentId: string }) {
       <FormCalc documentId={documentId} />
       <AnnotationSnap documentId={documentId} />
       <PanController documentId={documentId} />
+      {single && <SinglePageWheel documentId={documentId} />}
       <Viewport
         documentId={documentId}
         className={settings.formHighlight ? "viewport forms-highlight" : "viewport"}
@@ -212,11 +216,7 @@ function Viewer({ documentId }: { documentId: string }) {
       >
         {single ? (
           <div className="single-page">
-            <PageLayers
-              documentId={documentId}
-              pageIndex={singlePage[documentId] ?? 0}
-              tiled={false}
-            />
+            <SinglePageBox documentId={documentId} pageIndex={singlePage[documentId] ?? 0} />
           </div>
         ) : (
           <Scroller
@@ -234,6 +234,24 @@ function Viewer({ documentId }: { documentId: string }) {
 }
 
 const noPointer: CSSProperties = { pointerEvents: "none" };
+
+/**
+ * Single page view: a box the size of the page as shown. EmbedPDF's Rotate places the
+ * page absolutely and gives it no size (the Scroller sizes it in the other views), so
+ * without this box the viewport had nothing to scroll and a zoomed page spilled out of
+ * the document area over the panels.
+ */
+function SinglePageBox({ documentId, pageIndex }: { documentId: string; pageIndex: number }) {
+  const state = useDocumentState(documentId);
+  const shown = state?.document?.pages[pageIndex];
+  if (!state || !shown) return null;
+  const size = shownSize(shown.size, shown.rotation + state.rotation, state.scale);
+  return (
+    <div className="single-box" style={size}>
+      <PageLayers documentId={documentId} pageIndex={pageIndex} tiled={false} />
+    </div>
+  );
+}
 
 /**
  * One page. A cheap low-resolution render sits underneath so a page is never blank while

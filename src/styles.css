@@ -46,6 +46,11 @@
   padding: var(--space-4);
   min-width: fit-content;
 }
+/* The page's own room (DocumentView SinglePageBox): the page inside is absolute. */
+.single-box {
+  position: relative;
+  flex: none;
+}
 .center-message {
   max-width: 520px;
   margin: 12vh auto 0;
