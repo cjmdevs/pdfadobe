@@ -93,6 +93,8 @@
   --tool-toolbar-h: 44px;
   --panel-head-h: 40px;
   --rail-w: 44px;
+  /* The least width the page area keeps; side panels shrink before it does. */
+  --doc-min-w: 240px;
 
   /* Radius: Ledger is square-ish */
   --radius-sm: 2px; /* controls, chips */

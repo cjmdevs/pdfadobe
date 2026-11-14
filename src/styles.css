@@ -14,9 +14,21 @@
 }
 .doc-area {
   flex: 1;
-  min-width: 0;
+  /* A narrow window: the page area keeps this much and the side panels shrink instead
+     (it used to reach zero and paint over the panel beside it). */
+  min-width: var(--doc-min-w);
+  overflow: clip;
   position: relative;
   background: var(--bg-doc);
+}
+/* Side panels give way when the window is too narrow for them at full width. */
+.sidebar,
+.search-panel,
+.comments-panel,
+.tools-pane {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: clip;
 }
 .viewport {
   width: 100%;
@@ -198,7 +210,6 @@
 /* ---- Sidebar ---- */
 .sidebar {
   width: 224px;
-  flex: none;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
@@ -329,7 +340,6 @@
 /* ---- Search ---- */
 .search-panel {
   width: 300px;
-  flex: none;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
@@ -911,6 +921,8 @@ body.pointer-dragging * {
 .left-dock {
   display: flex;
   min-height: 0;
+  flex: 0 1 auto;
+  min-width: var(--rail-w);
 }
 .rail {
   display: flex;
@@ -918,6 +930,7 @@ body.pointer-dragging * {
   align-items: center;
   gap: var(--space-2);
   width: var(--rail-w);
+  flex: none;
   padding: var(--space-3) 0;
   background: var(--bg-chrome);
   border-right: 1px solid var(--border);
@@ -944,7 +957,6 @@ body.pointer-dragging * {
 }
 .tools-pane {
   width: 260px;
-  flex: none;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
@@ -1259,7 +1271,6 @@ body.pointer-dragging * {
 /* Comments panel */
 .comments-panel {
   width: 320px;
-  flex: none;
   display: flex;
   flex-direction: column;
   background: var(--bg-panel);
