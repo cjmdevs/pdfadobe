@@ -26,6 +26,8 @@ test.describe("menus, preferences, search, help (B8)", () => {
       await expect(bar.getByRole("menuitem", { name: m, exact: true })).toBeVisible();
     await page.keyboard.press("Alt+f");
     const file = page.getByRole("menu", { name: "File" });
+    // The open menu is fully on screen, under its title (it once opened off the left edge).
+    await expect(file).toBeInViewport({ ratio: 1 });
     await expect(file.getByRole("menuitem", { name: /Open…/ })).toContainText("Ctrl+O");
     await expect(file.getByRole("menuitem", { name: /^Save As…/ })).toContainText("Ctrl+Shift+S");
     // Right arrow moves to the next menu; Escape closes.

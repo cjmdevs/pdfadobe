@@ -56,6 +56,7 @@ test.describe("pages panel and page clipboard (B8)", () => {
   test("right-click shows the page menu; Page properties shows the size", async ({ page }) => {
     await open(page, P.wpA);
     await thumb(page, 2).click({ button: "right" });
+    await expect(page.getByRole("menu", { name: "Page menu" })).toBeInViewport({ ratio: 1 });
     await expect(thumb(page, 2)).toHaveAttribute("aria-selected", "true");
     for (const name of [
       "Cut",

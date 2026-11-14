@@ -565,8 +565,13 @@ kbd {
 }
 
 /* ---- B8 kit: menus, tooltips, drag feedback ---- */
-.kit-menu {
+/* ".menu" (styles.css, older dropdowns) is absolute and right-aligned; a kit menu sits
+   where its host puts it, else it opens off the left edge of the window. */
+.menu.kit-menu {
   position: static;
+  right: auto;
+  left: auto;
+  top: auto;
   min-width: 220px;
   padding: var(--space-1) 0;
   box-shadow: var(--elev-2);
