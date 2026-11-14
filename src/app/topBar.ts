@@ -163,6 +163,18 @@ export function moveItem(
   return cleanLayout({ bar, menus }) ?? l;
 }
 
+/**
+ * A divider after the item at `index`. Null where it would not stay: nothing picked,
+ * next to another divider or the space, or at either end.
+ */
+export function withDivider(l: TopBarLayout, index: number): TopBarLayout | null {
+  if (index < 0 || index >= l.bar.length) return null;
+  const bar = [...l.bar];
+  bar.splice(index + 1, 0, QUICK_DIVIDER);
+  const clean = cleanLayout({ bar, menus: l.menus });
+  return clean && clean.bar.length > l.bar.length ? clean : null;
+}
+
 /** The firm layout file's optional top bar (B8 adds it next to the old quickToolbar). */
 export function parseFirmTopBar(text: string): TopBarLayout | null {
   try {

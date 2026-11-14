@@ -15,6 +15,7 @@ import {
   hiddenItems,
   moveItem,
   placeOf,
+  withDivider,
   type TopBarLayout,
 } from "../app/topBar";
 import { useWorkbench } from "../app/workbench";
@@ -126,12 +127,11 @@ export function CustomizeDialog({ onClose }: { onClose: () => void }) {
     setLayout(moveItem(layout, id, "bar", at));
     setPicked({ id, at: null });
   };
+  // Only where a divider stays (after a picked item, not next to another divider or the
+  // space): a press that changes nothing must not turn Save on.
+  const divided = withDivider(layout, pickedAt);
   const addDivider = () => {
-    const at = pickedAt >= 0 ? pickedAt + 1 : bar.indexOf(BAR_SPACER);
-    const next = [...bar];
-    next.splice(at, 0, QUICK_DIVIDER);
-    const clean = cleanLayout({ bar: next, menus: layout.menus });
-    if (clean) setLayout(clean);
+    if (divided) setLayout(divided);
   };
   const toggle = (id: string) =>
     setOpenGroups((g) => {
@@ -216,8 +216,9 @@ export function CustomizeDialog({ onClose }: { onClose: () => void }) {
             <button
               type="button"
               className="tool"
-              title="Add divider"
+              title="Add divider (after the picked item)"
               aria-label="Add divider"
+              disabled={!divided}
               onClick={addDivider}
             >
               <Icon name="divider" />
