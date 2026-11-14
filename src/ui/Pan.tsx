@@ -117,8 +117,19 @@ export function PanController({ documentId }: { documentId: string }) {
     if (!vp || !active) return;
     vp.classList.add("panning");
     let from: { x: number; y: number; left: number; top: number } | null = null;
+    const end = () => {
+      from = null;
+      vp.classList.remove("grabbing");
+    };
     const down = (e: PointerEvent) => {
       if (e.button !== 0 || !vp.contains(e.target as Node)) return;
+      // A press on the scrollbars is theirs: the browser may never send its pointerup.
+      const r = vp.getBoundingClientRect();
+      if (
+        e.clientX - r.left - vp.clientLeft >= vp.clientWidth ||
+        e.clientY - r.top - vp.clientTop >= vp.clientHeight
+      )
+        return;
       // Ours alone: page tools, text selection and comments never see this press.
       e.preventDefault();
       e.stopImmediatePropagation();
@@ -127,6 +138,8 @@ export function PanController({ documentId }: { documentId: string }) {
     };
     const move = (e: PointerEvent) => {
       if (!from) return;
+      // The button was let go where no pointerup reached us (another window, a menu).
+      if (!(e.buttons & 1)) return end();
       e.preventDefault();
       e.stopImmediatePropagation();
       vp.scrollLeft = from.left - (e.clientX - from.x);
@@ -136,17 +149,20 @@ export function PanController({ documentId }: { documentId: string }) {
       if (!from) return;
       e.preventDefault();
       e.stopImmediatePropagation();
-      from = null;
-      vp.classList.remove("grabbing");
+      end();
     };
     window.addEventListener("pointerdown", down, true);
     window.addEventListener("pointermove", move, true);
     window.addEventListener("pointerup", upHandler, true);
+    window.addEventListener("pointercancel", end, true);
+    window.addEventListener("blur", end);
     return () => {
       vp.classList.remove("panning", "grabbing");
       window.removeEventListener("pointerdown", down, true);
       window.removeEventListener("pointermove", move, true);
       window.removeEventListener("pointerup", upHandler, true);
+      window.removeEventListener("pointercancel", end, true);
+      window.removeEventListener("blur", end);
     };
   }, [active, documentId]);
   return null;
