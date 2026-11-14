@@ -262,7 +262,9 @@ export function ContextMenu({
     close.current = onClose;
   });
   useLayoutEffect(() => {
-    back.current = document.activeElement;
+    // Not the menu's own items (this effect can run again once the menu has focus).
+    const focused = document.activeElement;
+    if (!host.current?.contains(focused)) back.current = focused;
     const r = host.current?.getBoundingClientRect();
     if (!r) return;
     setPos({
@@ -294,9 +296,11 @@ export function ContextMenu({
       <MenuList
         items={items}
         label={label}
-        onClose={(why) => {
+        onClose={() => {
           close.current();
-          if (why === "escape" && back.current instanceof HTMLElement) back.current.focus();
+          // After an item runs too (it runs next): Ctrl+V after Copy goes to the same list.
+          if (back.current instanceof HTMLElement && back.current.isConnected)
+            back.current.focus({ preventScroll: true });
         }}
       />
     </div>,

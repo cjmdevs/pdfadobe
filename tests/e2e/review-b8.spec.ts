@@ -13,6 +13,10 @@ import {
   type Page,
 } from "./fixtures";
 
+const thumb = (page: Page, n: number) =>
+  page.getByTestId("thumbs").getByRole("option", { name: `Page ${n}`, exact: true });
+const thumbs = (page: Page) => page.getByTestId("thumbs").getByTestId("thumb");
+
 async function open(page: Page, path: string) {
   await openPaths(page, [path]);
   await waitForPainted(page, 0);
@@ -64,5 +68,20 @@ test.describe("B8 review fixes", () => {
     );
     await expect(vp).not.toHaveClass(/grabbing/);
     await page.mouse.up();
+  });
+
+  test("after right-click > Copy, Ctrl+V pastes without another click", async ({ page }) => {
+    await boot(page);
+    await open(page, P.wpA);
+    await expect(thumbs(page)).toHaveCount(3);
+    await thumb(page, 2).click({ button: "right" });
+    await page
+      .getByRole("menu", { name: "Page menu" })
+      .getByRole("menuitem", { name: "Copy" })
+      .click();
+    await expect(page.getByText("Copied 1 page.")).toBeVisible();
+    await expect(page.getByTestId("thumbs")).toBeFocused();
+    await page.keyboard.press("Control+v");
+    await expect(thumbs(page)).toHaveCount(4);
   });
 });
