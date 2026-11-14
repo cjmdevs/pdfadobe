@@ -85,6 +85,57 @@ function TextPref({
   );
 }
 
+/**
+ * A whole number between `min` and `max`. Typing is free (the box may hold "1" on the way
+ * to "12", or be empty); a number in range is saved at once, anything else goes back to
+ * the saved value when the box loses focus.
+ */
+function NumberPref({
+  id,
+  value,
+  min,
+  max,
+  disabled,
+  onCommit,
+}: {
+  id: string;
+  value: number;
+  min: number;
+  max: number;
+  disabled?: boolean;
+  onCommit: (n: number) => void;
+}) {
+  const [text, setText] = useState(String(value));
+  // Changed elsewhere (another window, a reset): show the new value.
+  const [seen, setSeen] = useState(value);
+  if (seen !== value) {
+    setSeen(value);
+    setText(String(value));
+  }
+  const inRange = (t: string): number | null => {
+    const n = Math.round(Number(t));
+    return t.trim() !== "" && n >= min && n <= max ? n : null;
+  };
+  return (
+    <input
+      type="number"
+      aria-label={prefDef(id)?.label ?? id}
+      min={min}
+      max={max}
+      value={text}
+      disabled={disabled}
+      onChange={(e) => {
+        setText(e.target.value);
+        const n = inRange(e.target.value);
+        if (n !== null && n !== value) onCommit(n);
+      }}
+      onBlur={() => {
+        if (inRange(text) === null) setText(String(value));
+      }}
+    />
+  );
+}
+
 export function PreferencesDialog({
   onClose,
   category,
@@ -369,17 +420,13 @@ function EditPdf() {
         id="snapDistance"
         hint="How close (in screen pixels) an edge has to come before it snaps."
       >
-        <input
-          type="number"
-          aria-label="Snap distance"
+        <NumberPref
+          id="snapDistance"
+          value={s.snapDistance}
           min={2}
           max={20}
-          value={s.snapDistance}
           disabled={!s.snapToGuides}
-          onChange={(e) => {
-            const n = Math.round(Number(e.target.value));
-            if (n >= 2 && n <= 20) wb.updateSettings({ snapDistance: n });
-          }}
+          onCommit={(snapDistance) => wb.updateSettings({ snapDistance })}
         />
       </Row>
       <Row id="showBoxReadout">

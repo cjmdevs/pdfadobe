@@ -8,6 +8,7 @@ import {
   expect,
   menu,
   openPaths,
+  openPreferences,
   pages,
   test,
   waitForPainted,
@@ -130,5 +131,48 @@ test.describe("B8 review fixes", () => {
     // Back to one page a row: everything fits again.
     await bar.getByLabel("Page display").selectOption("continuous");
     await expect(page.getByTestId("top-bar-more")).toHaveCount(0);
+  });
+
+  test("Add divider is off until it would add one, and does not turn Save on", async ({ page }) => {
+    await boot(page);
+    await menu(page, "Window", "Customize top bar…");
+    const dlg = page.getByRole("dialog", { name: "Customize top bar" });
+    const add = dlg.getByRole("button", { name: "Add divider" });
+    await expect(add).toBeDisabled();
+    await expect(dlg.locator("button[type=submit]")).toBeDisabled();
+    const strip = dlg.getByRole("list", { name: "Top bar items" });
+    await strip.getByRole("button", { name: "Open", exact: true }).click();
+    await expect(add).toBeEnabled();
+    await add.click();
+    await expect(dlg.getByTestId("pinned").nth(1).getByRole("button")).toHaveAccessibleName(
+      "Divider",
+    );
+    // Right after a divider there is nowhere for another one.
+    await strip.getByRole("button", { name: "Divider" }).first().click();
+    await expect(add).toBeDisabled();
+  });
+
+  test("the Snap distance box takes a typed number", async ({ page }) => {
+    await boot(page);
+    const dlg = await openPreferences(page);
+    await dlg.getByRole("tab", { name: "Edit PDF" }).click();
+    const box = dlg.getByLabel("Snap distance");
+    await expect(box).toHaveValue("6");
+    await box.press("Control+a");
+    await page.keyboard.type("12");
+    await expect(box).toHaveValue("12");
+    // Out of range or empty: back to the saved number when the box is left.
+    await box.press("Control+a");
+    await page.keyboard.type("1");
+    await expect(box).toHaveValue("1");
+    await box.blur();
+    await expect(box).toHaveValue("12");
+    await box.press("Control+a");
+    await box.press("Delete");
+    await box.blur();
+    await expect(box).toHaveValue("12");
+    await page.keyboard.press("Escape");
+    await (await openPreferences(page)).getByRole("tab", { name: "Edit PDF" }).click();
+    await expect(page.getByLabel("Snap distance")).toHaveValue("12");
   });
 });
