@@ -35,7 +35,15 @@ import { useNav } from "./useNav";
 import { platform } from "../platform";
 import { useWorkbench } from "./workbench";
 import { ACTUAL_SIZE_SCALE } from "./zoom";
-import { isRestoring, markRestoring, takeJump, viewHistory, type View } from "./viewHistory";
+import {
+  isJump,
+  isRestoring,
+  markRestoring,
+  pageStep,
+  takeJump,
+  viewHistory,
+  type View,
+} from "./viewHistory";
 import { leftRunning, type Running } from "./toolSwitch";
 
 function isEditable(t: EventTarget | null): boolean {
@@ -267,8 +275,10 @@ function DocCommands({
   };
   const settled = useRef<View | null>(null);
   const viewRef = useRef(currentView);
+  const stepRef = useRef(pageStep(wb.settings.viewMode));
   useLayoutEffect(() => {
     viewRef.current = currentView;
+    stepRef.current = pageStep(wb.settings.viewMode);
   });
   useEffect(() => {
     // The first page shown is the starting view, even if the reader jumps right away.
@@ -277,8 +287,8 @@ function DocCommands({
       const now = viewRef.current();
       const before = settled.current;
       const jumped = takeJump();
-      if (before && before.page !== now.page && !isRestoring())
-        if (jumped || Math.abs(now.page - before.page) > 1) viewHistory(storeId).leave(before);
+      if (before && !isRestoring() && isJump(before.page, now.page, stepRef.current, jumped))
+        viewHistory(storeId).leave(before);
       settled.current = now;
     }, 400);
     return () => window.clearTimeout(t);

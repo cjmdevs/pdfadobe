@@ -4,6 +4,7 @@
 import {
   P,
   boot,
+  currentPageNumber,
   expect,
   menu,
   openPaths,
@@ -83,5 +84,29 @@ test.describe("B8 review fixes", () => {
     await expect(page.getByTestId("thumbs")).toBeFocused();
     await page.keyboard.press("Control+v");
     await expect(thumbs(page)).toHaveCount(4);
+  });
+
+  test("two-up: Next page is not a jump for Previous view; Go to page is", async ({ page }) => {
+    await boot(page, { settings: { viewMode: "twoUp" } });
+    await open(page, P.nav);
+    const next = page.getByRole("button", { name: /^Next page/ });
+    for (let i = 0; i < 2; i++) {
+      await next.click();
+      await page.waitForTimeout(600);
+    }
+    const here = await currentPageNumber(page);
+    expect(here).toBeGreaterThan(1);
+    await page.keyboard.press("Alt+ArrowLeft");
+    await page.waitForTimeout(300);
+    expect(await currentPageNumber(page)).toBe(here);
+    const box = page.getByLabel("Page number");
+    await box.fill("9");
+    await box.press("Enter");
+    // The last spread cannot scroll all the way up: any page well past `here` will do.
+    await expect.poll(() => currentPageNumber(page)).toBeGreaterThan(here + 2);
+    await page.waitForTimeout(600);
+    await page.getByTestId("viewport").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("Alt+ArrowLeft");
+    await expect.poll(() => currentPageNumber(page)).toBe(here);
   });
 });

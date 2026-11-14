@@ -1,6 +1,7 @@
 // Logic behind the fixes from the B8 code review.
 import { describe, expect, it } from "vitest";
 import { leftRunning, type Running } from "../../src/app/toolSwitch";
+import { isJump, pageStep } from "../../src/app/viewHistory";
 
 describe("leaving a tool", () => {
   const idle: Running = { tool: null, markup: null, mode: "default", stamp: null, flyer: null };
@@ -26,5 +27,19 @@ describe("leaving a tool", () => {
       markup: false,
       mode: false,
     });
+  });
+});
+
+describe("view history jumps", () => {
+  it("paging is not a jump, in two-up either (a spread is one step)", () => {
+    expect(isJump(4, 5, pageStep("continuous"), false)).toBe(false);
+    expect(isJump(4, 6, pageStep("twoUp"), false)).toBe(false);
+    expect(isJump(4, 6, pageStep("continuous"), false)).toBe(true);
+    expect(isJump(4, 8, pageStep("twoUp"), false)).toBe(true);
+  });
+
+  it("an asked-for move is a jump even by one page, but not to the same page", () => {
+    expect(isJump(4, 5, 1, true)).toBe(true);
+    expect(isJump(4, 4, 1, true)).toBe(false);
   });
 });

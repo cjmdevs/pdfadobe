@@ -66,6 +66,19 @@ export function dropViewHistory(storeId: string): void {
   byStore.delete(storeId);
 }
 
+/** Pages one Next / Previous page moves: a whole spread in two-up, else one page. */
+export function pageStep(viewMode: string): number {
+  return viewMode === "twoUp" ? 2 : 1;
+}
+
+/**
+ * A page change is a jump when it was asked for (Go to page, first, last, a thumbnail or
+ * bookmark) or moved more than one step. Paging through a document is not, in any view.
+ */
+export function isJump(from: number, to: number, step: number, explicit: boolean): boolean {
+  return from !== to && (explicit || Math.abs(to - from) > step);
+}
+
 /** Set by explicit jumps (useNav.goTo) so a one-page Go to still counts as a jump. */
 let explicitJump = 0;
 export function markJump(): void {
