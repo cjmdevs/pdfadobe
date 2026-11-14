@@ -36,6 +36,7 @@ import { platform } from "../platform";
 import { useWorkbench } from "./workbench";
 import { ACTUAL_SIZE_SCALE } from "./zoom";
 import { isRestoring, markRestoring, takeJump, viewHistory, type View } from "./viewHistory";
+import { leftRunning, type Running } from "./toolSwitch";
 
 function isEditable(t: EventTarget | null): boolean {
   if (!(t instanceof HTMLElement)) return false;
@@ -228,20 +229,35 @@ function DocCommands({
   // Leaving a tool (its toolbar closed, or another tool opened) stops whatever it was
   // doing: a markup tool such as Rectangle, a stamp or tickmark waiting to be placed, a
   // box being drawn (owner, B8). The next click on the page is a plain click again.
+  // Only what was already running before the switch stops: a button that opens its tool
+  // and starts something in the same click (Redact > Draw box from the top bar) keeps
+  // what it started.
   const activeTool = wb.meta[documentId]?.activeTool ?? null;
-  const lastTool = useRef(activeTool);
+  const running = useRef<Running>({
+    tool: activeTool,
+    markup: annotState.activeToolId,
+    mode: imState.activeMode,
+    stamp: stampPlacement.get(),
+    flyer: flyerPlacement.get(),
+  });
   useEffect(() => {
-    if (lastTool.current === activeTool) return;
-    lastTool.current = activeTool;
-    if (annotState.activeToolId) annots?.setActiveTool(null);
-    if (eraserOn) {
+    const was = running.current;
+    const now: Running = {
+      tool: activeTool,
+      markup: annotState.activeToolId,
+      mode: imState.activeMode,
+      stamp: stampPlacement.get(),
+      flyer: flyerPlacement.get(),
+    };
+    running.current = now;
+    const stop = leftRunning(was, now);
+    if (stop.markup) annots?.setActiveTool(null);
+    if (stop.mode && eraserOn) {
       stampPlacement.set(null);
       flyerPlacement.set(null);
       im?.activateDefaultMode();
     }
-    // Only when the tool changes; the markup state is read as it is then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTool]);
+  });
   const storeId = wb.meta[documentId]?.storeId ?? documentId;
 
   // Previous view / next view (B8): remember the view the reader jumps away from.
