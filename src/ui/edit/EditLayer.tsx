@@ -291,6 +291,18 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         preview.stop();
       });
     };
+    /**
+     * Takes the picture of what is being moved, once per drag and only when it really
+     * is a move: a plain click must not put a render in front of opening the editor.
+     */
+    let lifting: string | null = null;
+    const lift = (it: Item) => {
+      const key = `${it.kind === "text" ? "t" : "i"}${it.id}`;
+      const i = latest.current.info;
+      if (lifting === key || !i) return;
+      lifting = key;
+      preview.start(key, shotArea(it.rect, i), i.height, latest.current.scale);
+    };
     return register({
       onPointerMove: (pos, evt) => {
         if (inEditor(evt.target) && !latest.current.press) return;
@@ -325,6 +337,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           let dy = p.y - pr.from.y;
           const moving = pr.moving || Math.hypot(dx, dy) * latest.current.scale >= DRAG_PX;
           if (moving) {
+            lift(pr.box);
             const start = toBox(frameOf(pr.box, frameSettings.get(sid(), pageIndex, pr.box)));
             const s2 = snap.move({ ...start, x: start.x + dx, y: start.y - dy }, objects(pr.box));
             dx = s2.box.x - start.x;
@@ -333,6 +346,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
           }
           setPress({ ...pr, dx, dy, moving });
         } else if (g) {
+          if (g.handle === "move") lift(g.img);
           const { now, guides } = placeImage(g, pos, evt.shiftKey);
           if (g.handle !== "rotate") snap.show(placeBox(now), guides, g.handle !== "move");
           setImgDrag({ ...g, now });
@@ -424,16 +438,9 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
         }
         editSelection.set(documentId, selectionOf(pageIndex, hit));
         evt.setPointerCapture?.();
-        // A picture of what was pressed, ready if this turns into a move.
         holding.current = null;
         setHeld(null);
-        if (i && (handle ?? "move") === "move")
-          preview.start(
-            `${hit.kind === "text" ? "t" : "i"}${hit.id}`,
-            shotArea(hit.rect, i),
-            i.height,
-            latest.current.scale,
-          );
+        lifting = null;
         // Text: a drag moves the box, a click (on release) opens the editor.
         if (hit.kind === "text")
           setPress({
@@ -449,6 +456,7 @@ export function EditLayer({ documentId, pageIndex }: { documentId: string; pageI
       onPointerUp: (rawPos, evt) => {
         if (inEditor(evt.target) && !latest.current.press && !latest.current.drag) return;
         snap.clear();
+        lifting = null;
         // A drawn box ends where the (snapped) corner was shown.
         const dr = latest.current.drag;
         const pos = dr ? { x: dr.x1, y: dr.y1 } : rawPos;

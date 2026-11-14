@@ -447,6 +447,9 @@ test.describe("Edit PDF", () => {
           .locator("span")
           .first()
           .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+      // The editor lays its runs out again once its fonts are in: a span read while it
+      // is being replaced has no size yet.
+      await expect.poll(size).toBeGreaterThan(0);
       const before = await size();
       await panel(page).getByLabel("Font size").fill("16");
       await panel(page).getByLabel("Font size").press("Enter");

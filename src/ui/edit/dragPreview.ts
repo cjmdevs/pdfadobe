@@ -1,8 +1,8 @@
 // Edit PDF: a picture of the text box or image being dragged, so the content itself is
 // seen moving (the outline alone left the user guessing where the text would land).
-// The picture is the page's own render of that area, taken when the press starts so it
-// is ready by the time the drag is. It lives in memory only (an object URL, revoked when
-// the drag ends); nothing of it is logged or saved.
+// The picture is the page's own render of that area, taken when the drag starts (not on
+// the press: a click only opens the editor). It lives in memory only (an object URL,
+// revoked when the drag ends); nothing of it is logged or saved.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRenderCapability } from "@embedpdf/plugin-render/react";
 import type { Rect } from "../../engine/edit";
